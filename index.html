@@ -1323,8 +1323,8 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
 // ════════════════════════════════════
 // SUPABASE CONFIG — 填入你的專案資訊
 // ════════════════════════════════════
-const SUPABASE_URL  = 'https://hosubjlnteqvyzrfnnyp.supabase.co';   // e.g. 'https://xxxx.supabase.co'
-const SUPABASE_ANON = 'sb_publishable_24IxaxnPfbSppg6MO2sMZQ_e76rjQg9';   // e.g. 'eyJhbGci...' or 'sb_publishable_...'
+const SUPABASE_URL  = '';   // e.g. 'https://xxxx.supabase.co'
+const SUPABASE_ANON = '';   // e.g. 'eyJhbGci...' or 'sb_publishable_...'
 
 let _sb = null;
 let currentUser = null;
@@ -1735,17 +1735,33 @@ function switchLbSort(field){
 }
 
 function initLeaderboard(){
-  // Populate month select
+  // Populate month select — use local year/month to avoid UTC offset issues
   const sel = document.getElementById('lbMonth');
   if(sel&&!sel.children.length){
     const now = new Date();
     for(let i=0;i<6;i++){
       const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      const val = d.toISOString().slice(0,7);
+      const val = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
       const opt = document.createElement('option');
       opt.value=val; opt.textContent=val;
       if(i===0) opt.selected=true;
       sel.appendChild(opt);
+    }
+  } else if(sel&&sel.children.length){
+    // Already populated but may have wrong value — re-check first option
+    const now = new Date();
+    const cur = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    if(sel.options[0]?.value!==cur){
+      // Reset and repopulate
+      sel.innerHTML='';
+      for(let i=0;i<6;i++){
+        const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+        const val = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+        const opt = document.createElement('option');
+        opt.value=val; opt.textContent=val;
+        if(i===0) opt.selected=true;
+        sel.appendChild(opt);
+      }
     }
   }
   updateMyStats();
@@ -1823,7 +1839,7 @@ function updateMyStats(){
 async function syncMyStats(){
   const sb = sbClient(); if(!sb||!currentUser){ toast('請先登入','e'); return; }
   const now = new Date();
-  const yearMonth = now.toISOString().slice(0,7);
+  const yearMonth = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   const m=now.getMonth(), y=now.getFullYear();
   const all=trades.filter(t=>{const d=new Date(t.date);return d.getMonth()===m&&d.getFullYear()===y;});
   const closed=all.filter(t=>t.status!=='OPEN');
