@@ -1034,6 +1034,16 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <span id="imgbbStatus" style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-left:8px"></span>
     </div>
   </div>
+  <div class="card mb16" style="max-width:680px">
+    <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">📊 交易資產管理</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-bottom:10px;line-height:1.7">自訂 Trade Log 的資產選單。拖曳可調整順序，點 ✕ 刪除，已使用的資產無法刪除。</div>
+    <div id="assetList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:32px;padding:6px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)"></div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input id="newAssetInput" type="text" placeholder="新增資產（e.g. NAS100）" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--hi);font-size:11px" onkeydown="if(event.key==='Enter')addCustomAsset()">
+      <button class="btn btn-a btn-sm" onclick="addCustomAsset()">+ 新增</button>
+      <button class="btn btn-g btn-sm" onclick="resetDefaultAssets()">↺ 還原預設</button>
+    </div>
+  </div>
   <div class="card" style="max-width:680px">
     <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">💾 本地資料管理</div>
     <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-bottom:10px;line-height:1.7">所有資料存於 localStorage。圖片以 base64 儲存，建議定期推送至 Notion 備份。</div>
@@ -1064,10 +1074,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:3px">資產</div>
-            <select id="ideaAsset" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:5px 8px;color:var(--hi);font-size:11px">
-              <option>GOLD</option><option>BTC</option><option>OIL</option>
-              <option>BOND</option><option>FX</option><option>SPX</option>
-            </select>
+<select id="ideaAsset" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:5px 8px;color:var(--hi);font-size:11px"></select>
           </div>
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:3px">方向</div>
@@ -1115,12 +1122,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <!-- Idea feed -->
       <div style="flex:1;min-width:0">
         <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-          <select id="ideaFilter" onchange="loadIdeas()" style="font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px;color:var(--mid)">
-            <option value="all">全部資產</option>
-            <option value="GOLD">GOLD</option><option value="BTC">BTC</option>
-            <option value="OIL">OIL</option><option value="BOND">BOND</option>
-            <option value="FX">FX</option>
-          </select>
+<select id="ideaFilter" onchange="loadIdeas()" style="font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px;color:var(--mid)"><option value="all">全部資產</option></select>
           <button class="btn btn-g btn-sm" onclick="loadIdeas()">🔄 刷新</button>
           <span id="ideaCount" style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-left:auto"></span>
         </div>
@@ -1232,7 +1234,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <!-- Row 1: basic info -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
         <div class="fg"><span class="fl">日期</span><input type="date" id="m-date" style="width:100%"></div>
-        <div class="fg"><span class="fl">資產</span><select id="m-asset" style="width:100%"><option>BOND</option><option>FX</option><option>GOLD</option><option>OIL</option><option>BTC</option><option>ETH</option></select></div>
+        <div class="fg"><span class="fl">資產</span><select id="m-asset" style="width:100%"></select></div>
         <div class="fg"><span class="fl">方向</span><select id="m-dir" style="width:100%"><option>LONG</option><option>SHORT</option></select></div>
         <div class="fg"><span class="fl">狀態</span><select id="m-status" style="width:100%"><option>OPEN</option><option>CLOSED</option><option>TP HIT</option><option>SL HIT</option></select></div>
 
@@ -2170,6 +2172,94 @@ function sbUpdateLastSync(){
   }
 }
 
+
+// ════════════════════════════════════
+// CUSTOM ASSET MANAGEMENT
+// ════════════════════════════════════
+const DEFAULT_ASSETS = ['BOND','FX','GOLD','OIL','BTC','ETH'];
+
+function getAssets(){
+  try{ return JSON.parse(localStorage.getItem('ficc_assets')||'null') || [...DEFAULT_ASSETS]; }
+  catch{ return [...DEFAULT_ASSETS]; }
+}
+function saveAssets(arr){
+  localStorage.setItem('ficc_assets', JSON.stringify(arr));
+  settings.customAssets = arr;
+  saveAll();
+}
+
+// Populate all asset selects in the app
+function populateAssetSelects(selectedVal){
+  const assets = getAssets();
+  const selects = ['m-asset','ideaAsset'];
+  selects.forEach(id=>{
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    const cur = selectedVal || sel.value;
+    sel.innerHTML = assets.map(a=>`<option value="${a}">${a}</option>`).join('');
+    if(cur && assets.includes(cur)) sel.value=cur;
+  });
+  // idea filter select
+  const filter = document.getElementById('ideaFilter');
+  if(filter){
+    const cur = filter.value;
+    filter.innerHTML = '<option value="all">全部資產</option>' +
+      assets.map(a=>`<option value="${a}">${a}</option>`).join('');
+    if(cur) filter.value=cur;
+  }
+}
+
+// Render asset management UI in Settings
+function renderAssetList(){
+  const assets = getAssets();
+  const usedAssets = new Set(trades.map(t=>t.asset).filter(Boolean));
+  const list = document.getElementById('assetList');
+  if(!list) return;
+  list.innerHTML = assets.map((a,i)=>{
+    const inUse = usedAssets.has(a);
+    return `<div style="display:flex;align-items:center;gap:4px;background:var(--bg1);border:1px solid var(--border2);border-radius:var(--r);padding:4px 8px;font-family:var(--mono);font-size:10px">
+      <span style="color:var(--hi)">${a}</span>
+      ${inUse?'<span style="font-size:8px;color:var(--lo)" title="已有交易記錄">🔒</span>':
+        `<button onclick="removeAsset('${a}')" style="background:none;border:none;color:var(--lo);cursor:pointer;font-size:10px;line-height:1;padding:0 0 0 2px">✕</button>`}
+    </div>`;
+  }).join('');
+}
+
+function addCustomAsset(){
+  const inp = document.getElementById('newAssetInput');
+  const val = inp.value.trim().toUpperCase();
+  if(!val){ toast('請輸入資產名稱','e'); return; }
+  if(val.length > 12){ toast('名稱最多 12 字元','e'); return; }
+  const assets = getAssets();
+  if(assets.includes(val)){ toast(val+' 已存在','e'); return; }
+  assets.push(val);
+  saveAssets(assets);
+  inp.value='';
+  renderAssetList();
+  populateAssetSelects();
+  toast('✓ 已新增 '+val);
+}
+
+function removeAsset(name){
+  const usedAssets = new Set(trades.map(t=>t.asset));
+  if(usedAssets.has(name)){ toast(name+' 已有交易記錄，無法刪除','e'); return; }
+  const assets = getAssets().filter(a=>a!==name);
+  saveAssets(assets);
+  renderAssetList();
+  populateAssetSelects();
+  toast('已移除 '+name);
+}
+
+function resetDefaultAssets(){
+  if(!confirm('還原為預設資產清單？ (BOND/FX/GOLD/OIL/BTC/ETH) 自訂的資產會移除（已有交易的除外）')) return;
+  const usedAssets = new Set(trades.map(t=>t.asset));
+  const merged = [...new Set([...DEFAULT_ASSETS, ...usedAssets])];
+  saveAssets(merged);
+  renderAssetList();
+  populateAssetSelects();
+  toast('✓ 已還原預設');
+}
+
 // ════════════════════════════════════
 // CLOCK & SESSION
 // ════════════════════════════════════
@@ -2191,6 +2281,7 @@ setInterval(tick,1000);tick();
 // ════════════════════════════════════
 function showPage(id,btn){
   if(id==='macro')macroInit();
+  if(id==='settings'){setTimeout(()=>{renderAssetList();populateAssetSelects();},50);}
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   const pageEl=document.getElementById('page-'+id)||document.getElementById(id);
@@ -2822,6 +2913,8 @@ function openAddModal(){
   const nbtn2=document.getElementById('notionPushBtn');
   if(nbtn2) nbtn2.textContent='◩ 推送 Notion';
   currentChartPhase='entry';switchChartPhase('entry');buildCtabs(null);document.getElementById('tradeModal').classList.add('open');
+  populateAssetSelects();
+  renderAssetList();
   const pub=document.getElementById('m-public');
   if(pub){pub.addEventListener('change',()=>{
     document.getElementById('publicLabel').textContent=pub.checked?'🌐 公開':'🔒 私人';
@@ -3104,13 +3197,10 @@ function _computeLegs(){
   }
   const totalRisk = _legs.reduce((s,l)=>s+(parseFloat(l.risk)||0),0);
   const legsWithR = _legs.filter(l=>legR(l,dir)!=null);
+  // 總 R = 各腳 R 直接相加（不做加權平均）
   let weightedR = null;
   if(legsWithR.length){
-    const rTotalSize = hasSizes ? legsWithR.reduce((s,l)=>s+(parseFloat(l.size)||0),0) : legsWithR.length;
-    weightedR = legsWithR.reduce((s,l)=>{
-      const r=legR(l,dir), wt=hasSizes?(parseFloat(l.size)||0)/rTotalSize:1/legsWithR.length;
-      return s+r*wt;
-    },0);
+    weightedR = legsWithR.reduce((s,l)=>s+legR(l,dir),0);
   }
   return{avgEntry,avgExit,totalRisk,weightedR,totalPnl,hasPnl};
 }
@@ -4919,6 +5009,7 @@ function loadUISettings(){
 }
 
 load();
+populateAssetSelects();
 initAuth();          // Supabase auth gate — shows login if not signed in
 renderChecklist();
 initJDate();
