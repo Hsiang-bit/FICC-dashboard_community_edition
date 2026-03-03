@@ -1478,7 +1478,7 @@ function switchCTab(tab){
     document.getElementById('ctab-'+t).classList.toggle('active', t===tab);
   });
   if(tab==='ideas') loadIdeas();
-  if(tab==='leaderboard') initLeaderboard();
+  if(tab==='leaderboard'){initLeaderboard();setTimeout(updateMyStats,500);}
   if(tab==='profile') loadProfile();
 }
 
@@ -1779,16 +1779,16 @@ async function loadLeaderboard(){
     const name  = row.profiles?.username||'匿名';
     const color = row.profiles?.avatar_color||'#f59e0b';
     const isMe  = row.user_id===currentUser?.id;
-    const val   = lbSortField==='avg_r'?row.avg_r?.toFixed(2)+'R':
-                  lbSortField==='win_rate'?(row.win_rate*100).toFixed(0)+'%':
-                  lbSortField==='total_pnl'?row.total_pnl?.toFixed(2):
-                  row.trades_count;
+    const val   = lbSortField==='avg_r'?(row.avg_r!=null?row.avg_r.toFixed(2)+'R':'—'):
+                  lbSortField==='win_rate'?(row.win_rate!=null?(row.win_rate*100).toFixed(0)+'%':'—'):
+                  lbSortField==='total_pnl'?(row.total_pnl!=null?(row.total_pnl>=0?'+':'')+row.total_pnl.toFixed(2):'—'):
+                  row.trades_count??'—';
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${isMe?'rgba(245,158,11,.06)':'var(--bg2)'};border:1px solid ${isMe?'rgba(245,158,11,.2)':'var(--border)'};border-radius:var(--r)">
       <span style="font-family:var(--cond);font-size:16px;width:28px;text-align:center">${medals[i]||'#'+(i+1)}</span>
       <div style="width:28px;height:28px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-family:var(--cond);font-size:11px;font-weight:800;color:#000">${name[0].toUpperCase()}</div>
       <span style="font-family:var(--mono);font-size:11px;color:var(--hi);flex:1">${name}${isMe?' ⭐':''}</span>
       <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--amber)">${val??'—'}</span>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-align:right">${row.trades_count}筆 / ${(row.win_rate*100).toFixed(0)}%</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-align:right">${row.trades_count??0}筆 / ${row.win_rate!=null?(row.win_rate*100).toFixed(0)+'%':'—'}</div>
     </div>`;
   }).join('');
 }
@@ -1796,15 +1796,28 @@ async function loadLeaderboard(){
 function updateMyStats(){
   const now = new Date();
   const m = now.getMonth(), y = now.getFullYear();
-  const mt = trades.filter(t=>{ const d=new Date(t.date); return d.getMonth()===m&&d.getFullYear()===y&&t.status!=='OPEN'; });
-  const w  = mt.filter(t=>t.pnl>0);
-  document.getElementById('my-trades').textContent = mt.length;
-  document.getElementById('my-wr').textContent = mt.length?(w.length/mt.length*100).toFixed(0)+'%':'—';
-  const avgR = mt.length?(mt.reduce((s,t)=>s+(t.pnl||0),0)/mt.length).toFixed(2):null;
-  document.getElementById('my-avgr').textContent = avgR?avgR+'R':'—';
-  const pnl = trades.filter(t=>t.totalPnl!=null&&new Date(t.date).getMonth()===m).reduce((s,t)=>s+t.totalPnl,0);
+  // All trades this month (include OPEN for count, closed for R stats)
+  const all = trades.filter(t=>{ const d=new Date(t.date); return d.getMonth()===m&&d.getFullYear()===y; });
+  const closed = all.filter(t=>t.status!=='OPEN');
+  const w = closed.filter(t=>(t.pnl||0)>0);
+
+  const trEl=document.getElementById('my-trades');
+  const wrEl=document.getElementById('my-wr');
+  const arEl=document.getElementById('my-avgr');
   const pnlEl=document.getElementById('my-pnl');
-  if(pnlEl){pnlEl.textContent=pnl?(pnl>=0?'+':'')+pnl.toFixed(2):'—';pnlEl.style.color=pnl>=0?'var(--green)':'var(--red)';}
+  if(!trEl)return; // not rendered yet
+
+  trEl.textContent = all.length ? all.length + (closed.length<all.length?' ('+closed.length+'已關)':'') : '—';
+  wrEl.textContent = closed.length ? (w.length/closed.length*100).toFixed(0)+'%' : '—';
+  const rVals = closed.filter(t=>t.pnl!=null).map(t=>t.pnl);
+  const avgR  = rVals.length ? (rVals.reduce((s,v)=>s+v,0)/rVals.length) : null;
+  if(arEl){ arEl.textContent=avgR!=null?avgR.toFixed(2)+'R':'—'; arEl.style.color=avgR>0?'var(--green)':avgR<0?'var(--red)':'var(--mid)'; }
+  const pnlTrades = all.filter(t=>t.totalPnl!=null);
+  const pnl = pnlTrades.length ? pnlTrades.reduce((s,t)=>s+t.totalPnl,0) : null;
+  if(pnlEl){
+    if(pnl!=null){pnlEl.textContent=(pnl>=0?'+':'')+pnl.toFixed(2);pnlEl.style.color=pnl>=0?'var(--green)':'var(--red)';}
+    else pnlEl.textContent='—';
+  }
 }
 
 async function syncMyStats(){
@@ -1812,18 +1825,26 @@ async function syncMyStats(){
   const now = new Date();
   const yearMonth = now.toISOString().slice(0,7);
   const m=now.getMonth(), y=now.getFullYear();
-  const mt=trades.filter(t=>{const d=new Date(t.date);return d.getMonth()===m&&d.getFullYear()===y&&t.status!=='OPEN';});
-  const w=mt.filter(t=>t.pnl>0);
-  const avgR=mt.length?mt.reduce((s,t)=>s+(t.pnl||0),0)/mt.length:0;
-  const totalPnl=mt.filter(t=>t.totalPnl!=null).reduce((s,t)=>s+t.totalPnl,0);
+  const all=trades.filter(t=>{const d=new Date(t.date);return d.getMonth()===m&&d.getFullYear()===y;});
+  const closed=all.filter(t=>t.status!=='OPEN');
+  const w=closed.filter(t=>(t.pnl||0)>0);
+  const rVals=closed.filter(t=>t.pnl!=null).map(t=>t.pnl);
+  const avgR=rVals.length?rVals.reduce((s,v)=>s+v,0)/rVals.length:null;
+  const pnlTrades=all.filter(t=>t.totalPnl!=null);
+  const totalPnl=pnlTrades.length?pnlTrades.reduce((s,t)=>s+t.totalPnl,0):null;
+
+  if(!all.length){ toast('本月沒有交易記錄，請先新增交易','e'); return; }
+
   const { error } = await sb.from('monthly_stats').upsert({
     user_id:currentUser.id, year_month:yearMonth,
-    trades_count:mt.length, win_rate:mt.length?w.length/mt.length:0,
-    avg_r:avgR, total_pnl:totalPnl,
+    trades_count:all.length,
+    win_rate:closed.length?w.length/closed.length:0,
+    avg_r:avgR,
+    total_pnl:totalPnl,
     updated_at:new Date().toISOString()
   }, {onConflict:'user_id,year_month'});
   if(error){ toast('同步失敗：'+error.message,'e'); return; }
-  toast('✓ 已同步到排行榜');
+  toast('✓ 已同步：'+all.length+'筆交易，'+(closed.length?'勝率'+(w.length/closed.length*100).toFixed(0)+'%':'無已關閉交易'));
   updateMyStats(); loadLeaderboard();
 }
 
