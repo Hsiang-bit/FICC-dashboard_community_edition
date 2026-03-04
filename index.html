@@ -1382,17 +1382,11 @@ async function authRegister(){
   setAuthMsg('建立中...');
   const { data, error } = await sb.auth.signUp({ email, password: pwd });
   if(error){ setAuthMsg(error.message, true); return; }
-  // Create profile
-  if(data.user){
-    await sb.from('profiles').upsert({
-      id: data.user.id,
-      username,
-      avatar_color: '#f59e0b',
-      created_at: new Date().toISOString()
-    });
-  }
-  setAuthMsg('✓ 帳號建立成功！請查收驗證信後登入');
+  // Save username to localStorage — will be written to profiles after email verified + login
+  if(username) localStorage.setItem('ficc_pending_username', username);
+  setAuthMsg('✓ 帳號建立成功！請查收驗證信，點擊連結後回來登入');
   switchAuthTab('login');
+  document.getElementById('authEmail').value = email;
 }
 
 async function authMagicLink(){
@@ -1461,8 +1455,24 @@ async function initAuth(){
       hideAuthGate();
       // Load profile (always refresh on login events)
       if(event==='SIGNED_IN' || event==='INITIAL_SESSION' || !currentProfile){
-        const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
-        currentProfile = data;
+        const { data: pd } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+        if(pd){
+          currentProfile = pd;
+        } else {
+          // First login after email verification — create profile now
+          const pendingName = localStorage.getItem('ficc_pending_username') ||
+                              currentUser.email?.split('@')[0] || 'Trader';
+          const { data: newPd, error: pe } = await sb.from('profiles').upsert({
+            id: currentUser.id,
+            username: pendingName,
+            avatar_color: '#f59e0b',
+            created_at: new Date().toISOString()
+          }, {onConflict:'id'}).select().maybeSingle();
+          if(!pe){
+            currentProfile = newPd;
+            localStorage.removeItem('ficc_pending_username');
+          }
+        }
       }
       renderUserBar(currentProfile);
       // Only pull data + reload on actual login, not on every token refresh
