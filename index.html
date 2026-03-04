@@ -364,7 +364,7 @@ select option{background:var(--bg2)}
 </div>
 
 <!-- ═══════ USER BAR (top-right after login) ═══════ -->
-<div id="userBar" style="display:none;position:fixed;top:8px;right:16px;z-index:400;display:none;align-items:center;gap:8px">
+<div id="userBar" style="display:none;position:fixed;top:8px;right:16px;z-index:400;align-items:center;gap:8px">
   <div id="userAvatar" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--cond);font-size:11px;font-weight:800;cursor:pointer" onclick="toggleUserMenu()"></div>
   <div id="userMenu" style="display:none;position:absolute;top:32px;right:0;background:var(--bg1);border:1px solid var(--border2);border-radius:var(--r);min-width:150px;padding:6px 0;box-shadow:0 4px 20px rgba(0,0,0,.4)">
     <div id="userMenuName" style="padding:6px 14px;font-family:var(--mono);font-size:10px;color:var(--lo);border-bottom:1px solid var(--border);margin-bottom:4px"></div>
@@ -1123,7 +1123,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <div style="flex:1;min-width:280px">
         <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
 <select id="ideaFilter" onchange="if(!this.dataset.updating)loadIdeas()" style="font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px;color:var(--mid)"><option value="all">全部資產</option></select>
-          <button class="btn btn-g btn-sm" onclick="loadIdeas()">🔄 刷新</button>
+          <button class="btn btn-g btn-sm" onclick="loadIdeas(true)">🔄 刷新</button>
           <span id="ideaCount" style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-left:auto"></span>
         </div>
         <div id="ideaFeed" style="display:flex;flex-direction:column;gap:10px">
@@ -1434,6 +1434,7 @@ function hideAuthGate(){
 
 function renderUserBar(profile){
   const bar = document.getElementById('userBar');
+  if(!bar) return;
   const av  = document.getElementById('userAvatar');
   const nm  = document.getElementById('userMenuName');
   const name = profile?.username || currentUser?.email?.split('@')[0] || '?';
@@ -1450,22 +1451,35 @@ async function initAuth(){
   const sb = sbClient();
   if(!sb){ showAuthGate(); return; }
   // Listen for auth changes
+  let _authInitDone = false;
   sb.auth.onAuthStateChange(async (event, session) => {
+    console.log('[Auth]', event, session?.user?.email||'no user');
+
     if(session?.user){
+      const isNewLogin = !currentUser || currentUser.id !== session.user.id;
       currentUser = session.user;
       hideAuthGate();
-      // Load profile
-      const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
-      currentProfile = data;
+      // Load profile (always refresh on login events)
+      if(event==='SIGNED_IN' || event==='INITIAL_SESSION' || !currentProfile){
+        const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+        currentProfile = data;
+      }
       renderUserBar(currentProfile);
-      // Sync data from Supabase
-      await sbPullSilent();
-      load(); renderTrades(); loadJournal(currentJDate);
-    } else {
+      // Only pull data + reload on actual login, not on every token refresh
+      if(!_authInitDone || event==='SIGNED_IN'){
+        _authInitDone = true;
+        await sbPullSilent();
+        load(); renderTrades(); loadJournal(currentJDate);
+      }
+    } else if(event==='SIGNED_OUT'){
+      // Only truly log out on explicit sign-out
       currentUser = null;
+      currentProfile = null;
+      _authInitDone = false;
       showAuthGate();
       document.getElementById('userBar').style.display='none';
     }
+    // TOKEN_REFRESHED / USER_UPDATED with null session = ignore (transient)
   });
   // Check existing session
   const { data: { session } } = await sb.auth.getSession();
@@ -1489,8 +1503,14 @@ function switchCTab(tab){
 }
 
 // ── IDEA WALL ──
-async function loadIdeas(){
+let _lastIdeaLoad = 0;
+async function loadIdeas(force=false){
   const sb = sbClient();
+  const now = Date.now();
+  if(!force && now - _lastIdeaLoad < 5000 && document.getElementById('ideaFeed')?.innerHTML?.includes('card')){
+    return; // throttle: don't reload if we have content and it's been < 5s
+  }
+  _lastIdeaLoad = now;
   if(!sb){ const f=document.getElementById('ideaFeed'); if(f) f.innerHTML='<div style="color:var(--red);font-family:var(--mono);font-size:10px;padding:20px;text-align:center">⚠ 未設定 Supabase 連線</div>'; return; }
   const feed = document.getElementById('ideaFeed');
   const filter = document.getElementById('ideaFilter')?.value || 'all';
@@ -1681,7 +1701,7 @@ async function postIdea(){
   ['ideaTitle','ideaContent','ideaEntry','ideaTp','ideaSl'].forEach(id=>document.getElementById(id).value='');
   clearIdeaImage();
   _activeCTab=null; // force refresh
-  loadIdeas();
+  loadIdeas(true);
 }
 
 async function deleteIdea(id){
