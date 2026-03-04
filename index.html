@@ -1122,7 +1122,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <!-- Idea feed -->
       <div style="flex:1;min-width:280px">
         <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-<select id="ideaFilter" onchange="loadIdeas()" style="font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px;color:var(--mid)"><option value="all">全部資產</option></select>
+<select id="ideaFilter" onchange="if(!this.dataset.updating)loadIdeas()" style="font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px;color:var(--mid)"><option value="all">全部資產</option></select>
           <button class="btn btn-g btn-sm" onclick="loadIdeas()">🔄 刷新</button>
           <span id="ideaCount" style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-left:auto"></span>
         </div>
@@ -1503,7 +1503,13 @@ async function loadIdeas(){
   if(filter !== 'all') q = q.eq('asset', filter);
 
   const { data: ideas, error } = await q;
-  if(error){ feed.innerHTML='<div style="color:var(--red);font-size:10px;padding:10px">'+error.message+'</div>'; return; }
+  if(error){
+    // Don't wipe existing content on transient errors — show error inline
+    const errMsg = error.message || 'unknown error';
+    console.error('loadIdeas error:', errMsg);
+    feed.innerHTML='<div style="color:var(--red);font-family:var(--mono);font-size:10px;padding:16px;text-align:center">⚠ 載入失敗：'+errMsg+'<br><button onclick="loadIdeas()" class="btn btn-g btn-sm" style="margin-top:8px">重試</button></div>';
+    return;
+  }
 
   // Batch fetch profiles for all unique user_ids
   const userIds=[...new Set((ideas||[]).map(i=>i.user_id).filter(Boolean))];
@@ -1516,6 +1522,10 @@ async function loadIdeas(){
 
   document.getElementById('ideaCount').textContent = (data?.length||0)+' 則 Ideas';
   if(!data?.length){
+    // Only show empty state if we're sure (not a spurious call during init)
+    if(!currentUser && feed.innerHTML.includes('card')){
+      return; // keep existing content visible if not logged in
+    }
     feed.innerHTML='<div style="font-family:var(--mono);font-size:10px;color:var(--lo);padding:20px;text-align:center">目前沒有 Idea，來發第一則！</div>';
     return;
   }
@@ -2217,9 +2227,11 @@ function populateAssetSelects(selectedVal){
   const filter = document.getElementById('ideaFilter');
   if(filter){
     const cur = filter.value;
+    filter.dataset.updating='1'; // suppress onchange
     filter.innerHTML = '<option value="all">全部資產</option>' +
       assets.map(a=>`<option value="${a}">${a}</option>`).join('');
     if(cur) filter.value=cur;
+    delete filter.dataset.updating;
   }
 }
 
