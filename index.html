@@ -1067,7 +1067,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
 
   <!-- Ideas Tab -->
   <div id="cpanel-ideas" class="cpanel active">
-    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:flex-start">
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:flex-start;flex-wrap:wrap">
       <!-- Post new idea -->
       <div class="card" style="flex:1;max-width:360px;flex-shrink:0">
         <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">📝 發布 Trade Idea</div>
@@ -1120,7 +1120,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       </div>
 
       <!-- Idea feed -->
-      <div style="flex:1;min-width:0">
+      <div style="flex:1;min-width:280px">
         <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
 <select id="ideaFilter" onchange="loadIdeas()" style="font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:4px 8px;color:var(--mid)"><option value="all">全部資產</option></select>
           <button class="btn btn-g btn-sm" onclick="loadIdeas()">🔄 刷新</button>
@@ -1204,7 +1204,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
 
 
 <!-- ═══════ IDEA DETAIL MODAL ═══════ -->
-<div id="ideaModal" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.7);align-items:center;justify-content:center">
+<div id="ideaModal" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.7);align-items:center;justify-content:center" onclick="if(event.target===this)closeIdeaModal()">
   <div style="background:var(--bg1);border:1px solid var(--border2);border-radius:8px;width:min(680px,96vw);max-height:90vh;overflow-y:auto;padding:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <div id="ideaModalTitle" style="font-family:var(--cond);font-size:13px;font-weight:800;color:var(--hi)"></div>
@@ -1474,7 +1474,10 @@ async function initAuth(){
 // ════════════════════════════════════
 // COMMUNITY — FUNCTIONS
 // ════════════════════════════════════
+let _activeCTab = null;
 function switchCTab(tab){
+  if(_activeCTab===tab) return; // already on this tab
+  _activeCTab=tab;
   ['ideas','leaderboard','profile'].forEach(t=>{
     document.getElementById('cpanel-'+t).classList.toggle('active', t===tab);
     document.getElementById('ctab-'+t).classList.toggle('active', t===tab);
@@ -1623,7 +1626,7 @@ function renderIdeaCard(idea){
       <div style="width:22px;height:22px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-family:var(--cond);font-size:9px;font-weight:800;color:#000;flex-shrink:0">${username[0].toUpperCase()}</div>
       <span style="font-family:var(--mono);font-size:10px;color:var(--mid)">${username}</span>
       <span style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-left:auto">${time}</span>
-      ${isMine?`<button onclick="deleteIdea('${idea.id}')" style="background:none;border:none;color:var(--lo);cursor:pointer;font-size:10px;padding:0 4px">✕</button>`:''}
+      ${isMine?`<button onclick="event.stopPropagation();deleteIdea('${idea.id}')" style="background:none;border:none;color:var(--lo);cursor:pointer;font-size:10px;padding:0 4px" title="刪除">✕</button>`:''}
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <span class="cl-tag ${idea.asset}" style="font-size:10px">${idea.asset}</span>
@@ -1665,6 +1668,7 @@ async function postIdea(){
   toast('✓ 已發布');
   ['ideaTitle','ideaContent','ideaEntry','ideaTp','ideaSl'].forEach(id=>document.getElementById(id).value='');
   clearIdeaImage();
+  _activeCTab=null; // force refresh
   loadIdeas();
 }
 
@@ -2290,7 +2294,7 @@ function showPage(id,btn){
   if(id==='risk')updateRisk();
   if(id==='tradelog')renderTrades();
   if(id==='gantt')renderGantt();
-  if(id==='page-community'||id==='community'){switchCTab('ideas');}
+  if(id==='page-community'||id==='community'){_activeCTab=null;switchCTab('ideas');}
 }
 function showJTab(id,btn){
   document.querySelectorAll('.jpanel').forEach(p=>p.classList.remove('active'));
