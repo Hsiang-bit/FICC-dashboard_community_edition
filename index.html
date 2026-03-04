@@ -484,51 +484,14 @@ select option{background:var(--bg2)}
 
   <!-- RS -->
   <div class="jpanel" id="jp-rs">
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px">
-      <div class="rs-card">
-        <div class="rs-title" style="color:var(--blue)">🏛 Bond 利率結構</div>
-        <div class="rs-row"><span class="rs-sym">2Y Yield</span><select data-rs="2y" onchange="jDirty()"><option>—</option><option>上行↑</option><option>下行↓</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">10Y Yield</span><select data-rs="10y" onchange="jDirty()"><option>—</option><option>上行↑</option><option>下行↓</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">2Y10Y Spread</span><select data-rs="2y10y" onchange="jDirty()"><option>—</option><option>陡化</option><option>平化</option><option>倒掛</option></select></div>
-        <div class="rs-row"><span class="rs-sym">TLT/IEF</span><select data-rs="tlt" onchange="jDirty()"><option>—</option><option>TLT強</option><option>IEF強</option><option>中性</option></select></div>
-      </div>
-      <div class="rs-card">
-        <div class="rs-title" style="color:var(--cyan)">💱 FX DXY組成</div>
-        <div class="rs-row"><span class="rs-sym">DXY</span><select data-rs="dxy" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">EUR/USD</span><select data-rs="eur" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">USD/JPY</span><select data-rs="jpy" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">GBP/USD</span><select data-rs="gbp" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">USD/CHF</span><select data-rs="chf" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-      </div>
-      <div class="rs-card">
-        <div class="rs-title" style="color:var(--amber)">🥇 Gold 金屬同類</div>
-        <div class="rs-row"><span class="rs-sym">Silver (SIL)</span><select data-rs="silver" onchange="jDirty()"><option>—</option><option>⬆強/確認</option><option>⬇弱/背離</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">Copper (HG)</span><select data-rs="copper" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">GDX</span><select data-rs="gdx" onchange="jDirty()"><option>—</option><option>⬆強/領先</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">GDXJ</span><select data-rs="gdxj" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-      </div>
-      <div class="rs-card">
-        <div class="rs-title" style="color:var(--red)">🛢 Oil 能源同類</div>
-        <div class="rs-row"><span class="rs-sym">Brent (UKOIL)</span><select data-rs="brent" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">WTI (USOIL)</span><select data-rs="wti" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">XOM</span><select data-rs="xom" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">XOP</span><select data-rs="xop" onchange="jDirty()"><option>—</option><option>⬆強</option><option>⬇弱</option><option>中性</option></select></div>
-      </div>
-      <div class="rs-card">
-        <div class="rs-title" style="color:var(--pur)">₿ Crypto 公鏈</div>
-        <div class="rs-row"><span class="rs-sym">BTC Dominance</span><select data-rs="btcd" onchange="jDirty()"><option>—</option><option>⬆BTC集中</option><option>⬇Alt Season</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">ETH/BTC</span><select data-rs="ethbtc" onchange="jDirty()"><option>—</option><option>⬆ETH強</option><option>⬇BTC強</option><option>中性</option></select></div>
-        <div class="rs-row"><span class="rs-sym">Total2/Total</span><select data-rs="total2" onchange="jDirty()"><option>—</option><option>⬆Alt流入</option><option>⬇撤退</option><option>中性</option></select></div>
-      </div>
-      <div class="rs-card">
-        <div class="rs-title" style="color:var(--lo)">📊 COT持倉</div>
-        <div class="rs-row"><span class="rs-sym">ZB Spec Net</span><select data-rs="cotzb" onchange="jDirty()"><option>—</option><option>淨多</option><option>淨空</option><option>極端</option></select></div>
-        <div class="rs-row"><span class="rs-sym">EUR Spec Net</span><select data-rs="coteur" onchange="jDirty()"><option>—</option><option>淨多</option><option>淨空</option><option>極端</option></select></div>
-        <div class="rs-row"><span class="rs-sym">Gold Spec Net</span><select data-rs="cotgold" onchange="jDirty()"><option>—</option><option>淨多</option><option>淨空</option><option>極端</option></select></div>
-        <div class="rs-row"><span class="rs-sym">WTI Spec Net</span><select data-rs="cotwti" onchange="jDirty()"><option>—</option><option>淨多</option><option>淨空</option><option>極端</option></select></div>
-      </div>
-    </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase">RS Monitor</span>
+    <button id="rsEditBtn" onclick="toggleRsEdit()" class="btn btn-g btn-sm" style="font-size:10px;margin-left:auto">✏ 編輯</button>
+    <button id="rsAddCardBtn" onclick="rsAddCard()" class="btn btn-g btn-sm" style="font-size:10px;display:none">+ 新增卡片</button>
+    <button id="rsSaveBtn" onclick="rsExitEdit()" class="btn btn-a btn-sm" style="font-size:10px;display:none">✓ 完成</button>
   </div>
+  <div id="rsDynGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px"></div>
+</div>
 
   <!-- Macro -->
   <div class="jpanel" id="jp-macro">
@@ -2110,6 +2073,7 @@ function sbBuildSnapshot(){
     checklist: JSON.parse(localStorage.getItem('ficc_checklist')||'null'),
     macro_md:  localStorage.getItem('ficc_macro_md')||'',
     macro_inputs: JSON.parse(localStorage.getItem('ficc_macro_inputs')||'null'),
+    rs_config: JSON.parse(localStorage.getItem('ficc_rs_config')||'null'),
     version:   3,
     pushed_at: new Date().toISOString(),
   };
@@ -2178,6 +2142,7 @@ async function sbPull(){
   if(snap.checklist)localStorage.setItem('ficc_checklist',JSON.stringify(snap.checklist));
   if(snap.macro_md)localStorage.setItem('ficc_macro_md',snap.macro_md);
   if(snap.macro_inputs)localStorage.setItem('ficc_macro_inputs',JSON.stringify(snap.macro_inputs));
+    if(snap.rs_config)localStorage.setItem('ficc_rs_config',JSON.stringify(snap.rs_config));
 
   // Reload UI
   load(); renderTrades(); loadJournal(currentJDate);
@@ -2316,6 +2281,150 @@ function resetDefaultAssets(){
   toast('✓ 已還原預設');
 }
 
+
+const RS_DEFAULT = [
+  { title:'🏛 Bond 利率結構', color:'var(--blue)', rows:[
+    {label:'2Y Yield',    key:'2y',    opts:['—','上行↑','下行↓','中性']},
+    {label:'10Y Yield',   key:'10y',   opts:['—','上行↑','下行↓','中性']},
+    {label:'2Y10Y Spread',key:'2y10y', opts:['—','陡化','平化','倒掛']},
+    {label:'TLT/IEF',     key:'tlt',   opts:['—','TLT強','IEF強','中性']},
+  ]},
+  { title:'💱 FX DXY組成', color:'var(--cyan)', rows:[
+    {label:'DXY',    key:'dxy', opts:['—','⬆強','⬇弱','中性']},
+    {label:'EUR/USD',key:'eur', opts:['—','⬆強','⬇弱','中性']},
+    {label:'USD/JPY',key:'jpy', opts:['—','⬆強','⬇弱','中性']},
+    {label:'GBP/USD',key:'gbp', opts:['—','⬆強','⬇弱','中性']},
+    {label:'USD/CHF',key:'chf', opts:['—','⬆強','⬇弱','中性']},
+  ]},
+  { title:'🥇 Gold 金屬同類', color:'var(--amber)', rows:[
+    {label:'Silver (SIL)',key:'silver', opts:['—','⬆強/確認','⬇弱/背離','中性']},
+    {label:'Copper (HG)', key:'copper', opts:['—','⬆強','⬇弱','中性']},
+    {label:'GDX',         key:'gdx',    opts:['—','⬆強/領先','⬇弱','中性']},
+    {label:'GDXJ',        key:'gdxj',   opts:['—','⬆強','⬇弱','中性']},
+  ]},
+  { title:'🛢 Oil 能源同類', color:'var(--red)', rows:[
+    {label:'Brent (UKOIL)',key:'brent',opts:['—','⬆強','⬇弱','中性']},
+    {label:'WTI (USOIL)',  key:'wti',  opts:['—','⬆強','⬇弱','中性']},
+    {label:'XOM',          key:'xom',  opts:['—','⬆強','⬇弱','中性']},
+    {label:'XOP',          key:'xop',  opts:['—','⬆強','⬇弱','中性']},
+  ]},
+  { title:'₿ Crypto 公鏈', color:'var(--pur)', rows:[
+    {label:'BTC Dominance',key:'btcd',  opts:['—','⬆BTC集中','⬇Alt Season','中性']},
+    {label:'ETH/BTC',      key:'ethbtc',opts:['—','⬆ETH強','⬇BTC強','中性']},
+    {label:'Total2/Total', key:'total2',opts:['—','⬆Alt流入','⬇撤退','中性']},
+  ]},
+  { title:'📊 COT持倉', color:'var(--lo)', rows:[
+    {label:'ZB Spec Net',  key:'cotzb',  opts:['—','淨多','淨空','極端']},
+    {label:'EUR Spec Net', key:'coteur', opts:['—','淨多','淨空','極端']},
+    {label:'Gold Spec Net',key:'cotgold',opts:['—','淨多','淨空','極端']},
+    {label:'WTI Spec Net', key:'cotwti', opts:['—','淨多','淨空','極端']},
+  ]},
+];
+
+function getRsConfig(){
+  try{ return JSON.parse(localStorage.getItem('ficc_rs_config')||'null')||JSON.parse(JSON.stringify(RS_DEFAULT)); }
+  catch{ return JSON.parse(JSON.stringify(RS_DEFAULT)); }
+}
+function saveRsConfig(cfg){
+  localStorage.setItem('ficc_rs_config', JSON.stringify(cfg));
+  if(settings) settings.rsConfig=cfg;
+}
+
+// Read current select values from DOM
+function collectRsValues(){
+  const vals={};
+  document.querySelectorAll('#rsDynGrid select[data-rs]').forEach(s=>{ vals[s.dataset.rs]=s.value; });
+  return vals;
+}
+
+let _rsEditMode = false;
+
+function renderRsMonitor(editMode=false){
+  const grid = document.getElementById('rsDynGrid');
+  if(!grid) return;
+  const cfg = getRsConfig();
+  const vals = collectRsValues(); // preserve current values
+
+  grid.innerHTML = cfg.map((card,ci)=>{
+    const rows = card.rows.map((row,ri)=>{
+      const selOpts = row.opts.map(o=>`<option${vals[row.key]===o?' selected':''}>${o}</option>`).join('');
+      if(editMode){
+        return `<div class="rs-row" style="align-items:flex-start;gap:4px;flex-direction:column;padding:4px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;gap:4px;width:100%;align-items:center">
+            <input value="${row.label}" onchange="rsRowLabel(${ci},${ri},this.value)"
+              style="flex:1;font-size:10px;background:var(--bg);border:1px solid var(--border2);border-radius:2px;padding:2px 5px;color:var(--hi);min-width:0">
+            <button onclick="rsRemoveRow(${ci},${ri})" title="刪除此行"
+              style="background:none;border:none;color:var(--lo);cursor:pointer;font-size:11px;padding:0 2px;flex-shrink:0">✕</button>
+          </div>
+          <input value="${row.opts.join('|')}" onchange="rsRowOpts(${ci},${ri},this.value)"
+            placeholder="選項用 | 分隔" title="選項用 | 分隔"
+            style="width:100%;font-size:9px;background:var(--bg);border:1px solid var(--border2);border-radius:2px;padding:2px 5px;color:var(--lo)">
+        </div>`;
+      }
+      return `<div class="rs-row"><span class="rs-sym">${row.label}</span>
+        <select data-rs="${row.key}" onchange="jDirty()">${selOpts}</select></div>`;
+    }).join('');
+
+    const titleHtml = editMode
+      ? `<div style="display:flex;gap:4px;margin-bottom:6px;align-items:center">
+          <input value="${card.title}" onchange="rsCardTitle(${ci},this.value)"
+            style="flex:1;font-size:11px;font-weight:800;background:var(--bg);border:1px solid var(--border2);border-radius:2px;padding:2px 6px;color:${card.color};min-width:0">
+          <button onclick="rsRemoveCard(${ci})" title="刪除此卡片"
+            style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 2px">🗑</button>
+         </div>`
+      : `<div class="rs-title" style="color:${card.color}">${card.title}</div>`;
+
+    const addRowBtn = editMode
+      ? `<button onclick="rsAddRow(${ci})" class="btn btn-g btn-sm" style="width:100%;margin-top:6px;font-size:9px">+ 新增指標</button>`
+      : '';
+
+    return `<div class="rs-card">${titleHtml}${rows}${addRowBtn}</div>`;
+  }).join('');
+}
+
+function toggleRsEdit(){
+  _rsEditMode = true;
+  renderRsMonitor(true);
+  document.getElementById('rsEditBtn').style.display='none';
+  document.getElementById('rsAddCardBtn').style.display='';
+  document.getElementById('rsSaveBtn').style.display='';
+}
+function rsExitEdit(){
+  _rsEditMode = false;
+  renderRsMonitor(false);
+  document.getElementById('rsEditBtn').style.display='';
+  document.getElementById('rsAddCardBtn').style.display='none';
+  document.getElementById('rsSaveBtn').style.display='none';
+  jDirty();
+  toast('✓ RS Monitor 已儲存');
+}
+
+function rsCardTitle(ci,val){ const c=getRsConfig(); c[ci].title=val; saveRsConfig(c); }
+function rsRowLabel(ci,ri,val){ const c=getRsConfig(); c[ci].rows[ri].label=val; saveRsConfig(c); }
+function rsRowOpts(ci,ri,val){
+  const c=getRsConfig();
+  c[ci].rows[ri].opts=val.split('|').map(s=>s.trim()).filter(Boolean);
+  saveRsConfig(c);
+}
+function rsRemoveRow(ci,ri){
+  const c=getRsConfig(); c[ci].rows.splice(ri,1); saveRsConfig(c); renderRsMonitor(true);
+}
+function rsAddRow(ci){
+  const c=getRsConfig();
+  const key='row_'+Date.now();
+  c[ci].rows.push({label:'新指標',key,opts:['—','⬆強','⬇弱','中性']});
+  saveRsConfig(c); renderRsMonitor(true);
+}
+function rsRemoveCard(ci){
+  if(!confirm('確定刪除此卡片？')) return;
+  const c=getRsConfig(); c.splice(ci,1); saveRsConfig(c); renderRsMonitor(true);
+}
+function rsAddCard(){
+  const c=getRsConfig();
+  c.push({title:'新卡片',color:'var(--mid)',rows:[{label:'新指標',key:'new_'+Date.now(),opts:['—','⬆強','⬇弱','中性']}]});
+  saveRsConfig(c); renderRsMonitor(true);
+}
+
 // ════════════════════════════════════
 // CLOCK & SESSION
 // ════════════════════════════════════
@@ -2354,6 +2463,7 @@ function showJTab(id,btn){
   document.getElementById('jp-'+id).classList.add('active');
   btn.classList.add('active');
   if(id==='hist')renderHistory();
+  if(id==='rs')renderRsMonitor(_rsEditMode);
 }
 
 // ════════════════════════════════════
@@ -4094,23 +4204,24 @@ function parseFFJson(json){
   return json.map(ev=>{
     const imp=(ev.impact||'').toLowerCase();
     const impLevel=imp==='high'?'high':imp==='medium'||imp==='moderate'?'med':'low';
-    // date comes as "01-27-2026" (MM-DD-YYYY) or ISO
+    // date: "01-27-2026" (MM-DD-YYYY), "2026-01-27", or ISO "2026-01-27T13:30:00-0500"
     let dateStr=ev.date||'';
-    if(dateStr.match(/^\d{2}-\d{2}-\d{4}$/)){
-      // Convert MM-DD-YYYY → YYYY-MM-DD
+    let timeStr='All Day';
+    if(dateStr.includes('T')){
+      // ISO datetime — extract both date and time
+      const dtLocal = new Date(dateStr);
+      dateStr = dtLocal.getFullYear()+'-'+String(dtLocal.getMonth()+1).padStart(2,'0')+'-'+String(dtLocal.getDate()).padStart(2,'0');
+      timeStr = String(dtLocal.getHours()).padStart(2,'0')+':'+String(dtLocal.getMinutes()).padStart(2,'0');
+    } else if(dateStr.match(/^\d{2}-\d{2}-\d{4}$/)){
       const[m,d,y]=dateStr.split('-');
       dateStr=`${y}-${m}-${d}`;
-    } else if(dateStr.includes('T')){
-      dateStr=dateStr.split('T')[0];
     }
-    // time: "8:30am" → "08:30"
-    let timeStr=ev.time||'All Day';
-    if(timeStr&&timeStr!=='All Day'){
-      const tm=timeStr.match(/^(\d+):(\d+)(am|pm)$/i);
+    // If separate time field exists (legacy format): "8:30am" → "08:30"
+    if(ev.time && ev.time!=='' && timeStr==='All Day'){
+      const tm=(ev.time||'').match(/^(\d+):(\d+)(am|pm)$/i);
       if(tm){
         let h=parseInt(tm[1]);
-        const min=tm[2];
-        const ampm=tm[3].toLowerCase();
+        const min=tm[2], ampm=tm[3].toLowerCase();
         if(ampm==='pm'&&h!==12)h+=12;
         if(ampm==='am'&&h===12)h=0;
         timeStr=String(h).padStart(2,'0')+':'+min;
