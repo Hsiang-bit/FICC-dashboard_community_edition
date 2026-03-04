@@ -1191,6 +1191,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
             <div class="avatar-color-opt" data-color="#ec4899" style="width:22px;height:22px;border-radius:50%;background:#ec4899;cursor:pointer;border:2px solid transparent" onclick="selectAvatarColor('#ec4899',this)"></div>
           </div>
         </div>
+        <div id="profileSaveHint" style="display:none;margin-bottom:8px;padding:6px 10px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);font-family:var(--mono);font-size:9px;color:var(--amber)">👋 新帳號！請填寫並儲存個人資料，讓社群認識你。</div>
         <button onclick="saveProfile()" style="width:100%;padding:8px;background:var(--amber);color:var(--bg);border:none;border-radius:var(--r);font-family:var(--cond);font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer">儲存資料</button>
       </div>
       <!-- My public trades -->
@@ -1489,7 +1490,8 @@ function switchCTab(tab){
 
 // ── IDEA WALL ──
 async function loadIdeas(){
-  const sb = sbClient(); if(!sb) return;
+  const sb = sbClient();
+  if(!sb){ const f=document.getElementById('ideaFeed'); if(f) f.innerHTML='<div style="color:var(--red);font-family:var(--mono);font-size:10px;padding:20px;text-align:center">⚠ 未設定 Supabase 連線</div>'; return; }
   const feed = document.getElementById('ideaFeed');
   const filter = document.getElementById('ideaFilter')?.value || 'all';
   feed.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--lo);padding:20px;text-align:center">⟳ 載入中...</div>';
@@ -1776,7 +1778,7 @@ function initLeaderboard(){
 
 async function loadLeaderboard(){
   const sb = sbClient(); if(!sb) return;
-  const month = document.getElementById('lbMonth')?.value || new Date().toISOString().slice(0,7);
+  const _n=new Date(); const month = document.getElementById('lbMonth')?.value || (_n.getFullYear()+'-'+String(_n.getMonth()+1).padStart(2,'0'));
   const { data: stats, error } = await sb.from('monthly_stats')
     .select('*')
     .eq('year_month', month)
@@ -1872,25 +1874,32 @@ async function syncMyStats(){
 
 // ── PROFILE ──
 async function loadProfile(){
-  const sb = sbClient(); if(!sb||!currentUser) return;
-  const { data } = await sb.from('profiles').select('*').eq('id',currentUser.id).single();
-  if(data){
-    currentProfile=data;
-    document.getElementById('profileUsername').value = data.username||'';
-    document.getElementById('profileBio').value = data.bio||'';
-    const av=document.getElementById('profileAvatar');
-    av.textContent=(data.username||'?')[0].toUpperCase();
-    av.style.background=data.avatar_color||'#f59e0b';
-    av.style.color='#000';
-    // Highlight selected color
-    document.querySelectorAll('.avatar-color-opt').forEach(el=>{
-      el.style.border=el.dataset.color===data.avatar_color?'2px solid white':'2px solid transparent';
-    });
+  const sb = sbClient();
+  if(!currentUser){
+    const mt=document.getElementById('myPublicTrades');
+    if(mt) mt.innerHTML='<span style="color:var(--lo);font-size:10px;font-family:var(--mono)">請先登入</span>';
+    return;
   }
-  // Load public trades
+  if(!sb) return;
+  const { data } = await sb.from('profiles').select('*').eq('id',currentUser.id).maybeSingle();
+  const profile = data || { username: currentUser.email?.split('@')[0]||'', bio:'', avatar_color:'#f59e0b' };
+  currentProfile = data;
+  document.getElementById('profileUsername').value = profile.username||'';
+  document.getElementById('profileBio').value = profile.bio||'';
+  const av=document.getElementById('profileAvatar');
+  const name = profile.username || currentUser.email?.split('@')[0] || '?';
+  av.textContent = name[0].toUpperCase();
+  av.style.background = profile.avatar_color||'#f59e0b';
+  av.style.color='#000';
+  document.querySelectorAll('.avatar-color-opt').forEach(el=>{
+    el.style.border=el.dataset.color===profile.avatar_color?'2px solid white':'2px solid transparent';
+  });
+  const hint=document.getElementById('profileSaveHint');
+  if(hint) hint.style.display = data?'none':'block';
+    // Load public trades
   const pub=trades.filter(t=>t.is_public);
   const mt=document.getElementById('myPublicTrades');
-  mt.innerHTML=pub.length?pub.map(t=>`<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:10px">${t.date} ${t.asset} ${t.dir} ${t.r?t.r+'R':'—'}</div>`).join(''):'<span style="color:var(--lo)">目前沒有公開的交易記錄</span>';
+  if(mt) mt.innerHTML=pub.length?pub.map(t=>`<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:10px">${t.date} ${t.asset} ${t.dir} ${t.r?t.r+'R':'—'}</div>`).join(''):'<span style="color:var(--lo)">目前沒有公開的交易記錄</span>';
 }
 
 let _selectedAvatarColor = null;
@@ -1909,9 +1918,10 @@ async function saveProfile(){
   const color=_selectedAvatarColor||currentProfile?.avatar_color||'#f59e0b';
   const { error } = await sb.from('profiles').upsert({ id:currentUser.id, username, bio, avatar_color:color, updated_at:new Date().toISOString() });
   if(error){ toast('儲存失敗：'+error.message,'e'); return; }
-  currentProfile={...currentProfile,username,bio,avatar_color:color};
+  currentProfile={...(currentProfile||{}),id:currentUser.id,username,bio,avatar_color:color};
   renderUserBar(currentProfile);
-  toast('✓ 資料已儲存');
+  const _hint=document.getElementById('profileSaveHint'); if(_hint) _hint.style.display='none';
+  toast('✓ 已儲存，社群顯示名稱：'+username);
 }
 
 // ── sbPullSilent: pull from Supabase without confirm dialog ──
