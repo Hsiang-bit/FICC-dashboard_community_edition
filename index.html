@@ -643,7 +643,7 @@ select option{background:var(--bg2)}
         </div>
       </div>
       <div class="coach-input-area">
-        <textarea id="coachInput" style="flex:1;min-height:44px;max-height:120px;resize:vertical;background:var(--bg1);border:1px solid var(--border2);color:var(--hi);font-family:var(--sans);font-size:12px;padding:10px 12px;border-radius:var(--r);outline:none" placeholder="輸入問題... 例：最近5筆交易我的執行有什麼問題？" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();coachSend()}"></textarea>
+        <textarea id="coachInput" style="flex:1;min-height:44px;max-height:120px;resize:vertical;background:var(--bg1);border:1px solid var(--border2);color:var(--hi);font-family:var(--sans);font-size:12px;padding:10px 12px;border-radius:var(--r);outline:none" placeholder="輸入問題... 例：最近5筆交易我的執行有什麼問題？" oncompositionstart="this._ime=true" oncompositionend="this._ime=false" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!this._ime&&!event.isComposing){event.preventDefault();coachSend()}"></textarea>
         <button class="btn btn-gemini" onclick="coachSend()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           送出
@@ -767,7 +767,7 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
 
         <!-- Chat input -->
         <div style="display:flex;gap:6px;margin-top:12px;flex-shrink:0;border-top:1px solid var(--border);padding-top:12px">
-          <input id="macroFollowUp" type="text" placeholder="追問..." style="flex:1;font-size:11px" onkeydown="if(event.key==='Enter')macroChat()">
+          <input id="macroFollowUp" type="text" placeholder="追問..." style="flex:1;font-size:11px" oncompositionstart="this._ime=true" oncompositionend="this._ime=false" onkeydown="if(event.key==='Enter'&&!this._ime&&!event.isComposing)macroChat()">
           <button class="btn btn-macro btn-sm" onclick="macroChat()">送出</button>
         </div>
       </div>
@@ -1183,7 +1183,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">💬 留言</div>
       <div id="ideaModalComments" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px"></div>
       <div style="display:flex;gap:8px">
-        <input id="ideaModalCommentInput" type="text" placeholder="留言..." style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;color:var(--hi);font-size:11px" onkeydown="if(event.key==='Enter')submitModalComment()">
+        <input id="ideaModalCommentInput" type="text" placeholder="留言..." style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;color:var(--hi);font-size:11px" oncompositionstart="this._ime=true" oncompositionend="this._ime=false" onkeydown="if(event.key==='Enter'&&!this._ime&&!event.isComposing)submitModalComment()">
         <button onclick="submitModalComment()" class="btn btn-a btn-sm">送出</button>
       </div>
     </div>
@@ -1289,8 +1289,8 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
 // ════════════════════════════════════
 // SUPABASE CONFIG — 填入你的專案資訊
 // ════════════════════════════════════
-const SUPABASE_URL  = 'https://hosubjlnteqvyzrfnnyp.supabase.co';   // e.g. 'https://xxxx.supabase.co'
-const SUPABASE_ANON = 'sb_publishable_24IxaxnPfbSppg6MO2sMZQ_e76rjQg9';   // e.g. 'eyJhbGci...' or 'sb_publishable_...'
+const SUPABASE_URL  = '';   // e.g. 'https://xxxx.supabase.co'
+const SUPABASE_ANON = '';   // e.g. 'eyJhbGci...' or 'sb_publishable_...'
 
 let _sb = null;
 let currentUser = null;
