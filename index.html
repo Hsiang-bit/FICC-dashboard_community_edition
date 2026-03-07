@@ -428,13 +428,20 @@ select option{background:var(--bg2)}
 
   <!-- Checklist -->
   <div class="jpanel active" id="jp-cl">
+    <!-- Checklist Sub-tabs -->
+    <div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:14px">
+      <button class="ctab active" id="cltab-main"   onclick="switchClTab('main')">📋 主 Checklist</button>
+      <button class="ctab"        id="cltab-dax"    onclick="switchClTab('dax')">📊 DAX・NQ・BTC</button>
+      <button class="ctab"        id="cltab-fx"     onclick="switchClTab('fx')">💱 FX</button>
+    </div>
+    <!-- Toolbar (shared) -->
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
       <div class="prog-wrap" style="flex:1;min-width:180px;margin-bottom:0">
         <div class="prog-lbl"><span>完成進度</span><span id="clProg">0/0</span></div>
         <div class="prog-bar"><div class="prog-fill" id="clFill" style="width:0%"></div></div>
       </div>
       <button class="btn btn-g btn-sm" id="clEditToggle" onclick="toggleClEditMode()">✎ 編輯模式</button>
-      <button class="btn btn-g btn-sm" onclick="resetChecklist()">↺ 重置預設</button>
+      <button class="btn btn-g btn-sm" onclick="resetChecklist()">↺ 重置</button>
     </div>
     <div id="clEditBanner" style="display:none;padding:7px 12px;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);border-radius:var(--r);font-family:var(--mono);font-size:10px;color:var(--amber);margin-bottom:10px">
       ✎ 編輯模式 — 點 <b>✎</b> 編輯項目，點 <b>✕</b> 刪除，點 <b>+</b> 新增項目，點分類標題 <b>[編輯]</b> 修改分類
@@ -2423,6 +2430,357 @@ function rsAddCard(){
   const c=getRsConfig();
   c.push({title:'新卡片',color:'var(--mid)',rows:[{label:'新指標',key:'new_'+Date.now(),opts:['—','⬆強','⬇弱','中性']}]});
   saveRsConfig(c); renderRsMonitor(true);
+}
+
+
+// ════════════════════════════════════
+// CHECKLIST SUB-TABS & B&B CHECKLISTS
+// ════════════════════════════════════
+let _clTab = 'main'; // 'main' | 'dax' | 'fx'
+
+const CL_DAX_DEFAULT = [
+  {id:'dax-s1',label:'01 — Previous 3 Days Imbalance (H4)',color:'blue',items:[
+    {id:'dax-1a',title:'Weekly/Daily Open on 00:00',sub:'',tag:'all',tagTxt:'H4'},
+    {id:'dax-1b',title:'Weekly range premium or discount',sub:'',tag:'all',tagTxt:'H4'},
+    {id:'dax-1c',title:'Weekly/Daily SMT',sub:'',tag:'all',tagTxt:'SMT'},
+    {id:'dax-1d',title:'Balanced (BPR) & Imbalance (FVGs) area',sub:'',tag:'all',tagTxt:'PDA'},
+    {id:'dax-1e',title:'Market Structure',sub:'Strong/Weak Bullish/Bearish/Consolidation',tag:'all',tagTxt:'MS'},
+  ]},
+  {id:'dax-s2',label:'02 — Previous 3 Sessions Imbalance (H1)',color:'cyan',items:[
+    {id:'dax-2a',title:'Market Open on 03:00 / 9:30',sub:'',tag:'all',tagTxt:'H1'},
+    {id:'dax-2b',title:'Daily range premium or discount',sub:'',tag:'all',tagTxt:'H1'},
+    {id:'dax-2c',title:'H4/H1 SMT',sub:'',tag:'all',tagTxt:'SMT'},
+    {id:'dax-2d',title:'Balanced (BPR) & Imbalance (FVGs) area',sub:'',tag:'all',tagTxt:'PDA'},
+    {id:'dax-2e',title:'Market Structure',sub:'Strong/Weak Bullish/Bearish/Consolidation',tag:'all',tagTxt:'MS'},
+    {id:'dax-2f',title:'Previous 3 Days & Sessions bias',sub:'Target on which liquidity on H4/H1?',tag:'all',tagTxt:'BIAS'},
+  ]},
+  {id:'dax-s3',label:'03 — London Lunch (M15) & Pre NY (M5) for DAX',color:'amber',items:[
+    {id:'dax-3a',title:'Europe leading & lagging sector/stocks determined',sub:'',tag:'all',tagTxt:'RS'},
+    {id:'dax-3b',title:'Checking every M15 — DAX/EU50/CAC/ESP35/FTSE40 SMT/FVG',sub:'',tag:'all',tagTxt:'M15'},
+    {id:'dax-3c',title:'Pro-trend or Counter-trend',sub:'',tag:'all',tagTxt:'BIAS'},
+  ]},
+  {id:'dax-s4',label:'04 — 7:15~9:15 DAX Entry Setup & Sizing',color:'green',items:[
+    {id:'dax-4a',title:'H4/H1/M15/M5 SMT',sub:'',tag:'all',tagTxt:'SMT'},
+    {id:'dax-4b',title:'IOFED(BPR/FVG) or Breaker(Inducement/OB) Entry',sub:'',tag:'all',tagTxt:'ENTRY'},
+    {id:'dax-4c',title:'Pro trend 2+2% / Counter trend 2%',sub:'',tag:'warn',tagTxt:'RISK'},
+    {id:'dax-4d',title:'RR 25:80',sub:'',tag:'all',tagTxt:'RR'},
+  ]},
+  {id:'dax-s5',label:'05 — No DAX Entry Conditions',color:'red',items:[
+    {id:'dax-5a',title:'No session/M15 SMT',sub:'以下任一成立則不入場',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'dax-5b',title:'London session CE / inside bar',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'dax-5c',title:'No HTF PDA verified',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'dax-5d',title:'After 9:30',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+  ]},
+  {id:'dax-s6',label:'06 — London Lunch (M15) & Pre NY (M5) for NQ',color:'cyan',items:[
+    {id:'dax-6a',title:'US leading & lagging sector/stocks determined',sub:'',tag:'all',tagTxt:'RS'},
+    {id:'dax-6b',title:'Checking every M15 — NQ/ES/DJ/RTY SMT/FVG',sub:'',tag:'all',tagTxt:'M15'},
+    {id:'dax-6c',title:'Pro-trend or Counter-trend',sub:'',tag:'all',tagTxt:'BIAS'},
+  ]},
+  {id:'dax-s7',label:'07 — 7:15~9:15 NQ Entry Setup & Sizing',color:'green',items:[
+    {id:'dax-7a',title:'H4/H1/M15/M5 SMT',sub:'',tag:'all',tagTxt:'SMT'},
+    {id:'dax-7b',title:'IOFED(BPR/FVG) or Breaker(Inducement/OB) Entry',sub:'',tag:'all',tagTxt:'ENTRY'},
+    {id:'dax-7c',title:'Pro trend 2+2% / Counter trend 2%',sub:'',tag:'warn',tagTxt:'RISK'},
+    {id:'dax-7d',title:'RR 30:100',sub:'',tag:'all',tagTxt:'RR'},
+    {id:'dax-7e',title:'If holding until 9:30 open → cut to 2% & RR 50:200',sub:'',tag:'warn',tagTxt:'RULE'},
+  ]},
+  {id:'dax-s8',label:'08 — No NQ Entry Conditions',color:'red',items:[
+    {id:'dax-8a',title:'No session SMT',sub:'以下任一成立則不入場',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'dax-8b',title:'London session CE / inside bar',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'dax-8c',title:'No HTF PDA verified',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+  ]},
+  {id:'dax-s9',label:'09 — Pre NY Imbalance ~9:45 (M15) for BTC',color:'pur',items:[
+    {id:'dax-9a',title:'Crypto VS NQ/ES/DJ/RTY relative strength',sub:'',tag:'all',tagTxt:'RS'},
+    {id:'dax-9b',title:'Checking every M15 — BTC/BCH/ETH/ETC/POL SMT/FVG',sub:'',tag:'all',tagTxt:'M15'},
+    {id:'dax-9c',title:'Pro-trend or Counter-trend',sub:'',tag:'all',tagTxt:'BIAS'},
+  ]},
+  {id:'dax-s10',label:'10 — 9:50~10:10 BTC Entry Setup & Sizing',color:'green',items:[
+    {id:'dax-10a',title:'H4/H1/M15/M5 SMT',sub:'',tag:'all',tagTxt:'SMT'},
+    {id:'dax-10b',title:'IOFED(BPR/FVG) or Breaker(Inducement/OB) Entry',sub:'',tag:'all',tagTxt:'ENTRY'},
+    {id:'dax-10c',title:'Pro trend 2+2% / Counter trend 2%',sub:'',tag:'warn',tagTxt:'RISK'},
+    {id:'dax-10d',title:'RR 1:3.5',sub:'',tag:'all',tagTxt:'RR'},
+  ]},
+];
+
+const CL_FX_DEFAULT = [
+  {id:'fx-s1',label:'01 — Previous 2 Weeks Imbalance (Daily)',color:'cyan',items:[
+    {id:'fx-1a',title:'Monthly/Weekly Open on 00:00',sub:'',tag:'fx',tagTxt:'Daily'},
+    {id:'fx-1b',title:'Monthly range premium or discount',sub:'',tag:'fx',tagTxt:'Daily'},
+    {id:'fx-1c',title:'Monthly/Weekly SMT',sub:'',tag:'fx',tagTxt:'SMT'},
+    {id:'fx-1d',title:'Balanced (BPR) & Imbalance (FVGs) area',sub:'',tag:'fx',tagTxt:'PDA'},
+    {id:'fx-1e',title:'Market Structure',sub:'Strong/Weak Bullish/Bearish/Consolidation',tag:'fx',tagTxt:'MS'},
+  ]},
+  {id:'fx-s2',label:'02 — Previous 3 Days Imbalance (H4)',color:'blue',items:[
+    {id:'fx-2a',title:'Daily open on 00:00 & Yield open & Session range',sub:'',tag:'fx',tagTxt:'H4'},
+    {id:'fx-2b',title:'Weekly range premium or discount',sub:'',tag:'fx',tagTxt:'H4'},
+    {id:'fx-2c',title:'Daily/H4 SMT',sub:'',tag:'fx',tagTxt:'SMT'},
+    {id:'fx-2d',title:'Balanced (BPR) & Imbalance (FVGs) area',sub:'',tag:'fx',tagTxt:'PDA'},
+    {id:'fx-2e',title:'Market Structure',sub:'Strong/Weak Bullish/Bearish/Consolidation',tag:'fx',tagTxt:'MS'},
+    {id:'fx-2f',title:'Previous 2 weeks & 3 days bias',sub:'Target on which liquidity on Daily/H4?',tag:'fx',tagTxt:'BIAS'},
+  ]},
+  {id:'fx-s3',label:'03 — 01/02, 05/06, 09/10 am Checkpoint (H4)',color:'amber',items:[
+    {id:'fx-3a',title:'Bond yield & FX USD pair & FX JPY pair relative strength',sub:'',tag:'fx',tagTxt:'RS'},
+    {id:'fx-3b',title:'Checking every H4 for first FX USD pair SMT/FVG',sub:'',tag:'fx',tagTxt:'H4'},
+    {id:'fx-3c',title:'Consolidation to Trend or Trend to Consolidation',sub:'',tag:'fx',tagTxt:'BIAS'},
+  ]},
+  {id:'fx-s4',label:'04 — XXXUSD Entry Setup & Sizing',color:'green',items:[
+    {id:'fx-4a',title:'Weekly/Daily/H4 SMT',sub:'',tag:'fx',tagTxt:'SMT'},
+    {id:'fx-4b',title:'Find Imbalance Area = Entry Zone',sub:'',tag:'fx',tagTxt:'PDA'},
+    {id:'fx-4c',title:'IOFED(BPR/FVG) or Breaker(Inducement/OB) Entry',sub:'',tag:'fx',tagTxt:'ENTRY'},
+    {id:'fx-4d',title:'Consolidation to Trend 2+2% / Trend to Consolidation 2%',sub:'',tag:'warn',tagTxt:'RISK'},
+    {id:'fx-4e',title:'RR 20:80',sub:'',tag:'fx',tagTxt:'RR'},
+  ]},
+  {id:'fx-s5',label:'05 — No XXXUSD Entry Conditions',color:'red',items:[
+    {id:'fx-5a',title:'No Daily SMT',sub:'以下任一成立則不入場',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'fx-5b',title:'Previous week/day inside bar',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'fx-5c',title:'No HTF PDA verified',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'fx-5d',title:'After 10:00 am',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+  ]},
+  {id:'fx-s6',label:'06 — XXXJPY Entry Setup & Sizing',color:'amber',items:[
+    {id:'fx-6a',title:'Weekly/Daily/H4 SMT',sub:'',tag:'fx',tagTxt:'SMT'},
+    {id:'fx-6b',title:'Find Imbalance Area = Entry Zone',sub:'',tag:'fx',tagTxt:'PDA'},
+    {id:'fx-6c',title:'IOFED(BPR/FVG) or Breaker(Inducement/OB) Entry',sub:'',tag:'fx',tagTxt:'ENTRY'},
+    {id:'fx-6d',title:'Consolidation to Trend 2+2% / Trend to Consolidation 2%',sub:'',tag:'warn',tagTxt:'RISK'},
+    {id:'fx-6e',title:'RR 30:120',sub:'',tag:'fx',tagTxt:'RR'},
+  ]},
+  {id:'fx-s7',label:'07 — No XXXJPY Entry Conditions',color:'red',items:[
+    {id:'fx-7a',title:'No Daily SMT',sub:'以下任一成立則不入場',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'fx-7b',title:'Previous week/day inside bar',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'fx-7c',title:'No HTF PDA verified',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+    {id:'fx-7d',title:'After 11:00 am',sub:'',tag:'warn',tagTxt:'NO TRADE'},
+  ]},
+];
+
+function getClTabData(tab){
+  const key = tab==='main'?'ficc_checklist':tab==='dax'?'ficc_cl_dax':'ficc_cl_fx';
+  const def  = tab==='dax'?CL_DAX_DEFAULT:tab==='fx'?CL_FX_DEFAULT:null;
+  if(tab==='main') return getClData(); // existing fn
+  try{
+    const saved=localStorage.getItem(key);
+    if(saved) return JSON.parse(saved);
+    return JSON.parse(JSON.stringify(def));
+  }catch(e){ return JSON.parse(JSON.stringify(def)); }
+}
+function saveClTabData(tab, secs){
+  const key = tab==='main'?'ficc_checklist':tab==='dax'?'ficc_cl_dax':'ficc_cl_fx';
+  if(tab==='main'){ clData=secs; localStorage.setItem('ficc_checklist',JSON.stringify(secs)); return; }
+  localStorage.setItem(key, JSON.stringify(secs));
+}
+
+function switchClTab(tab){
+  if(_clTab===tab) return;
+  _clTab=tab;
+  ['main','dax','fx'].forEach(t=>{
+    document.getElementById('cltab-'+t).classList.toggle('active',t===tab);
+  });
+  // Reset edit mode
+  clEditMode=false;
+  document.getElementById('clEditToggle').textContent='✎ 編輯模式';
+  document.getElementById('clEditBanner').style.display='none';
+  document.getElementById('clAddSec').style.display='none';
+  renderChecklist();
+}
+
+// ── Override getClData/saveClData to be tab-aware ──
+const _origGetClData = getClData;
+const _origSaveClData = (secs)=>{ clData=secs; localStorage.setItem('ficc_checklist',JSON.stringify(secs)); };
+
+// Patch renderChecklist to use tab data
+const _origRenderChecklist = renderChecklist;
+function renderChecklist(){
+  if(_clTab==='main'){ _origRenderChecklist(); return; }
+  const secs = getClTabData(_clTab);
+  const half=Math.ceil(secs.length/2);
+  const leftSecs=secs.slice(0,half),rightSecs=secs.slice(half);
+  const colHTML=(secArr,colIdx)=>secArr.map((sec,si)=>{
+    const realIdx=colIdx===0?si:half+si;
+    const itemsHTML=sec.items.map((it,ii)=>buildItemHTML(it,realIdx,ii,sec)).join('');
+    const secColor=sec.color||'amber';
+    const colorMap={amber:'var(--amber)',blue:'var(--blue)',cyan:'var(--cyan)',green:'var(--green)',red:'var(--red)',pur:'var(--pur)'};
+    const cc=colorMap[secColor]||'var(--amber)';
+    const secTitleEdit=clEditMode?`<span onclick="editClSection(${realIdx})" style="font-size:9px;color:var(--lo);cursor:pointer;margin-left:6px">[編輯]</span>`:'';
+    const addBtn=clEditMode?`<button onclick="addClItem(${realIdx})" style="display:block;width:100%;margin-top:4px;padding:3px 0;background:transparent;border:1px dashed var(--border2);border-radius:var(--r);color:var(--lo);font-size:10px;cursor:pointer">+ 新增項目</button>`:'';
+    const delSec=clEditMode?`<button onclick="deleteClSection(${realIdx})" style="margin-left:4px;background:none;border:none;color:var(--red);font-size:10px;cursor:pointer">✕</button>`:'';
+    return `<div class="card" style="margin-bottom:10px"><div style="display:flex;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)"><span style="font-family:var(--cond);font-size:10px;font-weight:800;color:${cc};letter-spacing:.08em;text-transform:uppercase;flex:1">${sec.label}</span>${secTitleEdit}${delSec}</div>${itemsHTML}${addBtn}</div>`;
+  }).join('');
+  document.getElementById('clBody').innerHTML=`<div>${colHTML(leftSecs,0)}</div><div>${colHTML(rightSecs,1)}</div>`;
+  // update progress
+  const all=secs.flatMap(s=>s.items);
+  const done=all.filter(it=>{const st=getClChecked(_clTab); return st[it.id];}).length;
+  document.getElementById('clProg').textContent=done+'/'+all.length;
+  const pct=all.length?done/all.length*100:0;
+  document.getElementById('clFill').style.width=pct+'%';
+  document.getElementById('clAddSec').style.display=clEditMode?'block':'none';
+}
+
+// Tab-aware checked state
+function getClChecked(tab){
+  const key='ficc_cl_checked_'+(tab||_clTab);
+  try{ return JSON.parse(localStorage.getItem(key)||'{}'); }catch(e){return {};}
+}
+function setClChecked(tab,id,val){
+  const st=getClChecked(tab); st[id]=val;
+  localStorage.setItem('ficc_cl_checked_'+(tab||_clTab),JSON.stringify(st));
+}
+
+// Patch buildItemHTML to handle per-tab checked state + show example button
+const _origBuildItemHTML = buildItemHTML;
+function buildItemHTML(it,secIdx,itemIdx,sec){
+  const isSubTab = _clTab!=='main';
+  const checked = isSubTab ? !!getClChecked(_clTab)[it.id] : !!it.checked;
+  const hasEx = !!(it.exImg||it.exNotes);
+  const editBtns=clEditMode
+    ?`<button onclick="event.stopPropagation();openClPopover(${secIdx},${itemIdx},event)" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--amber);cursor:pointer;transition:opacity .15s;margin-left:4px" class="cl-edit-btn">✎</button>
+      <button onclick="event.stopPropagation();quickDeleteCl(${secIdx},${itemIdx})" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;transition:opacity .15s;margin-left:2px" class="cl-edit-btn">✕</button>`
+    :'';
+  const exBtn=`<button onclick="event.stopPropagation();openClEx(${secIdx},${itemIdx})" style="opacity:${hasEx?'1':'0'};font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px;border:1px solid var(--border2);background:${hasEx?'rgba(37,99,235,.08)':'transparent'};color:${hasEx?'var(--blue)':'var(--lo)'};cursor:pointer;transition:opacity .15s;margin-left:4px" class="cl-edit-btn" title="${hasEx?'查看範例':'新增範例'}">${hasEx?'📖':'＋範例'}</button>`;
+  const tagColor={all:'var(--border2)',bond:'rgba(37,99,235,.2)',fx:'rgba(8,145,178,.2)',gold:'rgba(217,119,6,.2)',warn:'rgba(220,38,38,.2)',pur:'rgba(124,58,237,.2)',green:'rgba(5,150,105,.2)'};
+  const tagTC={all:'var(--lo)',bond:'var(--blue)',fx:'var(--cyan)',gold:'var(--amber)',warn:'var(--red)',pur:'var(--pur)',green:'var(--green)'};
+  const tagBg=tagColor[it.tag]||tagColor.all;
+  const tagTc=tagTC[it.tag]||tagTC.all;
+  return `<div class="cl-item${checked?' checked':''}" onclick="${isSubTab?`toggleClTabItem(${secIdx},${itemIdx})`:`toggleCl(${secIdx},${itemIdx})`}" style="position:relative">
+    <div class="cl-check">${checked?'✓':''}</div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <span class="cl-title${checked?' cl-done':''}">${it.title}</span>
+        ${it.tagTxt?`<span style="font-family:var(--mono);font-size:8px;padding:1px 5px;border-radius:2px;background:${tagBg};color:${tagTc};white-space:nowrap">${it.tagTxt}</span>`:''}
+        ${editBtns}${exBtn}
+      </div>
+      ${it.sub?`<div class="cl-sub">${it.sub}</div>`:''}
+    </div>
+  </div>`;
+}
+
+function toggleClTabItem(si,ii){
+  const secs=getClTabData(_clTab);
+  const it=secs[si].items[ii];
+  const st=getClChecked(_clTab);
+  st[it.id]=!st[it.id];
+  localStorage.setItem('ficc_cl_checked_'+_clTab,JSON.stringify(st));
+  renderChecklist();
+}
+
+// ── Tab-aware save for edit mode ──
+const _origSaveClItem_tab = applyClEdit;
+
+// Patch addClSection to use tab
+const _origAddClSection = addClSection;
+function addClSection(){
+  if(_clTab==='main'){ _origAddClSection(); return; }
+  const secs=getClTabData(_clTab);
+  secs.push({id:'sec-'+Date.now(),label:'新分類',color:'amber',items:[]});
+  saveClTabData(_clTab,secs);
+  renderChecklist();
+}
+
+// Patch quickDeleteCl to use tab
+const _origQuickDeleteCl = quickDeleteCl;
+function quickDeleteCl(si,ii){
+  if(_clTab==='main'){ _origQuickDeleteCl(si,ii); return; }
+  const secs=getClTabData(_clTab);
+  secs[si].items.splice(ii,1);
+  saveClTabData(_clTab,secs);
+  renderChecklist();
+}
+
+// Patch addClItem to use tab
+const _origAddClItem = addClItem;
+function addClItem(si){
+  if(_clTab==='main'){ _origAddClItem(si); return; }
+  const secs=getClTabData(_clTab);
+  secs[si].items.push({id:'it-'+Date.now(),title:'新項目',sub:'',tag:'all',tagTxt:'NEW',checked:false});
+  saveClTabData(_clTab,secs);
+  renderChecklist();
+}
+
+// Patch openClPopover to use tab
+const _origOpenClPopover = openClPopover;
+function openClPopover(si,ii,event){
+  if(_clTab==='main'){ _origOpenClPopover(si,ii,event); return; }
+  event.stopPropagation();
+  const secs=getClTabData(_clTab);
+  const it=secs[si].items[ii];
+  clEditing={si,ii,tab:_clTab};
+  document.getElementById('cpTitle').value=it.title;
+  document.getElementById('cpSub').value=it.sub||'';
+  document.getElementById('cpTag').value=it.tag;
+  document.getElementById('cpTagText').value=it.tagTxt||'';
+  posPopover('clEditPopover',event);
+}
+
+// Patch applyClEdit to use tab
+const _origApplyClEdit = applyClEdit;
+function applyClEdit(){
+  if(!clEditing) return;
+  if(clEditing.tab && clEditing.tab!=='main'){
+    const secs=getClTabData(clEditing.tab);
+    const it=secs[clEditing.si].items[clEditing.ii];
+    it.title=document.getElementById('cpTitle').value||it.title;
+    it.sub=document.getElementById('cpSub').value;
+    it.tag=document.getElementById('cpTag').value;
+    it.tagTxt=document.getElementById('cpTagText').value||document.getElementById('cpTag').value.toUpperCase();
+    saveClTabData(clEditing.tab,secs);
+    closePopover('clEditPopover'); clEditing=null;
+    renderChecklist();
+    return;
+  }
+  _origApplyClEdit();
+}
+
+// ══════════════════════════════════════
+// EXAMPLE MODAL
+// ══════════════════════════════════════
+let _clExContext={si:null,ii:null};
+
+function openClEx(si,ii){
+  const secs=getClTabData(_clTab);
+  const it=secs[si].items[ii];
+  _clExContext={si,ii};
+  document.getElementById('clExTitle').textContent=it.title;
+  document.getElementById('clExSub').textContent=it.sub||'';
+  const imgWrap=document.getElementById('clExImgWrap');
+  const img=document.getElementById('clExImg');
+  if(it.exImg){
+    img.src=it.exImg; imgWrap.style.display='block';
+  } else {
+    imgWrap.style.display='none';
+  }
+  document.getElementById('clExNotes').textContent=it.exNotes||(!clEditMode&&!it.exImg&&!it.exNotes?'尚無範例內容。進入編輯模式後點「＋範例」新增。':'');
+  // Edit area
+  const ea=document.getElementById('clExEditArea');
+  if(clEditMode){
+    ea.style.display='block';
+    document.getElementById('clExImgInput').value=it.exImg||'';
+    document.getElementById('clExNotesInput').value=it.exNotes||'';
+  } else { ea.style.display='none'; }
+  const modal=document.getElementById('clExModal');
+  modal.style.display='flex';
+}
+
+function closeClEx(){
+  document.getElementById('clExModal').style.display='none';
+}
+
+function saveClEx(){
+  const{si,ii}=_clExContext;
+  const secs=getClTabData(_clTab);
+  const it=secs[si].items[ii];
+  it.exImg=document.getElementById('clExImgInput').value.trim();
+  it.exNotes=document.getElementById('clExNotesInput').value.trim();
+  saveClTabData(_clTab,secs);
+  openClEx(si,ii); // re-render modal
+  renderChecklist();
+  toast('✓ 範例已儲存');
+}
+
+function clearClEx(){
+  const{si,ii}=_clExContext;
+  const secs=getClTabData(_clTab);
+  const it=secs[si].items[ii];
+  delete it.exImg; delete it.exNotes;
+  saveClTabData(_clTab,secs);
+  closeClEx();
+  renderChecklist();
+  toast('範例已清除');
 }
 
 // ════════════════════════════════════
@@ -5187,5 +5545,38 @@ loadUISettings();
 loadNotionSettings();
 initGistSync();
 </script>
+
+<!-- ── Checklist Example Modal ── -->
+<div id="clExModal" style="display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.75);align-items:center;justify-content:center" onclick="if(event.target===this)closeClEx()">
+  <div style="background:var(--bg1);border:1px solid var(--border2);border-radius:var(--r);width:min(660px,96vw);max-height:90vh;overflow-y:auto;padding:24px">
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px">
+      <div style="flex:1">
+        <div id="clExTitle" style="font-family:var(--cond);font-size:18px;font-weight:800;color:var(--hi)"></div>
+        <div id="clExSub" style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:3px"></div>
+      </div>
+      <button onclick="closeClEx()" style="background:none;border:none;font-size:18px;color:var(--lo);cursor:pointer;padding:0 4px">✕</button>
+    </div>
+    <!-- Image area -->
+    <div id="clExImgWrap" style="display:none;margin-bottom:16px">
+      <img id="clExImg" src="" alt="範例圖" style="width:100%;border-radius:var(--r);border:1px solid var(--border);cursor:pointer" onclick="window.open(this.src,'_blank')" title="點擊開新分頁">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px;text-align:right">點擊圖片開新分頁 ↗</div>
+    </div>
+    <!-- Text notes -->
+    <div id="clExNotes" style="font-family:var(--sans);font-size:12px;color:var(--mid);line-height:1.8;white-space:pre-wrap"></div>
+    <!-- Edit area (edit mode only) -->
+    <div id="clExEditArea" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;color:var(--lo);text-transform:uppercase;margin-bottom:8px">編輯範例內容</div>
+      <span class="fl">TradingView 圖表 URL</span>
+      <input id="clExImgInput" type="text" placeholder="https://www.tradingview.com/x/xxxxxxxx/" style="width:100%;margin-bottom:8px;font-size:10px">
+      <span class="fl">文字說明</span>
+      <textarea id="clExNotesInput" rows="5" placeholder="輸入說明文字..." style="width:100%;font-size:11px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:8px;color:var(--hi);resize:vertical"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-a btn-sm" onclick="saveClEx()">✓ 儲存範例</button>
+        <button class="btn btn-g btn-sm" onclick="clearClEx()">🗑 清除範例</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
