@@ -2586,32 +2586,6 @@ const _origSaveClData = (secs)=>{ clData=secs; localStorage.setItem('ficc_checkl
 
 // Patch renderChecklist to use tab data
 const _origRenderChecklist = renderChecklist;
-function renderChecklist(){
-  if(_clTab==='main'){ _origRenderChecklist(); return; }
-  const secs = getClTabData(_clTab);
-  const half=Math.ceil(secs.length/2);
-  const leftSecs=secs.slice(0,half),rightSecs=secs.slice(half);
-  const colHTML=(secArr,colIdx)=>secArr.map((sec,si)=>{
-    const realIdx=colIdx===0?si:half+si;
-    const itemsHTML=sec.items.map((it,ii)=>buildItemHTML(it,realIdx,ii,sec)).join('');
-    const secColor=sec.color||'amber';
-    const colorMap={amber:'var(--amber)',blue:'var(--blue)',cyan:'var(--cyan)',green:'var(--green)',red:'var(--red)',pur:'var(--pur)'};
-    const cc=colorMap[secColor]||'var(--amber)';
-    const secTitleEdit=clEditMode?`<span onclick="editClSection(${realIdx})" style="font-size:9px;color:var(--lo);cursor:pointer;margin-left:6px">[編輯]</span>`:'';
-    const addBtn=clEditMode?`<button onclick="addClItem(${realIdx})" style="display:block;width:100%;margin-top:4px;padding:3px 0;background:transparent;border:1px dashed var(--border2);border-radius:var(--r);color:var(--lo);font-size:10px;cursor:pointer">+ 新增項目</button>`:'';
-    const delSec=clEditMode?`<button onclick="deleteClSection(${realIdx})" style="margin-left:4px;background:none;border:none;color:var(--red);font-size:10px;cursor:pointer">✕</button>`:'';
-    return `<div class="card" style="margin-bottom:10px"><div style="display:flex;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)"><span style="font-family:var(--cond);font-size:10px;font-weight:800;color:${cc};letter-spacing:.08em;text-transform:uppercase;flex:1">${sec.label}</span>${secTitleEdit}${delSec}</div>${itemsHTML}${addBtn}</div>`;
-  }).join('');
-  document.getElementById('clBody').innerHTML=`<div>${colHTML(leftSecs,0)}</div><div>${colHTML(rightSecs,1)}</div>`;
-  // update progress
-  const all=secs.flatMap(s=>s.items);
-  const done=all.filter(it=>{const st=getClChecked(_clTab); return st[it.id];}).length;
-  document.getElementById('clProg').textContent=done+'/'+all.length;
-  const pct=all.length?done/all.length*100:0;
-  document.getElementById('clFill').style.width=pct+'%';
-  document.getElementById('clAddSec').style.display=clEditMode?'block':'none';
-}
-
 // Tab-aware checked state
 function getClChecked(tab){
   const key='ficc_cl_checked_'+(tab||_clTab);
@@ -2620,34 +2594,6 @@ function getClChecked(tab){
 function setClChecked(tab,id,val){
   const st=getClChecked(tab); st[id]=val;
   localStorage.setItem('ficc_cl_checked_'+(tab||_clTab),JSON.stringify(st));
-}
-
-// Patch buildItemHTML to handle per-tab checked state + show example button
-const _origBuildItemHTML = buildItemHTML;
-function buildItemHTML(it,secIdx,itemIdx,sec){
-  const isSubTab = _clTab!=='main';
-  const checked = isSubTab ? !!getClChecked(_clTab)[it.id] : !!it.checked;
-  const hasEx = !!(it.exImg||it.exNotes);
-  const editBtns=clEditMode
-    ?`<button onclick="event.stopPropagation();openClPopover(${secIdx},${itemIdx},event)" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--amber);cursor:pointer;transition:opacity .15s;margin-left:4px" class="cl-edit-btn">✎</button>
-      <button onclick="event.stopPropagation();quickDeleteCl(${secIdx},${itemIdx})" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;transition:opacity .15s;margin-left:2px" class="cl-edit-btn">✕</button>`
-    :'';
-  const exBtn=`<button onclick="event.stopPropagation();openClEx(${secIdx},${itemIdx})" style="opacity:${hasEx?'1':'0'};font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px;border:1px solid var(--border2);background:${hasEx?'rgba(37,99,235,.08)':'transparent'};color:${hasEx?'var(--blue)':'var(--lo)'};cursor:pointer;transition:opacity .15s;margin-left:4px" class="cl-edit-btn" title="${hasEx?'查看範例':'新增範例'}">${hasEx?'📖':'＋範例'}</button>`;
-  const tagColor={all:'var(--border2)',bond:'rgba(37,99,235,.2)',fx:'rgba(8,145,178,.2)',gold:'rgba(217,119,6,.2)',warn:'rgba(220,38,38,.2)',pur:'rgba(124,58,237,.2)',green:'rgba(5,150,105,.2)'};
-  const tagTC={all:'var(--lo)',bond:'var(--blue)',fx:'var(--cyan)',gold:'var(--amber)',warn:'var(--red)',pur:'var(--pur)',green:'var(--green)'};
-  const tagBg=tagColor[it.tag]||tagColor.all;
-  const tagTc=tagTC[it.tag]||tagTC.all;
-  return `<div class="cl-item${checked?' checked':''}" onclick="${isSubTab?`toggleClTabItem(${secIdx},${itemIdx})`:`toggleCl(${secIdx},${itemIdx})`}" style="position:relative">
-    <div class="cl-check">${checked?'✓':''}</div>
-    <div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-        <span class="cl-title${checked?' cl-done':''}">${it.title}</span>
-        ${it.tagTxt?`<span style="font-family:var(--mono);font-size:8px;padding:1px 5px;border-radius:2px;background:${tagBg};color:${tagTc};white-space:nowrap">${it.tagTxt}</span>`:''}
-        ${editBtns}${exBtn}
-      </div>
-      ${it.sub?`<div class="cl-sub">${it.sub}</div>`:''}
-    </div>
-  </div>`;
 }
 
 function toggleClTabItem(si,ii){
@@ -2660,10 +2606,8 @@ function toggleClTabItem(si,ii){
 }
 
 // ── Tab-aware save for edit mode ──
-const _origSaveClItem_tab = applyClEdit;
 
-// Patch addClSection to use tab
-const _origAddClSection = addClSection;
+
 function addClSection(){
   if(_clTab==='main'){ _origAddClSection(); return; }
   const secs=getClTabData(_clTab);
@@ -2672,59 +2616,14 @@ function addClSection(){
   renderChecklist();
 }
 
-// Patch quickDeleteCl to use tab
-const _origQuickDeleteCl = quickDeleteCl;
-function quickDeleteCl(si,ii){
-  if(_clTab==='main'){ _origQuickDeleteCl(si,ii); return; }
-  const secs=getClTabData(_clTab);
-  secs[si].items.splice(ii,1);
-  saveClTabData(_clTab,secs);
-  renderChecklist();
-}
 
-// Patch addClItem to use tab
-const _origAddClItem = addClItem;
-function addClItem(si){
-  if(_clTab==='main'){ _origAddClItem(si); return; }
-  const secs=getClTabData(_clTab);
-  secs[si].items.push({id:'it-'+Date.now(),title:'新項目',sub:'',tag:'all',tagTxt:'NEW',checked:false});
-  saveClTabData(_clTab,secs);
-  renderChecklist();
-}
 
-// Patch openClPopover to use tab
-const _origOpenClPopover = openClPopover;
-function openClPopover(si,ii,event){
-  if(_clTab==='main'){ _origOpenClPopover(si,ii,event); return; }
-  event.stopPropagation();
-  const secs=getClTabData(_clTab);
-  const it=secs[si].items[ii];
-  clEditing={si,ii,tab:_clTab};
-  document.getElementById('cpTitle').value=it.title;
-  document.getElementById('cpSub').value=it.sub||'';
-  document.getElementById('cpTag').value=it.tag;
-  document.getElementById('cpTagText').value=it.tagTxt||'';
-  posPopover('clEditPopover',event);
-}
+
+
+
 
 // Patch applyClEdit to use tab
-const _origApplyClEdit = applyClEdit;
-function applyClEdit(){
-  if(!clEditing) return;
-  if(clEditing.tab && clEditing.tab!=='main'){
-    const secs=getClTabData(clEditing.tab);
-    const it=secs[clEditing.si].items[clEditing.ii];
-    it.title=document.getElementById('cpTitle').value||it.title;
-    it.sub=document.getElementById('cpSub').value;
-    it.tag=document.getElementById('cpTag').value;
-    it.tagTxt=document.getElementById('cpTagText').value||document.getElementById('cpTag').value.toUpperCase();
-    saveClTabData(clEditing.tab,secs);
-    closePopover('clEditPopover'); clEditing=null;
-    renderChecklist();
-    return;
-  }
-  _origApplyClEdit();
-}
+// applyClEdit tab handling merged into main function
 
 // ══════════════════════════════════════
 // EXAMPLE MODAL
@@ -2964,8 +2863,12 @@ function resetChecklist(){
 }
 
 function renderChecklist(){
+  // Tab-aware: main uses journal-based checks, dax/fx use localStorage
+  if(typeof _clTab !== 'undefined' && _clTab !== 'main'){
+    _renderSubTabChecklist(_clTab);
+    return;
+  }
   const secs=getClData();
-  // Split into 2 columns: left = first ceil(n/2) sections, right = rest
   const half=Math.ceil(secs.length/2);
   const leftSecs=secs.slice(0,half),rightSecs=secs.slice(half);
   const colHTML=(secArr,colIdx)=>secArr.map((sec,si)=>{
@@ -2978,11 +2881,9 @@ function renderChecklist(){
       <div id="clsec-${realIdx}">${itemsHTML}</div>${addBtn}
     </div>`;
   }).join('');
-  document.getElementById('clBody').innerHTML=
-    `<div>${colHTML(leftSecs,0)}</div><div>${colHTML(rightSecs,1)}</div>`;
+  document.getElementById('clBody').innerHTML=`<div>${colHTML(leftSecs,0)}</div><div>${colHTML(rightSecs,1)}</div>`;
   document.getElementById('clAddSec').style.display=clEditMode?'block':'none';
   updateProgress();
-  // Restore checked state from current journal
   const j=journals[currentJDate]||{};
   document.querySelectorAll('.cl-item').forEach(el=>{
     const ck=j.cl&&j.cl[el.dataset.id];
@@ -2990,6 +2891,96 @@ function renderChecklist(){
     el.querySelector('.cl-cb').textContent=ck?'✓':'';
   });
   updateProgress();
+}
+
+function _renderSubTabChecklist(tab){
+  const secs=getClTabData(tab);
+  const half=Math.ceil(secs.length/2);
+  const leftSecs=secs.slice(0,half),rightSecs=secs.slice(half);
+  const colorMap={amber:'var(--amber)',blue:'var(--blue)',cyan:'var(--cyan)',green:'var(--green)',red:'var(--red)',pur:'var(--pur)',lo:'var(--lo)'};
+  const colHTML=(secArr,colIdx)=>secArr.map((sec,si)=>{
+    const realIdx=colIdx===0?si:half+si;
+    const cc=colorMap[sec.color||'amber']||'var(--amber)';
+    const editBtn=clEditMode?`<button onclick="openClSecPopoverTab(${realIdx},event)" style="margin-left:auto;font-family:var(--mono);font-size:8px;padding:1px 6px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--lo);cursor:pointer">[編輯]</button>`:'';
+    const addBtn=clEditMode?`<div style="margin-top:4px"><button onclick="addClItemTab(${realIdx})" style="width:100%;padding:4px;font-family:var(--mono);font-size:9px;border:1px dashed var(--border2);background:transparent;color:var(--lo);cursor:pointer;border-radius:var(--r)">+ 新增項目</button></div>`:'';
+    const delBtn=clEditMode?`<button onclick="delClSectionTab(${realIdx})" style="margin-left:4px;background:none;border:none;color:var(--red);font-size:10px;cursor:pointer">✕</button>`:'';
+    const itemsHTML=sec.items.map((it,ii)=>_buildSubTabItem(it,realIdx,ii,tab)).join('');
+    return`<div style="margin-bottom:14px">
+      <div class="cl-sec-t" style="display:flex;align-items:center"><span style="color:${cc}">▸</span>${sec.label}${editBtn}${delBtn}</div>
+      ${itemsHTML}${addBtn}
+    </div>`;
+  }).join('');
+  document.getElementById('clBody').innerHTML=`<div>${colHTML(leftSecs,0)}</div><div>${colHTML(rightSecs,1)}</div>`;
+  document.getElementById('clAddSec').style.display=clEditMode?'block':'none';
+  // update progress
+  const st=getClChecked(tab);
+  const all=secs.flatMap(s=>s.items);
+  const done=all.filter(it=>st[it.id]).length;
+  document.getElementById('clProg').textContent=done+'/'+all.length;
+  document.getElementById('clFill').style.width=(all.length?done/all.length*100:0)+'%';
+}
+
+function _buildSubTabItem(it,si,ii,tab){
+  const checked=!!getClChecked(tab)[it.id];
+  const hasEx=!!(it.exImg||it.exNotes);
+  const tagColor={all:'var(--border2)',bond:'rgba(37,99,235,.2)',fx:'rgba(8,145,178,.2)',gold:'rgba(217,119,6,.2)',warn:'rgba(220,38,38,.2)',pur:'rgba(124,58,237,.2)',green:'rgba(5,150,105,.2)'};
+  const tagTC={all:'var(--lo)',bond:'var(--blue)',fx:'var(--cyan)',gold:'var(--amber)',warn:'var(--red)',pur:'var(--pur)',green:'var(--green)'};
+  const tb=tagColor[it.tag]||tagColor.all, tt=tagTC[it.tag]||tagTC.all;
+  const editBtns=clEditMode
+    ?`<button onclick="event.stopPropagation();openClPopoverTab(${si},${ii},event)" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--amber);cursor:pointer;transition:opacity .15s;margin-left:4px" class="cl-edit-btn">✎</button>
+      <button onclick="event.stopPropagation();delClItemTab(${si},${ii})" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid rgba(255,71,87,.3);background:transparent;color:var(--red);cursor:pointer;transition:opacity .15s" class="cl-edit-btn">✕</button>`
+    :'';
+  const exBtn=`<button onclick="event.stopPropagation();openClEx(${si},${ii})" style="opacity:${hasEx?'1':'0'};font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px;border:1px solid var(--border2);background:${hasEx?'rgba(37,99,235,.08)':'transparent'};color:${hasEx?'var(--blue)':'var(--lo)'};cursor:pointer;transition:opacity .15s;flex-shrink:0" class="cl-edit-btn" title="${hasEx?'查看範例':'新增範例'}">${hasEx?'📖':'＋範'}</button>`;
+  return`<div class="cl-item${checked?' ck':''}" onclick="toggleClTabCheck(${si},${ii})" style="position:relative" onmouseover="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='1')" onmouseout="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='0')">
+    <div class="cl-cb">${checked?'✓':''}</div>
+    <div class="cl-txt" style="flex:1;min-width:0">
+      <strong class="${checked?'cl-done':''}">${it.title}</strong>${it.sub?`<span>${it.sub}</span>`:''}
+    </div>
+    ${it.tagTxt?`<span class="cl-tag" style="background:${tb};color:${tt};white-space:nowrap">${it.tagTxt}</span>`:''}
+    ${editBtns}${exBtn}
+  </div>`;
+}
+
+function toggleClTabCheck(si,ii){
+  const secs=getClTabData(_clTab);
+  const it=secs[si].items[ii];
+  const st=getClChecked(_clTab);
+  st[it.id]=!st[it.id];
+  localStorage.setItem('ficc_cl_checked_'+_clTab,JSON.stringify(st));
+  _renderSubTabChecklist(_clTab);
+}
+function addClItemTab(si){
+  const secs=getClTabData(_clTab);
+  secs[si].items.push({id:'it-'+Date.now(),title:'新項目',sub:'',tag:'all',tagTxt:'NEW'});
+  saveClTabData(_clTab,secs); renderChecklist();
+}
+function delClItemTab(si,ii){
+  const secs=getClTabData(_clTab); secs[si].items.splice(ii,1);
+  saveClTabData(_clTab,secs); renderChecklist();
+}
+function delClSectionTab(si){
+  if(!confirm('確定刪除此分類？')) return;
+  const secs=getClTabData(_clTab); secs.splice(si,1);
+  saveClTabData(_clTab,secs); renderChecklist();
+}
+function openClPopoverTab(si,ii,event){
+  event.stopPropagation();
+  const secs=getClTabData(_clTab);
+  const it=secs[si].items[ii];
+  clEditing={si,ii,tab:_clTab};
+  document.getElementById('cpTitle').value=it.title;
+  document.getElementById('cpSub').value=it.sub||'';
+  document.getElementById('cpTag').value=it.tag||'all';
+  document.getElementById('cpTagText').value=it.tagTxt||'';
+  posPopover('clEditPopover',event);
+}
+function openClSecPopoverTab(si,event){
+  const secs=getClTabData(_clTab);
+  clEditing={si,ii:-1,tab:_clTab};
+  document.getElementById('cpTitle').value=secs[si].label;
+  document.getElementById('cpSub').value='';
+  document.getElementById('cpTag').value='all';
+  posPopover('clEditPopover',event);
 }
 
 function buildItemHTML(it,secIdx,itemIdx,sec){
@@ -3046,6 +3037,23 @@ function openClPopover(si,ii,event){
 }
 function applyClEdit(){
   if(!clEditing)return;
+  // Tab-aware save
+  if(clEditing.tab && clEditing.tab!=='main'){
+    const secs=getClTabData(clEditing.tab);
+    if(clEditing.ii===-1){
+      // section rename
+      secs[clEditing.si].label=document.getElementById('cpTitle').value||secs[clEditing.si].label;
+    } else {
+      const it=secs[clEditing.si].items[clEditing.ii];
+      it.title=document.getElementById('cpTitle').value||it.title;
+      it.sub=document.getElementById('cpSub').value;
+      it.tag=document.getElementById('cpTag').value;
+      it.tagTxt=document.getElementById('cpTagText').value||document.getElementById('cpTag').value.toUpperCase();
+    }
+    saveClTabData(clEditing.tab,secs);
+    closeClPopover(); clEditing=null;
+    renderChecklist(); return;
+  }
   const secs=getClData();
   const it=secs[clEditing.si].items[clEditing.ii];
   it.title=document.getElementById('cpTitle').value||it.title;
