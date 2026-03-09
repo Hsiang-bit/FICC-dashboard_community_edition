@@ -27,7 +27,7 @@
   --cond:'Barlow Condensed',sans-serif;
   --r:4px;
   /* adjustable font size */
-  --fs:13px;
+  --fs:15px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -53,7 +53,7 @@ body{background:var(--bg);color:var(--mid);font-family:var(--sans);font-size:var
 
 /* ── NAV ── */
 .nav{display:flex;gap:0;padding:0 24px;background:var(--bg1);border-bottom:1px solid var(--border);overflow-x:auto;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-.ntab{display:flex;align-items:center;gap:6px;padding:12px 20px;font-family:var(--cond);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--lo);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:all .2s}
+.ntab{display:flex;align-items:center;gap:6px;padding:12px 20px;font-family:var(--cond);font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--lo);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:all .2s}
 .ntab:hover{color:var(--blue)}.ntab.active{color:var(--blue);border-bottom-color:var(--blue)}
 .ntab .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
 
@@ -74,9 +74,9 @@ body{background:var(--bg);color:var(--mid);font-family:var(--sans);font-size:var
 /* ── CARD ── */
 .card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:18px;transition:border-color .2s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .sec{display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
-.sec h2{font-family:var(--cond);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--hi)}
+.sec h2{font-family:var(--cond);font-size:14px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--hi)}
 .acc{width:3px;height:16px;border-radius:2px;flex-shrink:0}
-.sbadge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:2px;border:1px solid var(--border2);color:var(--lo);margin-left:auto;letter-spacing:.04em}
+.sbadge{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:2px;border:1px solid var(--border2);color:var(--lo);margin-left:auto;letter-spacing:.04em}
 
 /* ── INPUTS ── */
 select,input[type=text],input[type=number],input[type=date],input[type=password],textarea{
@@ -86,14 +86,14 @@ select,input[type=text],input[type=number],input[type=date],input[type=password]
 }
 select:focus,input:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 select option{background:var(--bg2)}
-.fl{font-family:var(--mono);font-size:9px;color:var(--lo);letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:3px}
+.fl{font-family:var(--mono);font-size:11px;color:var(--lo);letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:3px}
 .fg{display:flex;flex-direction:column;gap:3px}
 
 /* ── BUTTONS ── */
-.btn{padding:8px 16px;border-radius:var(--r);border:1px solid;font-family:var(--cond);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn{padding:8px 16px;border-radius:var(--r);border:1px solid;font-family:var(--cond);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
 .btn-a{background:var(--blue);border-color:var(--blue);color:#fff}.btn-a:hover{background:#1d4ed8;border-color:#1d4ed8}
 .btn-g{background:transparent;border-color:var(--border2);color:var(--mid)}.btn-g:hover{border-color:var(--blue);color:var(--blue)}
-.btn-sm{padding:4px 10px;font-size:9px}
+.btn-sm{padding:4px 10px;font-size:11px}
 .btn-danger{background:transparent;border-color:rgba(255,71,87,.3);color:var(--red)}.btn-danger:hover{background:var(--redD)}
 .btn-gemini{background:linear-gradient(135deg,rgba(66,133,244,.2),rgba(15,157,88,.2));border-color:rgba(66,133,244,.4);color:#8bc4fb}
 .btn-gemini:hover{background:linear-gradient(135deg,rgba(66,133,244,.3),rgba(15,157,88,.3))}
@@ -104,9 +104,9 @@ select option{background:var(--bg2)}
 .cl-item.ck{opacity:.38}.cl-item.ck .cl-txt strong{text-decoration:line-through;color:var(--lo)}
 .cl-cb{width:13px;height:13px;border:1px solid var(--border2);border-radius:2px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:8px}
 .cl-item.ck .cl-cb{background:var(--green);border-color:var(--green);color:#fff}
-.cl-txt{flex:1}.cl-txt strong{display:block;font-size:calc(var(--fs) - 1px);font-weight:500;color:var(--hi);margin-bottom:2px}
-.cl-txt span{font-size:calc(var(--fs) - 3px);color:var(--mid);font-family:var(--mono)}
-.cl-tag{font-family:var(--mono);font-size:8px;padding:1px 6px;border-radius:2px;border:1px solid;white-space:nowrap;flex-shrink:0;margin-top:2px}
+.cl-txt{flex:1}.cl-txt strong{display:block;font-size:calc(var(--fs));font-weight:500;color:var(--hi);margin-bottom:2px}
+.cl-txt span{font-size:calc(var(--fs) - 2px);color:var(--mid);font-family:var(--mono)}
+.cl-tag{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:2px;border:1px solid;white-space:nowrap;flex-shrink:0;margin-top:2px}
 .cl-tag.bond{color:var(--blue);border-color:rgba(59,158,255,.3);background:var(--blueD)}
 .cl-tag.fx{color:var(--cyan);border-color:rgba(0,229,204,.3);background:var(--cyanD)}
 .cl-tag.gold{color:var(--amber);border-color:rgba(245,166,35,.3);background:var(--amberD)}
@@ -114,11 +114,11 @@ select option{background:var(--bg2)}
 .cl-tag.btc{color:var(--pur);border-color:rgba(180,139,250,.3);background:var(--purD)}
 .cl-tag.all{color:var(--lo);border-color:var(--border2)}
 .cl-tag.warn{color:var(--red);border-color:rgba(255,71,87,.3);background:var(--redD)}
-.cl-sec-t{font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--lo);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.cl-sec-t{font-family:var(--cond);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--lo);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:5px;display:flex;align-items:center;gap:6px}
 .cl-edit-mode{cursor:default!important}
 .cl-item:hover .cl-edit-btn{opacity:1!important}
 .prog-wrap{margin-bottom:12px}
-.prog-lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--lo);margin-bottom:4px}
+.prog-lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--lo);margin-bottom:4px}
 .prog-bar{height:2px;background:var(--border);border-radius:2px;overflow:hidden}
 .prog-fill{height:100%;background:var(--blue);border-radius:2px;transition:width .35s}
 
@@ -158,7 +158,7 @@ select option{background:var(--bg2)}
 .ep-row{display:flex;gap:6px}
 
 /* ── TRADE TABLE ── */
-.ttable{width:100%;border-collapse:collapse;font-size:11px}
+.ttable{width:100%;border-collapse:collapse;font-size:13px}
 .ttable th{background:var(--bg2);border:1px solid var(--border);padding:7px 10px;font-family:var(--mono);font-size:9px;color:var(--lo);text-align:left;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
 .ttable td{border:1px solid var(--border);padding:9px 12px;font-family:var(--mono);color:var(--mid);vertical-align:middle;font-size:calc(var(--fs) - 1px)}
 .ttable tbody tr:hover td{background:var(--bg2);cursor:pointer;color:var(--hi)}
@@ -171,11 +171,11 @@ select option{background:var(--bg2)}
 .modal-bg.open{display:flex}
 .modal{background:var(--bg1);border:1px solid var(--border2);border-radius:5px;width:100%;max-width:960px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column}
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
-.modal-head h3{font-family:var(--cond);font-size:14px;font-weight:700;color:var(--hi)}
+.modal-head h3{font-family:var(--cond);font-size:16px;font-weight:700;color:var(--hi)}
 .modal-close{font-size:18px;color:var(--lo);cursor:pointer;padding:0 4px}.modal-close:hover{color:var(--red)}
 .modal-body{overflow-y:auto;flex:1;padding:16px 18px}
 .ctabs{display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--border)}
-.ctab{padding:6px 12px;font-family:var(--mono);font-size:10px;color:var(--lo);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;white-space:nowrap}
+.ctab{padding:6px 12px;font-family:var(--mono);font-size:12px;color:var(--lo);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;white-space:nowrap}
 .ctab.active{color:var(--amber);border-bottom-color:var(--amber)}.ctab:hover:not(.active){color:var(--mid)}
 .cpanel{display:none}.cpanel.active{display:block}
 .upload-area{border:2px dashed var(--border2);border-radius:var(--r);padding:20px 30px;text-align:center;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative;margin-bottom:8px;outline:none}
@@ -193,8 +193,8 @@ select option{background:var(--bg2)}
 .leg-row,.leg-header{display:grid;grid-template-columns:110px 90px 90px 110px 90px 52px 52px 56px 72px 28px;gap:6px;align-items:center;min-width:740px}
 .leg-row{margin-bottom:6px}
 .leg-header{margin-bottom:4px;padding:0 2px}
-.leg-header div{font-family:var(--mono);font-size:9px;color:var(--lo);white-space:nowrap}
-.leg-input{font-size:11px;padding:4px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--hi);width:100%;font-family:var(--mono)}
+.leg-header div{font-family:var(--mono);font-size:11px;color:var(--lo);white-space:nowrap}
+.leg-input{font-size:13px;padding:4px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--hi);width:100%;font-family:var(--mono)}
 .leg-input:focus{border-color:var(--blue);outline:none}
 .leg-input.has-val{border-color:rgba(37,99,235,.35)}
 .macro-in:focus{border-color:var(--pur);outline:none;box-shadow:0 0 0 3px rgba(124,58,237,.1)}
@@ -265,8 +265,8 @@ select option{background:var(--bg2)}
 .rb{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
 .rb-fill{height:100%;border-radius:2px;transition:width .4s}
 .sbox{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;transition:border-color .2s}.sbox:hover{border-color:var(--blue)}
-.sl{font-family:var(--mono);font-size:9px;color:var(--lo);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
-.sv{font-family:var(--mono);font-size:20px;color:var(--hi)}.sv.sm{font-size:15px}
+.sl{font-family:var(--mono);font-size:11px;color:var(--lo);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.sv{font-family:var(--mono);font-size:22px;color:var(--hi)}.sv.sm{font-size:17px}
 .ss{font-family:var(--mono);font-size:10px;color:var(--lo)}
 
 /* ── SETTINGS ── */
@@ -284,7 +284,7 @@ select option{background:var(--bg2)}
 
 /* ── JTABS (inner) ── */
 .jtabs{display:flex;gap:2px;margin-bottom:14px;border-bottom:1px solid var(--border);overflow-x:auto}
-.jtab{padding:7px 14px;font-family:var(--cond);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--lo);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
+.jtab{padding:7px 14px;font-family:var(--cond);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--lo);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
 .jtab.active{color:var(--blue);border-bottom-color:var(--blue)}.jtab:hover:not(.active){color:var(--mid)}
 .jpanel{display:none}.jpanel.active{display:block}
 .date-nav{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:9px 13px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r)}
@@ -3513,7 +3513,7 @@ function _buildSubTabItem(it,si,ii,tab){
     const isBad  = isDone && curVal.startsWith('✗');
     const isNA   = isDone && curVal === '—';
     const dotCol = !isDone ? 'var(--border2)' : isBad ? 'var(--red)' : isNA ? 'var(--lo)' : 'var(--green)';
-    const selectStyle = `width:100%;font-family:var(--mono);font-size:10px;padding:4px 7px;background:var(--bg3);border:1px solid ${isDone?(isBad?'rgba(239,68,68,.3)':isNA?'var(--border2)':'rgba(34,197,94,.3)'):'var(--border)'};border-radius:4px;color:${isDone?(isBad?'var(--red)':isNA?'var(--lo)':'var(--green)'):'var(--mid)'};cursor:pointer;outline:none;transition:all .2s`;
+    const selectStyle = `width:100%;font-family:var(--mono);font-size:13px;padding:5px 9px;background:var(--bg3);border:1px solid ${isDone?(isBad?'rgba(239,68,68,.3)':isNA?'var(--border2)':'rgba(34,197,94,.3)'):'var(--border)'};border-radius:4px;color:${isDone?(isBad?'var(--red)':isNA?'var(--lo)':'var(--green)'):'var(--mid)'};cursor:pointer;outline:none;transition:all .2s`;
     const optionsHTML = ['<option value="">— 選擇 —</option>',
       ...opts.map(o => `<option value="${o}"${curVal===o?' selected':''}>${o}</option>`)
     ].join('');
@@ -3521,8 +3521,8 @@ function _buildSubTabItem(it,si,ii,tab){
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${dotCol};transition:background .2s"></div>
         <div style="flex:1;min-width:0">
-          <span style="font-size:11px;font-weight:600;color:${isDone?'var(--hi)':'var(--mid)'}">${it.title}</span>
-          ${it.sub?`<div style="font-size:10px;color:var(--lo);margin-top:1px">${it.sub}</div>`:''}
+          <span style="font-size:13px;font-weight:600;color:${isDone?'var(--hi)':'var(--mid)'}">${it.title}</span>
+          ${it.sub?`<div style="font-size:12px;color:var(--lo);margin-top:1px">${it.sub}</div>`:''}
         </div>
         ${it.tagTxt?`<span class="cl-tag" style="background:${tb};color:${tt};white-space:nowrap;flex-shrink:0">${it.tagTxt}</span>`:''}
         ${editBtns}${exBtn}
