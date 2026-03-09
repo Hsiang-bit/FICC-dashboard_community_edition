@@ -592,16 +592,23 @@ select option{background:var(--bg2)}
       <button class="btn btn-g btn-sm" onclick="syncAllTrades()" title="新建+更新全部交易到 Notion">↺ 全部同步</button>
     </div>
   </div>
-  <div class="g4 mb16">
-    <div class="sbox"><div class="sl">Total Trades</div><div class="sv sm" id="ts-tot">0</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px">
+    <div class="sbox"><div class="sl">Total</div><div class="sv sm" id="ts-tot">0</div></div>
     <div class="sbox"><div class="sl">Win Rate</div><div class="sv sm" id="ts-wr">—</div></div>
     <div class="sbox"><div class="sl">Avg R</div><div class="sv sm" id="ts-avgr">—</div></div>
-    <div class="sbox"><div class="sl">Cumulative R</div><div class="sv sm" id="ts-pnl">—</div></div>
-    <div class="sbox"><div class="sl">Cumulative PnL $</div><div class="sv sm" id="ts-pnl-amt">—</div></div>
+    <div class="sbox"><div class="sl">Cum. R</div><div class="sv sm" id="ts-pnl">—</div></div>
+    <div class="sbox"><div class="sl">Expectancy</div><div class="sv sm" id="ts-exp">—</div></div>
+    <div class="sbox"><div class="sl">½ Kelly</div><div class="sv sm" id="ts-kelly">—</div></div>
+    <div class="sbox"><div class="sl">Cum. PnL $</div><div class="sv sm" id="ts-pnl-amt">—</div></div>
+  </div>
+  <!-- Grade breakdown -->
+  <div id="ts-grade-wrap" style="display:none;margin-bottom:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
+    <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:8px">Setup 等級分析</div>
+    <div id="ts-grade-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px"></div>
   </div>
   <div style="overflow-x:auto">
     <table class="ttable">
-      <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
+      <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>Grade</th><th>Conf.</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
       <tbody id="tBody"><tr><td colspan="13" class="t-empty">尚無記錄，點擊「+ 新增交易」</td></tr></tbody>
     </table>
   </div>
@@ -1208,7 +1215,61 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
         <div class="fg"><span class="fl">資產</span><select id="m-asset" style="width:100%"></select></div>
         <div class="fg"><span class="fl">方向</span><select id="m-dir" style="width:100%"><option>LONG</option><option>SHORT</option></select></div>
         <div class="fg"><span class="fl">狀態</span><select id="m-status" style="width:100%"><option>OPEN</option><option>CLOSED</option><option>TP HIT</option><option>SL HIT</option></select></div>
+      </div>
 
+      <!-- Row 2: Session / Grade / Protocol / Disq -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="fg"><span class="fl">Session</span>
+          <select id="m-session" style="width:100%">
+            <option value="">— 選擇 —</option>
+            <option>London (03:00–05:00)</option>
+            <option>London Lunch (10:00–12:00)</option>
+            <option>NY Open (09:30–11:00)</option>
+            <option>Pre-NY (07:15–09:15)</option>
+            <option>NY PM (13:00–16:00)</option>
+            <option>Asia (20:00–00:00)</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="fg">
+          <span class="fl" style="display:flex;align-items:center;gap:4px">Grade
+            <span id="m-grade-chip" style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid transparent"></span>
+          </span>
+          <select id="m-grade" style="width:100%" onchange="updateGradeChip()">
+            <option value="">— 選擇 —</option>
+            <option value="A+">A+</option><option value="A">A</option>
+            <option value="B">B</option><option value="C">C</option>
+          </select>
+        </div>
+        <div class="fg"><span class="fl">Entry Protocol</span>
+          <select id="m-protocol" style="width:100%">
+            <option value="">— 選擇 —</option>
+            <option>IOFED / BPR</option><option>FVG Entry</option>
+            <option>OB / Breaker</option><option>Inducement</option>
+            <option>Standard Re-acc</option><option>Offset Acc</option>
+            <option>No Trade</option>
+          </select>
+        </div>
+        <div class="fg"><span class="fl">Trade Type</span>
+          <select id="m-outcome-type" style="width:100%">
+            <option value="normal">正常交易</option>
+            <option value="missed_good">Missed ✓ Good</option>
+            <option value="missed_fomo">Missed ✗ FOMO</option>
+            <option value="disq">Disqualified</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Confluence Checklist -->
+      <div style="margin-bottom:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
+        <div style="display:flex;align-items:center;margin-bottom:8px">
+          <span style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase">Confluence Score</span>
+          <span id="m-conf-score-lbl" style="font-family:var(--mono);font-size:10px;color:var(--amber);margin-left:auto">0 / 100</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px" id="m-conf-items"></div>
+        <div style="margin-top:8px;height:4px;background:var(--bg);border-radius:2px;overflow:hidden">
+          <div id="m-conf-bar" style="height:100%;border-radius:2px;transition:width .3s,background .3s;width:0%"></div>
+        </div>
       </div>
 
       <!-- Scale-In/Out Legs -->
@@ -2682,6 +2743,108 @@ function clearClEx(){
   toast('範例已清除');
 }
 
+
+// ════════════════════════════════════
+// CONFLUENCE CHECKLIST & GRADE SYSTEM
+// ════════════════════════════════════
+const CONF_FIELDS = [
+  {k:'cf_htf_bias',    l:'HTF Bias 確認',       pts:20},
+  {k:'cf_csd',         l:'CSD 三步驟',           pts:18},
+  {k:'cf_smt',         l:'SMT Divergence',       pts:18},
+  {k:'cf_mss',         l:'MSS 確認',             pts:12},
+  {k:'cf_liq_sweep',   l:'流動性掃除',           pts:12},
+  {k:'cf_fvg_ob',      l:'FVG / OB 進場',        pts:10},
+  {k:'cf_mtf_stack',   l:'多 TF PDA 堆疊',       pts:6},
+  {k:'cf_clear_target',l:'目標清晰 ≥1:3R',       pts:4},
+];
+const CONF_MAX = CONF_FIELDS.reduce((a,f)=>a+f.pts,0);
+
+const GRADE_COLORS = {'A+':'#f5c842','A':'var(--green)','B':'var(--amber)','C':'var(--red)'};
+const GRADE_BG     = {'A+':'rgba(245,200,66,.12)','A':'rgba(5,150,105,.1)','B':'rgba(217,119,6,.1)','C':'rgba(220,38,38,.1)'};
+
+function buildConfItems(){
+  const el = document.getElementById('m-conf-items');
+  if(!el) return;
+  el.innerHTML = CONF_FIELDS.map(f=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);cursor:pointer"
+      onclick="toggleConf('${f.k}')">
+      <div id="cb-${f.k}" style="width:14px;height:14px;border-radius:3px;border:1px solid var(--border2);
+        background:transparent;display:flex;align-items:center;justify-content:center;
+        font-size:9px;color:#000;flex-shrink:0;transition:all .15s"></div>
+      <span style="font-size:11px;color:var(--mid);flex:1">${f.l}</span>
+      <span style="font-family:var(--mono);font-size:9px;color:var(--lo)">+${f.pts}</span>
+    </div>`).join('');
+}
+
+function toggleConf(k){
+  const cb = document.getElementById('cb-'+k);
+  if(!cb) return;
+  const active = cb.style.background !== 'transparent' && cb.style.background !== '';
+  cb.style.background = active ? 'transparent' : 'var(--green)';
+  cb.style.borderColor = active ? 'var(--border2)' : 'var(--green)';
+  cb.textContent = active ? '' : '✓';
+  updateConfScore();
+}
+
+function getConfValues(){
+  const vals={};
+  CONF_FIELDS.forEach(f=>{
+    const cb=document.getElementById('cb-'+f.k);
+    vals[f.k] = cb && cb.textContent==='✓';
+  });
+  return vals;
+}
+
+function setConfValues(trade){
+  CONF_FIELDS.forEach(f=>{
+    const cb=document.getElementById('cb-'+f.k);
+    if(!cb) return;
+    const active = !!trade[f.k];
+    cb.style.background = active ? 'var(--green)' : 'transparent';
+    cb.style.borderColor = active ? 'var(--green)' : 'var(--border2)';
+    cb.textContent = active ? '✓' : '';
+  });
+  updateConfScore();
+}
+
+function resetConfValues(){
+  CONF_FIELDS.forEach(f=>{
+    const cb=document.getElementById('cb-'+f.k);
+    if(cb){ cb.style.background='transparent'; cb.style.borderColor='var(--border2)'; cb.textContent=''; }
+  });
+  updateConfScore();
+}
+
+function updateConfScore(){
+  const vals=getConfValues();
+  const score=CONF_FIELDS.reduce((a,f)=>a+(vals[f.k]?f.pts:0),0);
+  const pct=score/CONF_MAX;
+  const color=pct>=0.78?'#f5c842':pct>=0.58?'var(--green)':pct>=0.38?'var(--amber)':'var(--red)';
+  const lbl=document.getElementById('m-conf-score-lbl');
+  const bar=document.getElementById('m-conf-bar');
+  if(lbl){ lbl.textContent=score+' / '+CONF_MAX; lbl.style.color=color; }
+  if(bar){ bar.style.width=(pct*100)+'%'; bar.style.background=color; }
+}
+
+function updateGradeChip(){
+  const g=document.getElementById('m-grade')?.value;
+  const chip=document.getElementById('m-grade-chip');
+  if(!chip) return;
+  if(g && GRADE_COLORS[g]){
+    chip.textContent=g;
+    chip.style.color=GRADE_COLORS[g];
+    chip.style.background=GRADE_BG[g];
+    chip.style.borderColor=GRADE_COLORS[g]+'50';
+  } else {
+    chip.textContent=''; chip.style.background='transparent'; chip.style.borderColor='transparent';
+  }
+}
+
+function confScore(trade){
+  return CONF_FIELDS.reduce((a,f)=>a+(trade[f.k]?f.pts:0),0);
+}
+function confPct(trade){ return confScore(trade)/CONF_MAX; }
+
 // ════════════════════════════════════
 // CLOCK & SESSION
 // ════════════════════════════════════
@@ -3364,6 +3527,18 @@ function renderTrades(){
   tbody.innerHTML=trades.map((t,i)=>{
     const ac=AC[t.asset]||'';
     const dc=t.dir==='LONG'?'dir-l':'dir-s';
+    // Grade chip
+    const gc=t.grade&&GRADE_COLORS[t.grade];
+    const gradeCell=t.grade
+      ?`<span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;border:1px solid ${gc}50;color:${gc};background:${GRADE_BG[t.grade]}">${t.grade}</span>`
+      :'<span style="color:var(--lo)">—</span>';
+    // Confluence mini bar
+    const cpct = typeof confPct==='function'?confPct(t):0;
+    const ccolor=cpct>=0.78?'#f5c842':cpct>=0.58?'var(--green)':cpct>=0.38?'var(--amber)':'var(--red)';
+    const cscore=typeof confScore==='function'?confScore(t):0;
+    const confCell=cscore>0
+      ?`<div style="display:flex;align-items:center;gap:4px"><div style="flex:1;height:4px;background:var(--bg);border-radius:2px;min-width:40px"><div style="height:100%;border-radius:2px;background:${ccolor};width:${(cpct*100).toFixed(0)}%"></div></div><span style="font-family:var(--mono);font-size:9px;color:${ccolor}">${cscore}</span></div>`
+      :'<span style="color:var(--lo)">—</span>';
     const pd=t.pnl!=null?(t.pnl>=0?`<span class="pnl-p">+${t.pnl.toFixed(2)}R</span>`:`<span class="pnl-n">${t.pnl.toFixed(2)}R</span>`):'—';
     const pnlAmt=t.totalPnl!=null?(t.totalPnl>=0?`<span class="pnl-p">+${t.totalPnl.toFixed(2)}</span>`:`<span class="pnl-n">${t.totalPnl.toFixed(2)}</span>`):'—';
     const cc=t.charts?Object.keys(t.charts).filter(k=>t.charts[k]).length:0;
@@ -3376,6 +3551,8 @@ function renderTrades(){
       <td>${t.date}${pubBadge}</td>
       <td><span class="cl-tag ${ac}">${t.asset}</span></td>
       <td class="${dc}">${t.dir==='LONG'?'⬆ L':'⬇ S'}</td>
+      <td>${gradeCell}</td>
+      <td style="min-width:60px">${confCell}</td>
       <td style="font-family:var(--mono);font-size:11px">${t.entry?t.entry:'—'}${t.legs&&t.legs.length>1?`<span style="font-size:9px;margin-left:3px;background:rgba(37,99,235,.12);color:var(--blue);border:1px solid rgba(37,99,235,.2);border-radius:2px;padding:1px 4px">×${t.legs.length}</span>`:''}</td>
       <td>${t.exit||'—'}</td>
       <td>${t.risk}%</td><td>${t.r?t.r+'R':'—'}</td>
@@ -3393,8 +3570,9 @@ function renderTrades(){
   if(btnAll)btnAll.textContent=unsyncedCount>0?'◩ 推送新增 ('+unsyncedCount+')':'◩ 已全部同步';
 }
 function updateStats(){
-  const cl=trades.filter(t=>t.status!=='OPEN'&&t.pnl!=null);
+  const cl=trades.filter(t=>t.status!=='OPEN'&&t.pnl!=null&&(t.outcome_type||'normal')==='normal');
   const w=cl.filter(t=>t.pnl>0);
+  const l=cl.filter(t=>t.pnl<0);
   document.getElementById('ts-tot').textContent=trades.length;
   document.getElementById('ts-wr').textContent=cl.length?(w.length/cl.length*100).toFixed(0)+'%':'—';
   const avg=cl.length?(cl.reduce((s,t)=>s+t.pnl,0)/cl.length).toFixed(2):null;
@@ -3403,13 +3581,57 @@ function updateStats(){
   const pe=document.getElementById('ts-pnl');
   if(sum){pe.textContent=(parseFloat(sum)>=0?'+':'')+sum+'R';pe.style.color=parseFloat(sum)>=0?'var(--green)':'var(--red)';}
   else pe.textContent='—';
-  // Cumulative $ PnL (only trades that have leg PnL recorded)
+
+  // Expectancy & Kelly
+  const expEl=document.getElementById('ts-exp');
+  const kellyEl=document.getElementById('ts-kelly');
+  if(cl.length>=5){
+    const avgWin=w.length?w.reduce((s,t)=>s+t.pnl,0)/w.length:0;
+    const avgLoss=l.length?Math.abs(l.reduce((s,t)=>s+t.pnl,0)/l.length):1;
+    const wr=w.length/cl.length;
+    const exp=wr*avgWin-(1-wr)*avgLoss;
+    const rr=avgLoss>0?avgWin/avgLoss:0;
+    const kelly=avgLoss>0?Math.max(0,(wr*rr-(1-wr))/rr):0;
+    if(expEl){expEl.textContent=(exp>=0?'+':'')+exp.toFixed(3)+'R';expEl.style.color=exp>=0?'var(--green)':'var(--red)';}
+    if(kellyEl){kellyEl.textContent=(kelly*50).toFixed(1)+'%';kellyEl.style.color='var(--amber)';}
+  } else {
+    if(expEl)expEl.textContent='—';
+    if(kellyEl)kellyEl.textContent='—';
+  }
+
+  // Cumulative $ PnL
   const withAmt=trades.filter(t=>t.totalPnl!=null);
   const amtSum=withAmt.length?withAmt.reduce((s,t)=>s+t.totalPnl,0):null;
   const pa=document.getElementById('ts-pnl-amt');
   if(pa){
     if(amtSum!=null){pa.textContent=(amtSum>=0?'+':'')+amtSum.toFixed(2);pa.style.color=amtSum>=0?'var(--green)':'var(--red)';}
     else pa.textContent='—';
+  }
+
+  // Grade breakdown
+  const gradeWrap=document.getElementById('ts-grade-wrap');
+  const gradeBody=document.getElementById('ts-grade-body');
+  if(gradeBody){
+    const graded=cl.filter(t=>t.grade);
+    if(graded.length){
+      gradeWrap&&(gradeWrap.style.display='block');
+      gradeBody.innerHTML=['A+','A','B','C'].map(g=>{
+        const gt=graded.filter(t=>t.grade===g);
+        if(!gt.length) return `<div style="padding:6px 10px;background:var(--bg);border-radius:var(--r);font-family:var(--mono);font-size:9px;color:var(--lo)">${g}: 無資料</div>`;
+        const gw=gt.filter(t=>t.pnl>0).length;
+        const gawr=(gw/gt.length*100).toFixed(0)+'%';
+        const gavgR=(gt.reduce((s,t)=>s+t.pnl,0)/gt.length).toFixed(2);
+        const gc=GRADE_COLORS[g]||'var(--lo)';
+        const assessment=gw/gt.length>=0.5&&parseFloat(gavgR)>0?'Edge ✓':parseFloat(gavgR)<0?'負期望':'發展中';
+        return `<div style="padding:8px 10px;background:var(--bg);border-radius:var(--r);display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:800;padding:2px 7px;border-radius:3px;border:1px solid ${gc}50;color:${gc};background:${GRADE_BG[g]}">${g}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--lo)">${gt.length}筆</span>
+          <span style="font-family:var(--mono);font-size:10px;color:${parseFloat(gawr)>=40?'var(--green)':'var(--red)'}">${gawr}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:${parseFloat(gavgR)>=0?'var(--green)':'var(--red)'}">${parseFloat(gavgR)>=0?'+':''}${gavgR}R</span>
+          <span style="font-family:var(--mono);font-size:9px;color:${gc};margin-left:auto">${assessment}</span>
+        </div>`;
+      }).join('');
+    } else { gradeWrap&&(gradeWrap.style.display='none'); }
   }
 }
 function updateRisk(){
@@ -3445,6 +3667,9 @@ function openAddModal(){
   const nbtn2=document.getElementById('notionPushBtn');
   if(nbtn2) nbtn2.textContent='◩ 推送 Notion';
   currentChartPhase='entry';switchChartPhase('entry');buildCtabs(null);document.getElementById('tradeModal').classList.add('open');
+  buildConfItems(); resetConfValues(); updateGradeChip();
+  ['m-session','m-grade','m-protocol'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const ot=document.getElementById('m-outcome-type');if(ot)ot.value='normal';
   populateAssetSelects();
   renderAssetList();
   const pub=document.getElementById('m-public');
@@ -3468,6 +3693,13 @@ function openEditModal(id){
 
   document.getElementById('m-reason').value=t.reason||'';
   document.getElementById('m-exitr').value=t.exitr||'';
+  // ICT fields
+  buildConfItems();
+  const sesEl=document.getElementById('m-session'); if(sesEl) sesEl.value=t.session||'';
+  const grEl=document.getElementById('m-grade'); if(grEl){ grEl.value=t.grade||''; updateGradeChip(); }
+  const prEl=document.getElementById('m-protocol'); if(prEl) prEl.value=t.protocol||'';
+  const otEl=document.getElementById('m-outcome-type'); if(otEl) otEl.value=t.outcome_type||'normal';
+  setConfValues(t);
   const pubEl=document.getElementById('m-public');if(pubEl){pubEl.checked=!!t.is_public;document.getElementById('publicLabel').textContent=t.is_public?'🌐 公開':'🔒 私人';}
   // Load legs
   _legs = t.legs ? JSON.parse(JSON.stringify(t.legs)) : [];
@@ -3810,6 +4042,12 @@ function saveTrade(){
     exitr: document.getElementById('m-exitr').value,
     is_public: document.getElementById('m-public')?.checked||false,
     legs: hasLegs ? JSON.parse(JSON.stringify(_legs)) : undefined,
+    // ICT fields
+    session:      document.getElementById('m-session')?.value||'',
+    grade:        document.getElementById('m-grade')?.value||'',
+    protocol:     document.getElementById('m-protocol')?.value||'',
+    outcome_type: document.getElementById('m-outcome-type')?.value||'normal',
+    ...getConfValues(),
   };
   // pnl = R multiple (for win rate / avg R stats)
   d.pnl = d.status!=='OPEN' ? d.r : null;
