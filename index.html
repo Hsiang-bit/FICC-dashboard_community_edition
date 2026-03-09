@@ -401,7 +401,9 @@ select option{background:var(--bg2)}
   <button class="ntab" onclick="showPage('coach',this)"><span class="dot" style="background:linear-gradient(to right,#4285f4,#0f9d58)"></span>AI Coach</button>
   <button class="ntab" onclick="showPage('macro',this)"><span class="dot" style="background:linear-gradient(to right,#7c3aed,#db2777)"></span>Macro</button>
   <button class="ntab" onclick="showPage('news',this);loadNews()"><span class="dot" style="background:var(--blue)"></span>News</button>
-  <button class="ntab" onclick="showPage('risk',this)"><span class="dot"></span>Risk</button>
+  <button class="ntab" onclick="showPage('stat',this);renderStat()"><span class="dot" style="background:var(--amber)"></span>STAT</button>
+<button class="ntab" onclick="showPage('setup',this);renderSetup()"><span class="dot" style="background:var(--blue)"></span>Setup</button>
+<button class="ntab" onclick="showPage('risk',this)"><span class="dot"></span>Risk</button>
   <button class="ntab" onclick="showPage('settings',this)"><span class="dot"></span>Settings</button>
   <button class="ntab" onclick="showPage('page-community',this)" style="border-left:1px solid var(--border2);margin-left:4px"><span class="dot" style="background:linear-gradient(to right,var(--blue),var(--green))"></span>🌐 社群</button>
 </div>
@@ -611,6 +613,293 @@ select option{background:var(--bg2)}
       <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>Grade</th><th>Conf.</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
       <tbody id="tBody"><tr><td colspan="13" class="t-empty">尚無記錄，點擊「+ 新增交易」</td></tr></tbody>
     </table>
+  </div>
+</div>
+
+
+<!-- ═══════ STAT PAGE ═══════ -->
+<div class="page" id="page-stat">
+  <div class="sec"><div class="acc" style="background:var(--amber)"></div><h2>統計分析</h2>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <select id="stat-filter" style="font-size:10px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--hi)" onchange="renderStat()">
+        <option value="all">全部交易</option>
+        <option value="live">實盤</option>
+        <option value="backtest">回測</option>
+      </select>
+      <button class="btn btn-g btn-sm" onclick="renderStat()">↻ 更新</button>
+    </div>
+  </div>
+
+  <!-- Sample warning -->
+  <div id="stat-warn" style="display:none;margin-bottom:12px"></div>
+
+  <!-- ① Main KPI row -->
+  <div id="stat-kpi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:14px"></div>
+
+  <!-- ② Equity Curve -->
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase">📈 Equity Curve (R)</span>
+      <div style="display:flex;gap:12px;font-family:var(--mono);font-size:10px">
+        <span id="stat-eq-start" style="color:var(--lo)">Start: 0R</span>
+        <span id="stat-eq-end" style="color:var(--green);font-weight:600">—</span>
+      </div>
+    </div>
+    <canvas id="statEqCanvas" style="width:100%;height:160px;display:block;border-radius:4px"></canvas>
+  </div>
+
+  <!-- ③ Monthly R bar chart -->
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+    <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">📅 月度 R 分佈</div>
+    <canvas id="statMonthCanvas" style="width:100%;height:120px;display:block;border-radius:4px"></canvas>
+    <div id="statMonthLegend" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-family:var(--mono);font-size:9px"></div>
+  </div>
+
+  <!-- ④ Grade + Asset breakdown side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">🏆 Setup 等級分析</div>
+      <div id="stat-grade-body"></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">📊 資產別分析</div>
+      <div id="stat-asset-body"></div>
+    </div>
+  </div>
+
+  <!-- ⑤ Session breakdown + Streak -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">⏱ Session 分析</div>
+      <div id="stat-session-body"></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">🔥 連勝/連敗記錄</div>
+      <div id="stat-streak-body"></div>
+    </div>
+  </div>
+
+  <!-- ⑥ Empty state -->
+  <div id="stat-empty" style="display:none;text-align:center;padding:60px 20px;color:var(--lo);font-family:var(--mono);font-size:12px">
+    尚無足夠交易記錄。請先在 Trade Log 新增交易。
+  </div>
+</div>
+
+
+<!-- ═══════ SETUP PAGE ═══════ -->
+<div class="page" id="page-setup">
+  <div class="sec"><div class="acc" style="background:var(--blue)"></div><h2>Setup 評分系統</h2>
+    <div style="margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--lo)">ICT Kelly · Confluence Grader</div>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:3px;margin-bottom:16px;flex-wrap:wrap" id="setup-subtabs">
+    <button class="jtab active" onclick="switchSetupTab('grader',this)">🎯 Setup 評分</button>
+    <button class="jtab" onclick="switchSetupTab('dist',this)">📊 月度預期</button>
+    <button class="jtab" onclick="switchSetupTab('sim',this)">🎲 序列模擬</button>
+    <button class="jtab" onclick="switchSetupTab('streaks',this)">🔥 連敗分析</button>
+    <button class="jtab" onclick="switchSetupTab('daily',this)">✅ 每日檢核</button>
+  </div>
+
+  <!-- Grader sub-tab -->
+  <div id="setup-tab-grader">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <!-- Left: sliders + checklist -->
+      <div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px">
+          <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:14px">⚙ 系統參數</div>
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:11px">
+              <span style="color:var(--mid)">勝率 Win Rate</span>
+              <span id="sl-wr-val" style="font-family:var(--mono);font-size:12px;color:var(--green);font-weight:500">42%</span>
+            </div>
+            <input type="range" id="sl-wr" min="25" max="65" value="42" style="width:100%" oninput="updateSetup()">
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:2px">
+              <span>新手現實 25%</span><span style="color:var(--amber)">← 你可能在這裡</span><span>成熟 65%</span>
+            </div>
+          </div>
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:11px">
+              <span style="color:var(--mid)">盈虧比 R:R</span>
+              <span id="sl-rr-val" style="font-family:var(--mono);font-size:12px;color:var(--green);font-weight:500">1:2.0</span>
+            </div>
+            <input type="range" id="sl-rr" min="10" max="40" value="20" style="width:100%" oninput="updateSetup()">
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:11px">
+              <span style="color:var(--mid)">每日交易筆數</span>
+              <span id="sl-tpd-val" style="font-family:var(--mono);font-size:12px;color:var(--green);font-weight:500">2 筆</span>
+            </div>
+            <input type="range" id="sl-tpd" min="1" max="4" value="2" style="width:100%" oninput="updateSetup()">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div class="sbox"><div class="sl">Kelly f*</div><div class="sv sm" id="kpi-fullk" style="color:var(--gold)">—</div></div>
+            <div class="sbox"><div class="sl">Half Kelly</div><div class="sv sm" id="kpi-halfk" style="color:var(--green)">—</div></div>
+            <div class="sbox"><div class="sl">期望值/筆</div><div class="sv sm" id="kpi-exp" style="color:var(--green)">—</div></div>
+          </div>
+        </div>
+
+        <!-- Confluence Checklist -->
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+          <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">🎯 ICT Confluence 評分</div>
+          <div id="setup-cf-list"></div>
+        </div>
+      </div>
+
+      <!-- Right: grade result + hand table -->
+      <div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px">
+          <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">今日 Setup 牌力</div>
+          <div style="text-align:center;padding:10px 0 16px">
+            <div id="grade-chip-big" style="width:60px;height:60px;border-radius:50%;border:3px dashed;display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:800;font-size:22px;margin-bottom:10px"></div>
+            <div id="grade-name" style="font-family:var(--mono);font-size:11px;letter-spacing:2px;margin-bottom:6px"></div>
+            <div id="grade-score-big" style="font-family:var(--mono);font-size:52px;font-weight:800;line-height:1"></div>
+            <div style="font-size:10px;color:var(--lo);font-family:var(--mono);margin-top:4px">Edge Score / 100</div>
+          </div>
+          <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:14px">
+            <div id="grade-meter" style="height:100%;border-radius:4px;transition:width .4s,background .4s;width:0%"></div>
+          </div>
+          <div id="grade-action" style="font-size:12px;color:var(--mid);text-align:center;margin-bottom:14px;line-height:1.6"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div class="sbox"><div class="sl">建議風險</div><div class="sv sm" id="grade-risk" style="color:var(--green)">—</div></div>
+            <div class="sbox"><div class="sl">vs Base</div><div class="sv sm" id="grade-mult">—</div></div>
+            <div class="sbox"><div class="sl">½ Kelly 基準</div><div class="sv sm" id="grade-halfk" style="color:var(--green)">—</div></div>
+          </div>
+        </div>
+        <!-- Hand tier table -->
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+          <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">牌力對應表</div>
+          <div id="hand-table"></div>
+        </div>
+      </div>
+    </div>
+    <div id="setup-alert" style="display:none;border-radius:6px;padding:11px 14px;font-size:12px;line-height:1.7;margin-bottom:12px"></div>
+  </div>
+
+  <!-- Dist sub-tab -->
+  <div id="setup-tab-dist" style="display:none">
+    <div style="background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.15);border-radius:6px;padding:11px 14px;font-size:12px;line-height:1.7;color:#406070;margin-bottom:14px">
+      <strong style="color:#c8ddd8">核心邏輯：</strong>比較<strong>固定 1R</strong>與<strong>Kelly 分級倉位</strong>的月度 PNL 分佈，基於 800 次蒙地卡羅模擬。
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">月度 R 分佈 · Flat 1R vs Kelly Tiered</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px" id="dist-table">
+        <thead><tr style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--lo)">
+          <td style="padding:6px 0;text-transform:uppercase">分位</td>
+          <td style="padding:6px 8px;text-align:center;text-transform:uppercase">Flat 1R</td>
+          <td style="padding:6px 8px;text-align:center;text-transform:uppercase;color:var(--green)">Kelly Tiered</td>
+          <td style="padding:6px 0;text-align:right;text-transform:uppercase">差異</td>
+        </tr></thead>
+        <tbody id="dist-tbody"></tbody>
+      </table></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;gap:14px">
+          <div style="display:flex;align-items:center;gap:6px"><div style="width:18px;height:2px;background:rgba(60,90,80,.9);border-radius:1px"></div><span style="font-size:11px;color:var(--lo)">Flat 1R</span></div>
+          <div style="display:flex;align-items:center;gap:6px"><div style="width:18px;height:2px;background:var(--green);border-radius:1px"></div><span style="font-size:11px;color:var(--green)">Kelly Tiered</span></div>
+        </div>
+        <button class="btn btn-g btn-sm" onclick="runDistSim()">↻ 重新模擬</button>
+      </div>
+      <canvas id="distEqCanvas" style="width:100%;height:140px;display:block;border-radius:4px"></canvas>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-family:var(--mono);font-size:11px">
+        <span id="dist-flat-sum" style="color:var(--lo)">Flat: —</span>
+        <span id="dist-kelly-sum" style="color:var(--green);font-weight:600">Kelly: —</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="sbox" style="text-align:center"><div class="sl">現實保守目標</div><div class="sv" id="dist-target" style="color:var(--blue);font-size:14px">—</div><div style="font-size:9px;color:var(--lo);margin-top:3px">前 3 個月</div></div>
+      <div class="sbox" style="text-align:center"><div class="sl">系統正常範圍</div><div class="sv" id="dist-normal" style="color:var(--green);font-size:14px">—</div><div style="font-size:9px;color:var(--lo);margin-top:3px">P25–P75</div></div>
+      <div class="sbox" style="text-align:center"><div class="sl">必須接受下限</div><div class="sv" id="dist-floor" style="color:var(--amber);font-size:14px">—</div><div style="font-size:9px;color:var(--lo);margin-top:3px">10th percentile</div></div>
+    </div>
+  </div>
+
+  <!-- Sim sub-tab -->
+  <div id="setup-tab-sim" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">Flat 1R · 20 交易日</div>
+        <div id="sim-flat-dots" style="display:flex;flex-wrap:wrap;gap:5px 4px;margin-bottom:10px"></div>
+        <canvas id="simFlatCanvas" style="width:100%;height:90px;display:block;border-radius:4px"></canvas>
+        <div style="display:flex;gap:16px;margin-top:8px">
+          <div><div class="sv sm" id="sim-flat-pnl" style="color:var(--green)">—</div><div style="font-size:10px;color:var(--lo)">月 PNL</div></div>
+          <div><div class="sv sm" id="sim-flat-wl" style="color:var(--blue)">—</div><div style="font-size:10px;color:var(--lo)">W/Total</div></div>
+          <div><div class="sv sm" id="sim-flat-streak" style="color:var(--amber)">—</div><div style="font-size:10px;color:var(--lo)">最長連敗</div></div>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--green);text-transform:uppercase;margin-bottom:10px">Kelly Tiered · 20 交易日</div>
+        <div id="sim-kelly-dots" style="display:flex;flex-wrap:wrap;gap:5px 4px;margin-bottom:10px"></div>
+        <canvas id="simKellyCanvas" style="width:100%;height:90px;display:block;border-radius:4px"></canvas>
+        <div style="display:flex;gap:16px;margin-top:8px;align-items:center">
+          <div><div class="sv sm" id="sim-kelly-pnl" style="color:var(--green)">—</div><div style="font-size:10px;color:var(--lo)">月 PNL</div></div>
+          <div><div class="sv sm" id="sim-kelly-wl" style="color:var(--blue)">—</div><div style="font-size:10px;color:var(--lo)">W/Total</div></div>
+          <button class="btn btn-g btn-sm" style="margin-left:auto" onclick="runDistSim();renderSimTab()">↻ 重新模擬</button>
+        </div>
+      </div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--gold);text-transform:uppercase;margin-bottom:10px">單筆序列 · Flat 1R（前 60 筆）</div>
+      <div id="sim-seq-dots" style="display:flex;flex-wrap:wrap;gap:3px"></div>
+    </div>
+    <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:6px;padding:11px 14px;font-size:12px;line-height:1.7;color:#806040">
+      多按幾次「重新模擬」，<strong style="color:#c8ddd8">相同參數</strong>每次產生截然不同的月份結果。Kelly Tiered 的波動通常比 Flat 更平滑。
+    </div>
+  </div>
+
+  <!-- Streaks sub-tab -->
+  <div id="setup-tab-streaks" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">連敗序列 · 月內發生機率</div>
+        <div id="streak-prob-list"></div>
+        <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.13);border-radius:6px;padding:9px 12px;font-size:11px;line-height:1.7;color:#805050;margin-top:12px">
+          連敗 3–4 次是統計正常事件，不是系統失效的信號。
+        </div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">連敗的 R 影響 · Flat vs Kelly</div>
+        <div id="streak-loss-list"></div>
+      </div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">正常 vs 需要停下來</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <div>
+          <div style="font-size:10px;color:var(--green);font-family:var(--mono);letter-spacing:2px;margin-bottom:10px">✓ 正常 · 繼續執行</div>
+          <div id="streak-normal-list"></div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--red);font-family:var(--mono);letter-spacing:2px;margin-bottom:10px">✗ 立即停止並檢視</div>
+          <div id="streak-stop-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily sub-tab -->
+  <div id="setup-tab-daily" style="display:none">
+    <div style="background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.15);border-radius:6px;padding:11px 14px;font-size:12px;line-height:1.7;color:#406070;margin-bottom:14px">
+      <strong style="color:#c8ddd8">核心原則：</strong>在累積 100+ 筆之前，<strong>執行品質分數才是你真正的 KPI</strong>，不是 PNL。三個全是 ✓ = 今天是成功的交易日，無論 PNL。
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">你現在的交易階段</div>
+      <div id="daily-phases"></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--gold);text-transform:uppercase;margin-bottom:12px">進場前 · 撲克玩家的問題</div>
+      <div id="daily-pre"></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--green);text-transform:uppercase;margin-bottom:12px">收盤後 · 三個問題</div>
+      <div id="daily-post"></div>
+      <div style="margin-top:10px;font-size:11px;color:var(--lo);text-align:center;line-height:1.7">三個全是 ✓ = 今天是成功的交易日，<strong style="color:var(--hi)">無論 PNL 是正是負</strong></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid rgba(34,197,94,.15);border-radius:10px;padding:22px;text-align:center">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:4px;color:var(--lo);margin-bottom:12px">THE UNIFIED FRAMEWORK</div>
+      <div style="font-size:18px;font-weight:800;color:var(--hi);line-height:1.6;margin-bottom:14px">評分你的牌 → 按 Kelly 下注<br><span style="color:var(--green);font-size:15px;font-weight:600">讓統計做剩下的工作</span></div>
+      <div style="font-size:12px;color:var(--mid);line-height:2">ICT confluence 框架 = 評估牌力 · Kelly 準則 = 決定下注大小<br>100+ 筆樣本 = 真相浮現的門檻<br><strong style="color:var(--green)">執行品質 × 足夠樣本 × Kelly 分級 = 長期資金增長</strong></div>
+    </div>
   </div>
 </div>
 
@@ -2845,6 +3134,125 @@ function confScore(trade){
 }
 function confPct(trade){ return confScore(trade)/CONF_MAX; }
 
+
+// ── Checklist Subtab Dropdown Options ──────────────────────
+const CL_OPTS = {
+  // ── Premium / Discount (H4/H1/Daily) ──
+  'dax-1a':['Premium ↑','Discount ↓','CE / Neutral','—'],
+  'dax-1b':['Premium ↑','Discount ↓','CE / Neutral','—'],
+  'dax-2a':['Premium ↑','Discount ↓','CE / Neutral','—'],
+  'dax-2b':['Premium ↑','Discount ↓','CE / Neutral','—'],
+  'fx-1a': ['Premium ↑','Discount ↓','CE / Neutral','—'],
+  'fx-1b': ['Premium ↑','Discount ↓','CE / Neutral','—'],
+  'fx-2a': ['Premium ↑','Discount ↓','CE / Neutral','—'],
+  'fx-2b': ['Premium ↑','Discount ↓','CE / Neutral','—'],
+  // ── Market Structure ──
+  'dax-1e':['Strong Bullish ↑↑','Weak Bullish ↑','Strong Bearish ↓↓','Weak Bearish ↓','Consolidation →','—'],
+  'dax-2e':['Strong Bullish ↑↑','Weak Bullish ↑','Strong Bearish ↓↓','Weak Bearish ↓','Consolidation →','—'],
+  'fx-1e': ['Strong Bullish ↑↑','Weak Bullish ↑','Strong Bearish ↓↓','Weak Bearish ↓','Consolidation →','—'],
+  'fx-2e': ['Strong Bullish ↑↑','Weak Bullish ↑','Strong Bearish ↓↓','Weak Bearish ↓','Consolidation →','—'],
+  // ── SMT ──
+  'dax-1c':['✓ SMT Confirmed','✗ Not Present','△ Conflicting','—'],
+  'dax-2c':['✓ SMT Confirmed','✗ Not Present','△ Conflicting','—'],
+  'dax-3b':['✓ SMT/FVG Found','✗ Not Found','△ Partial','—'],
+  'dax-4a':['✓ SMT Confirmed','✗ Not Present','—'],
+  'dax-5a':['✓ SMT Present → OK','✗ No SMT → Skip','—'],
+  'dax-6b':['✓ SMT/FVG Found','✗ Not Found','△ Partial','—'],
+  'dax-7a':['✓ SMT Confirmed','✗ Not Present','—'],
+  'dax-8a':['✓ SMT Present → OK','✗ No SMT → Skip','—'],
+  'dax-9b':['✓ SMT/FVG Found','✗ Not Found','△ Partial','—'],
+  'dax-10a':['✓ SMT Confirmed','✗ Not Present','—'],
+  'fx-1c': ['✓ SMT Confirmed','✗ Not Present','△ Conflicting','—'],
+  'fx-2c': ['✓ SMT Confirmed','✗ Not Present','△ Conflicting','—'],
+  'fx-3b': ['✓ SMT/FVG Found','✗ Not Found','△ Partial','—'],
+  'fx-4a': ['✓ SMT Confirmed','✗ Not Present','—'],
+  'fx-5a': ['✓ SMT Present → OK','✗ No SMT → Skip','—'],
+  'fx-6a': ['✓ SMT Confirmed','✗ Not Present','—'],
+  'fx-7a': ['✓ SMT Present → OK','✗ No SMT → Skip','—'],
+  // ── PDA (BPR / FVG) ──
+  'dax-1d':['✓ BPR Identified','✓ FVG Identified','✗ Not Clear','—'],
+  'dax-2d':['✓ BPR Identified','✓ FVG Identified','✗ Not Clear','—'],
+  'fx-1d': ['✓ BPR Identified','✓ FVG Identified','✗ Not Clear','—'],
+  'fx-2d': ['✓ BPR Identified','✓ FVG Identified','✗ Not Clear','—'],
+  'fx-4b': ['✓ Zone Found','✗ Not Clear','—'],
+  'fx-6b': ['✓ Zone Found','✗ Not Clear','—'],
+  // ── Bias / Target ──
+  'dax-2f':['Buy → BSL Target','Sell → SSL Target','Neutral','—'],
+  'fx-2f': ['Buy → BSL Target','Sell → SSL Target','Neutral','—'],
+  // ── RS (Relative Strength) ──
+  'dax-3a':['DAX Leading ↑','DAX Lagging ↓','Neutral =','—'],
+  'dax-6a':['NQ Leading ↑','NQ Lagging ↓','Neutral =','—'],
+  'dax-9a':['Crypto Leading ↑','Crypto Lagging ↓','Diverging','—'],
+  'fx-3a': ['Bond ↑ / USD ↑','Bond ↓ / USD ↓','Diverging','—'],
+  // ── Pro/Counter Trend ──
+  'dax-3c':['Pro Trend','Counter Trend','—'],
+  'dax-6c':['Pro Trend','Counter Trend','—'],
+  'dax-9c':['Pro Trend','Counter Trend','—'],
+  'fx-3c': ['Trend → Trend','Consolidation → Trend','Trend → Consolidation','—'],
+  // ── Entry ──
+  'dax-4b':['IOFED / BPR','IOFED / FVG','Breaker / OB','Inducement','✗ None','—'],
+  'dax-7b':['IOFED / BPR','IOFED / FVG','Breaker / OB','Inducement','✗ None','—'],
+  'dax-10b':['IOFED / BPR','IOFED / FVG','Breaker / OB','Inducement','✗ None','—'],
+  'fx-4c': ['IOFED / BPR','IOFED / FVG','Breaker / OB','Inducement','✗ None','—'],
+  'fx-6c': ['IOFED / BPR','IOFED / FVG','Breaker / OB','Inducement','✗ None','—'],
+  // ── Risk Sizing ──
+  'dax-4c':['Pro 2+2% Long','Pro 2+2% Short','Counter 2% Long','Counter 2% Short','—'],
+  'dax-7c':['Pro 2+2% Long','Pro 2+2% Short','Counter 2% Long','Counter 2% Short','—'],
+  'dax-10c':['Pro 2+2% Long','Pro 2+2% Short','Counter 2% Long','Counter 2% Short','—'],
+  'fx-4d': ['C→T 2+2% Long','C→T 2+2% Short','T→C 2% Long','T→C 2% Short','—'],
+  'fx-6d': ['C→T 2+2% Long','C→T 2+2% Short','T→C 2% Long','T→C 2% Short','—'],
+  // ── RR ──
+  'dax-4d': ['✓ RR ≥ 25:80','✗ Below Target','—'],
+  'dax-7d': ['✓ RR ≥ 30:100','✗ Below Target','—'],
+  'dax-7e': ['✓ Hold → 2% RR 50:200','Cut → 2% at open','✗ Not Applicable','—'],
+  'dax-10d':['✓ RR ≥ 1:3.5','✗ Below Target','—'],
+  'fx-4e': ['✓ RR ≥ 20:80','✗ Below Target','—'],
+  'fx-6e': ['✓ RR ≥ 30:120','✗ Below Target','—'],
+  // ── No Trade conditions ──
+  'dax-5b':['✓ Clean → OK','✗ CE / Inside Bar → Skip','—'],
+  'dax-5c':['✓ HTF PDA OK','✗ No HTF PDA → Skip','—'],
+  'dax-5d':['✓ Before 9:30 → OK','✗ After 9:30 → Skip','—'],
+  'dax-8b':['✓ Clean → OK','✗ CE / Inside Bar → Skip','—'],
+  'dax-8c':['✓ HTF PDA OK','✗ No HTF PDA → Skip','—'],
+  'fx-5b': ['✓ Clean → OK','✗ Inside Bar → Skip','—'],
+  'fx-5c': ['✓ HTF PDA OK','✗ No HTF PDA → Skip','—'],
+  'fx-5d': ['✓ Before 10:00 → OK','✗ After 10:00 → Skip','—'],
+  'fx-7b': ['✓ Clean → OK','✗ Inside Bar → Skip','—'],
+  'fx-7c': ['✓ HTF PDA OK','✗ No HTF PDA → Skip','—'],
+  'fx-7d': ['✓ Before 11:00 → OK','✗ After 11:00 → Skip','—'],
+};
+
+function getClTabAnswer(tab, id) {
+  const st = getClChecked(tab);
+  const v = st[id];
+  // support old boolean format
+  if (v === true) return '✓';
+  return typeof v === 'string' ? v : '';
+}
+
+function saveClTabAnswer(tab, id, value) {
+  const st = getClChecked(tab);
+  if (value === '') delete st[id];
+  else st[id] = value;
+  localStorage.setItem('ficc_cl_checked_' + tab, JSON.stringify(st));
+  // update progress without full re-render
+  _updateSubTabProgress(tab);
+}
+
+function _updateSubTabProgress(tab) {
+  const secs = getClTabData(tab);
+  const st = getClChecked(tab);
+  const all = secs.flatMap(s => s.items);
+  const done = all.filter(it => {
+    const v = st[it.id];
+    return v && v !== '';
+  }).length;
+  const progEl = document.getElementById('clProg');
+  const fillEl = document.getElementById('clFill');
+  if (progEl) progEl.textContent = done + '/' + all.length;
+  if (fillEl) fillEl.style.width = (all.length ? done / all.length * 100 : 0) + '%';
+}
+
 // ════════════════════════════════════
 // CLOCK & SESSION
 // ════════════════════════════════════
@@ -2875,6 +3283,8 @@ function showPage(id,btn){
   if(id==='risk')updateRisk();
   if(id==='tradelog')renderTrades();
   if(id==='gantt')renderGantt();
+  if(id==='stat'){setTimeout(renderStat,50);}
+  if(id==='setup'){setTimeout(renderSetup,50);}
   if(id==='page-community'||id==='community'){_activeCTab=null;switchCTab('ideas');}
 }
 function showJTab(id,btn){
@@ -3075,16 +3485,16 @@ function _renderSubTabChecklist(tab){
   }).join('');
   document.getElementById('clBody').innerHTML=`<div>${colHTML(leftSecs,0)}</div><div>${colHTML(rightSecs,1)}</div>`;
   document.getElementById('clAddSec').style.display=clEditMode?'block':'none';
-  // update progress
+  // update progress (support both boolean and string answers)
   const st=getClChecked(tab);
   const all=secs.flatMap(s=>s.items);
-  const done=all.filter(it=>st[it.id]).length;
+  const done=all.filter(it=>{ const v=st[it.id]; return v && v!==''; }).length;
   document.getElementById('clProg').textContent=done+'/'+all.length;
   document.getElementById('clFill').style.width=(all.length?done/all.length*100:0)+'%';
 }
 
 function _buildSubTabItem(it,si,ii,tab){
-  const checked=!!getClChecked(tab)[it.id];
+  const opts = CL_OPTS[it.id];
   const hasEx=!!(it.exImg||it.exNotes);
   const tagColor={all:'var(--border2)',bond:'rgba(37,99,235,.2)',fx:'rgba(8,145,178,.2)',gold:'rgba(217,119,6,.2)',warn:'rgba(220,38,38,.2)',pur:'rgba(124,58,237,.2)',green:'rgba(5,150,105,.2)'};
   const tagTC={all:'var(--lo)',bond:'var(--blue)',fx:'var(--cyan)',gold:'var(--amber)',warn:'var(--red)',pur:'var(--pur)',green:'var(--green)'};
@@ -3094,6 +3504,37 @@ function _buildSubTabItem(it,si,ii,tab){
       <button onclick="event.stopPropagation();delClItemTab(${si},${ii})" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid rgba(255,71,87,.3);background:transparent;color:var(--red);cursor:pointer;transition:opacity .15s" class="cl-edit-btn">✕</button>`
     :'';
   const exBtn=`<button onclick="event.stopPropagation();openClEx(${si},${ii})" style="opacity:${hasEx?'1':'0'};font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px;border:1px solid var(--border2);background:${hasEx?'rgba(37,99,235,.08)':'transparent'};color:${hasEx?'var(--blue)':'var(--lo)'};cursor:pointer;transition:opacity .15s;flex-shrink:0" class="cl-edit-btn" title="${hasEx?'查看範例':'新增範例'}">${hasEx?'📖':'＋範'}</button>`;
+
+  if (opts) {
+    // ── Dropdown mode ──
+    const curVal = getClTabAnswer(tab, it.id);
+    const isDone = curVal !== '';
+    const isGood = isDone && (curVal.startsWith('✓') || curVal.includes('↑') || curVal.includes('Confirmed') || curVal.includes('Found') || curVal.includes('Long') || curVal.includes('Short') || curVal.includes('Pro') || curVal.includes('Pocket') || curVal.includes('Hold') || curVal.includes('Met') || curVal.includes('≥') || curVal.includes('Buy') || curVal.includes('Sell') || curVal.includes('Leading') || curVal.includes('Bullish') || curVal.includes('Bearish') || curVal.includes('Neutral') || curVal.includes('IOFED') || curVal.includes('FVG') || curVal.includes('OB') || curVal.includes('BPR') || curVal.includes('Breaker') || curVal.includes('Inducement'));
+    const isBad  = isDone && curVal.startsWith('✗');
+    const isNA   = isDone && curVal === '—';
+    const dotCol = !isDone ? 'var(--border2)' : isBad ? 'var(--red)' : isNA ? 'var(--lo)' : 'var(--green)';
+    const selectStyle = `width:100%;font-family:var(--mono);font-size:10px;padding:4px 7px;background:var(--bg3);border:1px solid ${isDone?(isBad?'rgba(239,68,68,.3)':isNA?'var(--border2)':'rgba(34,197,94,.3)'):'var(--border)'};border-radius:4px;color:${isDone?(isBad?'var(--red)':isNA?'var(--lo)':'var(--green)'):'var(--mid)'};cursor:pointer;outline:none;transition:all .2s`;
+    const optionsHTML = ['<option value="">— 選擇 —</option>',
+      ...opts.map(o => `<option value="${o}"${curVal===o?' selected':''}>${o}</option>`)
+    ].join('');
+    return`<div style="padding:8px 12px 10px;border-bottom:1px solid var(--border);position:relative" onmouseover="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='1')" onmouseout="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='0')">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${dotCol};transition:background .2s"></div>
+        <div style="flex:1;min-width:0">
+          <span style="font-size:11px;font-weight:600;color:${isDone?'var(--hi)':'var(--mid)'}">${it.title}</span>
+          ${it.sub?`<div style="font-size:10px;color:var(--lo);margin-top:1px">${it.sub}</div>`:''}
+        </div>
+        ${it.tagTxt?`<span class="cl-tag" style="background:${tb};color:${tt};white-space:nowrap;flex-shrink:0">${it.tagTxt}</span>`:''}
+        ${editBtns}${exBtn}
+      </div>
+      <select style="${selectStyle}" onchange="event.stopPropagation();saveClTabAnswer('${tab}','${it.id}',this.value);this.style.borderColor=this.value===''?'var(--border)':this.value.startsWith('✗')?'rgba(239,68,68,.3)':this.value==='—'?'var(--border2)':'rgba(34,197,94,.3)';this.style.color=this.value===''?'var(--mid)':this.value.startsWith('✗')?'var(--red)':this.value==='—'?'var(--lo)':'var(--green)'">
+        ${optionsHTML}
+      </select>
+    </div>`;
+  }
+
+  // ── Checkbox mode (fallback for items without opts) ──
+  const checked=!!getClChecked(tab)[it.id];
   return`<div class="cl-item${checked?' ck':''}" onclick="toggleClTabCheck(${si},${ii})" style="position:relative" onmouseover="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='1')" onmouseout="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='0')">
     <div class="cl-cb">${checked?'✓':''}</div>
     <div class="cl-txt" style="flex:1;min-width:0">
@@ -5790,6 +6231,643 @@ updateRisk();
 loadUISettings();
 loadNotionSettings();
 initGistSync();
+
+// ═══════════════════════════════════════════════════
+// STAT PAGE
+// ═══════════════════════════════════════════════════
+
+function drawStatEquity(canvas, rValues, h) {
+  if (!canvas || !rValues.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth * dpr, H = (h || canvas.offsetHeight || 160) * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  let eq = [0], v = 0;
+  for (const r of rValues) { v += r; eq.push(v); }
+  const mn = Math.min(...eq), mx = Math.max(...eq), rng = mx - mn || 1;
+  const pad = {t:14, b:14, l:8, r:8};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const last = eq[eq.length - 1];
+  const col = last >= 0 ? '#22c55e' : '#ef4444';
+  // Zero line
+  const zy = pad.t + ((mx - 0) / rng) * cH;
+  ctx.setLineDash([4,4]); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, zy); ctx.lineTo(W - pad.r, zy); ctx.stroke(); ctx.setLineDash([]);
+  // Points
+  const pts = eq.map((vv, i) => [pad.l + (i / Math.max(eq.length-1, 1)) * cW, pad.t + ((mx - vv) / rng) * cH]);
+  // Fill
+  const gr = ctx.createLinearGradient(0, 0, 0, H);
+  gr.addColorStop(0, last >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.12)');
+  gr.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath(); pts.forEach(([x,y],i) => i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.lineTo(pts[pts.length-1][0], H); ctx.lineTo(pts[0][0], H); ctx.closePath();
+  ctx.fillStyle = gr; ctx.fill();
+  // Line
+  ctx.beginPath(); pts.forEach(([x,y],i) => i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.strokeStyle = col; ctx.lineWidth = 2 * dpr; ctx.stroke();
+  // Dots
+  for (const [x,y] of pts) {
+    ctx.beginPath(); ctx.arc(x, y, 2.5 * dpr, 0, Math.PI*2);
+    ctx.fillStyle = col; ctx.fill();
+  }
+  return last;
+}
+
+function drawMonthBars(canvas, months) {
+  if (!canvas || !months.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth * dpr, H = (canvas.offsetHeight || 120) * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  const vals = months.map(m => m.r);
+  const mx = Math.max(...vals.map(v => Math.abs(v)), 0.1);
+  const pad = {t:10, b:28, l:6, r:6};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const bw = Math.max(4, (cW / months.length) * 0.65);
+  const zy = pad.t + cH / 2;
+  // zero line
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, zy); ctx.lineTo(W - pad.r, zy); ctx.stroke();
+  months.forEach((m, i) => {
+    const x = pad.l + (i + 0.5) * (cW / months.length) - bw / 2;
+    const barH = (Math.abs(m.r) / mx) * (cH / 2 - 4);
+    const col = m.r >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.65)';
+    if (m.r >= 0) {
+      ctx.fillStyle = col; ctx.fillRect(x, zy - barH, bw, barH);
+    } else {
+      ctx.fillStyle = col; ctx.fillRect(x, zy, bw, barH);
+    }
+    // Label
+    ctx.fillStyle = 'rgba(100,140,130,0.6)'; ctx.font = `${Math.round(8 * dpr)}px monospace`;
+    ctx.textAlign = 'center';
+    const lbl = m.month.slice(5); // MM
+    ctx.fillText(lbl, x + bw/2, H - 6);
+  });
+}
+
+function renderStat() {
+  const filter = document.getElementById('stat-filter')?.value || 'all';
+  const base = filter === 'all' ? trades :
+                filter === 'live' ? trades.filter(t => t.mode === 'live') :
+                trades.filter(t => t.mode === 'backtest');
+  const cl = base.filter(t => t.status !== 'OPEN' && t.pnl != null && (t.outcome_type||'normal') === 'normal');
+  cl.sort((a,b) => a.date.localeCompare(b.date));
+
+  const emptyEl = document.getElementById('stat-empty');
+  const warnEl = document.getElementById('stat-warn');
+
+  if (!cl.length) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    ['stat-kpi','statEqCanvas','statMonthCanvas','stat-grade-body','stat-asset-body','stat-session-body','stat-streak-body'].forEach(id => {
+      const el = document.getElementById(id); if (el && el.parentElement) el.parentElement.style.display='none';
+    });
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  const wins = cl.filter(t => t.pnl > 0);
+  const losses = cl.filter(t => t.pnl < 0);
+  const wr = wins.length / cl.length;
+  const totalR = cl.reduce((s, t) => s + t.pnl, 0);
+  const avgR = totalR / cl.length;
+  const avgWin = wins.length ? wins.reduce((s,t)=>s+t.pnl,0)/wins.length : 0;
+  const avgLoss = losses.length ? Math.abs(losses.reduce((s,t)=>s+t.pnl,0)/losses.length) : 1;
+  const rr = avgLoss > 0 ? avgWin / avgLoss : 0;
+  const exp = wr * avgWin - (1 - wr) * avgLoss;
+  const kellyF2 = avgLoss > 0 ? Math.max(0, (wr * rr - (1-wr)) / rr) : 0;
+  const halfK = kellyF2 * 50;
+
+  // Sample warning
+  if (warnEl) {
+    if (cl.length < 30) {
+      warnEl.style.display = 'block';
+      warnEl.className = '';
+      warnEl.style.cssText = 'display:block;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.15);border-radius:6px;padding:9px 12px;font-size:11px;color:#806040;margin-bottom:12px';
+      warnEl.innerHTML = `⚠ 樣本警告：目前 <strong>${cl.length}</strong> 筆，建議累積到 100+ 筆後統計才具有顯著性。數字僅供早期方向參考。`;
+    } else if (cl.length >= 100) {
+      warnEl.style.display = 'block';
+      warnEl.style.cssText = 'display:block;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.15);border-radius:6px;padding:9px 12px;font-size:11px;color:#2a7040;margin-bottom:12px';
+      warnEl.innerHTML = `✓ 100 筆達成：統計開始具有參考意義。WR <strong>${(wr*100).toFixed(0)}%</strong>，R:R <strong>${rr.toFixed(2)}</strong>，可輸入 Setup 頁的模擬引擎。`;
+    } else {
+      warnEl.style.display = 'none';
+    }
+  }
+
+  // KPI cards
+  const kpiEl = document.getElementById('stat-kpi');
+  if (kpiEl) {
+    const kpis = [
+      {l:'Total', v:cl.length, c:'var(--hi)'},
+      {l:'Win Rate', v:(wr*100).toFixed(1)+'%', c:wr>=0.4?'var(--green)':'var(--amber)'},
+      {l:'Avg R', v:(avgR>=0?'+':'')+avgR.toFixed(2)+'R', c:avgR>=0?'var(--green)':'var(--red)'},
+      {l:'Cum R', v:(totalR>=0?'+':'')+totalR.toFixed(1)+'R', c:totalR>=0?'var(--green)':'var(--red)'},
+      {l:'Real R:R', v:'1:'+rr.toFixed(2), c:rr>=2?'var(--green)':'var(--amber)'},
+      {l:'Expectancy', v:(exp>=0?'+':'')+exp.toFixed(3)+'R', c:exp>=0?'var(--green)':'var(--red)'},
+      {l:'½ Kelly', v:halfK.toFixed(1)+'%', c:'var(--gold)'},
+      {l:'Wins', v:wins.length, c:'var(--green)'},
+      {l:'Losses', v:losses.length, c:'var(--red)'},
+    ];
+    kpiEl.innerHTML = kpis.map(k => `<div class="sbox"><div class="sl">${k.l}</div><div class="sv sm" style="color:${k.c}">${k.v}</div></div>`).join('');
+  }
+
+  // Equity curve
+  setTimeout(() => {
+    const cv = document.getElementById('statEqCanvas');
+    if (cv) {
+      const rVals = cl.map(t => t.pnl);
+      const last = drawStatEquity(cv, rVals, 160);
+      const endEl = document.getElementById('stat-eq-end');
+      if (endEl) { endEl.textContent = 'Now: '+(last>=0?'+':'')+last.toFixed(1)+'R'; endEl.style.color = last>=0?'var(--green)':'var(--red)'; }
+    }
+  }, 50);
+
+  // Monthly bar chart
+  const byMonth = {};
+  cl.forEach(t => {
+    const m = t.date ? t.date.slice(0,7) : 'unknown';
+    if (!byMonth[m]) byMonth[m] = {month:m, r:0, n:0, w:0};
+    byMonth[m].r += t.pnl; byMonth[m].n++; if(t.pnl>0) byMonth[m].w++;
+  });
+  const months = Object.values(byMonth).sort((a,b)=>a.month.localeCompare(b.month));
+  const legendEl = document.getElementById('statMonthLegend');
+  if (legendEl) {
+    legendEl.innerHTML = months.map(m => {
+      const col = m.r >= 0 ? 'var(--green)' : 'var(--red)';
+      return `<span style="color:${col};white-space:nowrap">${m.month}: ${m.r>=0?'+':''}${m.r.toFixed(1)}R (${m.n}筆)</span>`;
+    }).join('');
+  }
+  setTimeout(() => {
+    const cv2 = document.getElementById('statMonthCanvas');
+    if (cv2) drawMonthBars(cv2, months);
+  }, 60);
+
+  // Grade breakdown
+  const gradeEl = document.getElementById('stat-grade-body');
+  if (gradeEl) {
+    const gc2 = GRADE_COLORS;
+    const gb2 = GRADE_BG;
+    gradeEl.innerHTML = ['A+','A','B','C'].map(g => {
+      const gt = cl.filter(t => t.grade === g);
+      if (!gt.length) return `<div style="padding:5px 0;font-size:11px;color:var(--lo);border-bottom:1px solid var(--border)">${g}: 無資料</div>`;
+      const gw2 = gt.filter(t=>t.pnl>0).length;
+      const gawr = (gw2/gt.length*100).toFixed(0)+'%';
+      const gavgR = (gt.reduce((s,t)=>s+t.pnl,0)/gt.length);
+      const col = gc2[g]||'var(--lo)';
+      const assessment = gw2/gt.length>=0.5&&gavgR>0?'Edge ✓':gavgR<0?'負期望':'發展中';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;border:1px solid ${col}50;color:${col};background:${gb2[g]};min-width:28px;text-align:center">${g}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--lo)">${gt.length}筆</span>
+        <span style="font-family:var(--mono);font-size:10px;color:${parseFloat(gawr)>=40?'var(--green)':'var(--red)'}">${gawr}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:${gavgR>=0?'var(--green)':'var(--red)'};flex:1">${gavgR>=0?'+':''}${gavgR.toFixed(2)}R</span>
+        <span style="font-family:var(--mono);font-size:9px;color:${col}">${assessment}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Asset breakdown
+  const assetEl = document.getElementById('stat-asset-body');
+  if (assetEl) {
+    const byAsset = {};
+    cl.forEach(t => {
+      const a = t.asset||'Other';
+      if (!byAsset[a]) byAsset[a] = {n:0,w:0,r:0};
+      byAsset[a].n++; if(t.pnl>0) byAsset[a].w++; byAsset[a].r+=t.pnl;
+    });
+    assetEl.innerHTML = Object.entries(byAsset).sort((a,b)=>b[1].n-a[1].n).map(([a,d]) => {
+      const wr2 = d.n ? d.w/d.n : 0;
+      const avgR2 = d.r/d.n;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--hi);min-width:52px">${a}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--lo)">${d.n}筆</span>
+        <span style="font-family:var(--mono);font-size:10px;color:${wr2>=0.4?'var(--green)':'var(--red)'}">${(wr2*100).toFixed(0)}%</span>
+        <span style="font-family:var(--mono);font-size:10px;color:${avgR2>=0?'var(--green)':'var(--red)'};flex:1">${avgR2>=0?'+':''}${avgR2.toFixed(2)}R</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Session breakdown
+  const sessEl = document.getElementById('stat-session-body');
+  if (sessEl) {
+    const bySess = {};
+    cl.forEach(t => {
+      const s = t.session||'未記錄';
+      if (!bySess[s]) bySess[s] = {n:0,w:0,r:0};
+      bySess[s].n++; if(t.pnl>0) bySess[s].w++; bySess[s].r+=t.pnl;
+    });
+    sessEl.innerHTML = Object.entries(bySess).sort((a,b)=>b[1].n-a[1].n).map(([s,d]) => {
+      const wr3 = d.n?d.w/d.n:0;
+      const avgR3 = d.r/d.n;
+      return `<div style="padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--mid);margin-bottom:3px">${s}</div>
+        <div style="display:flex;gap:8px;font-family:var(--mono);font-size:10px">
+          <span style="color:var(--lo)">${d.n}筆</span>
+          <span style="color:${wr3>=0.4?'var(--green)':'var(--red)'}">${(wr3*100).toFixed(0)}%</span>
+          <span style="color:${avgR3>=0?'var(--green)':'var(--red)'}">${avgR3>=0?'+':''}${avgR3.toFixed(2)}R</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Streak analysis
+  const streakEl = document.getElementById('stat-streak-body');
+  if (streakEl) {
+    const seq = cl.map(t=>t.pnl>0?'W':'L');
+    let maxW=0,maxL=0,cw=0,cl2=0;
+    for(const s of seq){if(s==='W'){cw++;maxW=Math.max(maxW,cw);cl2=0;}else{cl2++;maxL=Math.max(maxL,cl2);cw=0;}}
+    // Current streak
+    let curStreak=1,curType=seq[seq.length-1];
+    for(let i=seq.length-2;i>=0;i--){if(seq[i]===curType)curStreak++;else break;}
+    streakEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="sbox" style="text-align:center"><div class="sv sm" style="color:var(--green);font-size:18px">${maxW}</div><div class="sl">最長連勝</div></div>
+        <div class="sbox" style="text-align:center"><div class="sv sm" style="color:var(--red);font-size:18px">${maxL}</div><div class="sl">最長連敗</div></div>
+      </div>
+      <div style="padding:8px 12px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);font-family:var(--mono);font-size:11px;margin-bottom:10px">
+        當前連${curType==='W'?'勝':'敗'}：<span style="color:${curType==='W'?'var(--green)':'var(--red)'}"> ${curStreak} 次</span>
+      </div>
+      <div style="font-size:10px;color:var(--lo);line-height:1.7">
+        已成交 <strong style="color:var(--hi)">${cl.length}</strong> 筆 · 
+        <span style="color:var(--green)">${wins.length}W</span> / 
+        <span style="color:var(--red)">${losses.length}L</span>
+      </div>`;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════
+// SETUP PAGE (Kelly / Confluence Grader)
+// ═══════════════════════════════════════════════════
+
+const SETUP_CF = [
+  {id:'s_htf', l:'HTF 方向偏差確認 (D1/4H PD Array)', pts:20, tier:'必要'},
+  {id:'s_kz',  l:'Kill Zone 時間窗口 (NYAM 9:30–11am)', pts:15, tier:'必要'},
+  {id:'s_mss', l:'MSS 市場結構轉換已確認 (LTF)', pts:15, tier:'高'},
+  {id:'s_liq', l:'流動性已被掃除 (SSL / BSL 已觸及)', pts:15, tier:'高'},
+  {id:'s_fvg', l:'進場在 FVG 或 OB 精確位置', pts:12, tier:'高'},
+  {id:'s_mtf', l:'多時間框架同向 PD Array 堆疊', pts:10, tier:'中'},
+  {id:'s_tgt', l:'目標明確 (Buyside/Sellside/等高低)', pts:8,  tier:'中'},
+  {id:'s_spd', l:'Spread 正常、流動性充足', pts:5,  tier:'低'},
+];
+const SETUP_CF_MAX = SETUP_CF.reduce((a,f)=>a+f.pts,0);
+let _setupChecked = new Set(['s_htf','s_kz','s_mss']);
+let _setupSim = {flat:[], kelly:[]};
+let _setupDist = {flat:{p10:0,p25:0,p50:0,p75:0,p90:0,pLoss:0}, kelly:{p10:0,p25:0,p50:0,p75:0,p90:0,pLoss:0}};
+let _setupTab = 'grader';
+
+function switchSetupTab(id, btn) {
+  _setupTab = id;
+  ['grader','dist','sim','streaks','daily'].forEach(t => {
+    const el = document.getElementById('setup-tab-'+t);
+    if (el) el.style.display = t===id ? '' : 'none';
+  });
+  document.querySelectorAll('#setup-subtabs .jtab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (id==='grader') updateSetup();
+  if (id==='dist') { runDistSim(); renderDistTab(); }
+  if (id==='sim') renderSimTab();
+  if (id==='streaks') renderStreakTab();
+  if (id==='daily') renderDailyTab();
+}
+
+function kellyFormula(p, rr) { return Math.max(0, (p * rr - (1-p)) / rr); }
+
+function getSetupParams() {
+  const wr = parseInt(document.getElementById('sl-wr')?.value||42)/100;
+  const rr = parseInt(document.getElementById('sl-rr')?.value||20)/10;
+  const tpd = parseInt(document.getElementById('sl-tpd')?.value||2);
+  return {wr, rr, tpd};
+}
+
+function getSetupGrade(score) {
+  if (score >= 0.75) return {g:'A+', name:'Pocket Aces',  color:'#fbbf24', mult:1.0,  action:'Full confluence — 按 Half Kelly 執行'};
+  if (score >= 0.55) return {g:'A',  name:'Strong Hand',  color:'#22c55e', mult:0.70, action:'主要條件符合 — 按 ⅓ Kelly 執行'};
+  if (score >= 0.35) return {g:'B',  name:'Drawing Hand', color:'#f59e0b', mult:0.35, action:'條件不完整 — Quarter Kelly 或更低'};
+  return                     {g:'C',  name:'Fold',         color:'#ef4444', mult:0.0,  action:'不符合條件 — 棄牌，保存資金'};
+}
+
+function updateSetup() {
+  const {wr, rr, tpd} = getSetupParams();
+  // Update labels
+  const wrEl=document.getElementById('sl-wr-val'); if(wrEl) wrEl.textContent=(wr*100).toFixed(0)+'%';
+  const rrEl=document.getElementById('sl-rr-val'); if(rrEl) rrEl.textContent='1:'+rr.toFixed(1);
+  const tpdEl=document.getElementById('sl-tpd-val'); if(tpdEl) tpdEl.textContent=tpd+' 筆';
+  // KPI
+  const fullK = kellyFormula(wr, rr) * 100;
+  const halfK = fullK / 2;
+  const exp = wr * rr - (1 - wr);
+  const fkEl=document.getElementById('kpi-fullk'); if(fkEl) fkEl.textContent=fullK.toFixed(1)+'%';
+  const hkEl=document.getElementById('kpi-halfk'); if(hkEl) hkEl.textContent=halfK.toFixed(1)+'%';
+  const expEl=document.getElementById('kpi-exp'); if(expEl){expEl.textContent=(exp>=0?'+':'')+exp.toFixed(3)+'R';expEl.style.color=exp>=0?'var(--green)':'var(--red)';}
+  // Confluence score
+  const score = SETUP_CF.filter(f=>_setupChecked.has(f.id)).reduce((a,f)=>a+f.pts,0) / SETUP_CF_MAX;
+  const grade = getSetupGrade(score);
+  // Big chip
+  const chipEl=document.getElementById('grade-chip-big');
+  if(chipEl){chipEl.textContent=grade.g;chipEl.style.color=grade.color;chipEl.style.borderColor=grade.color;chipEl.style.background=grade.color+'18';}
+  const nameEl=document.getElementById('grade-name');
+  if(nameEl){nameEl.textContent=grade.name;nameEl.style.color=grade.color;}
+  const scoreEl=document.getElementById('grade-score-big');
+  if(scoreEl){scoreEl.textContent=Math.round(score*100);scoreEl.style.color=grade.color;}
+  const meterEl=document.getElementById('grade-meter');
+  if(meterEl){meterEl.style.width=(score*100)+'%';meterEl.style.background=grade.color;}
+  const actionEl=document.getElementById('grade-action');
+  if(actionEl){actionEl.textContent=grade.action;actionEl.style.color='var(--mid)';}
+  const recRisk = halfK * grade.mult;
+  const riskEl=document.getElementById('grade-risk');
+  if(riskEl){riskEl.textContent=recRisk>0?recRisk.toFixed(2)+'%':'0% · 棄牌';riskEl.style.color=grade.color;}
+  const multEl=document.getElementById('grade-mult');
+  if(multEl){multEl.textContent=recRisk>0?grade.mult*100+'%':'Fold';multEl.style.color='var(--mid)';}
+  const ghkEl=document.getElementById('grade-halfk');
+  if(ghkEl){ghkEl.textContent=halfK.toFixed(2)+'%';ghkEl.style.color='var(--green)';}
+  // Alert
+  const alertEl=document.getElementById('setup-alert');
+  if(alertEl){
+    if(grade.g==='C'){alertEl.style.display='block';alertEl.style.cssText='display:block;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.13);border-radius:6px;padding:11px 14px;font-size:12px;line-height:1.7;color:#805050;margin-bottom:12px';alertEl.innerHTML='<strong style="color:#c8ddd8">棄牌是正確決策。</strong> 保住資金等於累積未來的子彈。職業撲克玩家 80% 的時間都在「不玩」。';}
+    else if(grade.g==='B'){alertEl.style.display='block';alertEl.style.cssText='display:block;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.15);border-radius:6px;padding:11px 14px;font-size:12px;line-height:1.7;color:#806040;margin-bottom:12px';alertEl.innerHTML='<strong style="color:#c8ddd8">Drawing Hand：謹慎下注。</strong> 縮小到 Quarter Kelly，接受可能的止損，不後悔。';}
+    else if(grade.g==='A'||grade.g==='A+'){alertEl.style.display='block';alertEl.style.cssText='display:block;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.15);border-radius:6px;padding:11px 14px;font-size:12px;line-height:1.7;color:#2a7040;margin-bottom:12px';alertEl.innerHTML=`<strong style="color:#c8ddd8">Strong Hand：按計劃執行。</strong> 條件高度對齊，用 ${grade.g==='A+'?'Half Kelly':'⅓ Kelly'} 是有根據的。即使 Pocket Aces 也有機率輸 — 執行計劃，接受結果。`;}
+  }
+  // Hand table
+  const htEl=document.getElementById('hand-table');
+  if(htEl){htEl.innerHTML=[
+    {g:'A+',name:'Pocket Aces',color:'#fbbf24',risk:halfK.toFixed(1)+'%',desc:'全部 ICT 條件對齊',bg:'rgba(251,191,36,.05)',border:'rgba(251,191,36,.18)'},
+    {g:'A', name:'Strong Hand', color:'#22c55e',risk:(halfK*.7).toFixed(1)+'%',desc:'主要條件符合，缺 1 個次要',bg:'rgba(34,197,94,.05)',border:'rgba(34,197,94,.18)'},
+    {g:'B', name:'Draw Hand',   color:'#f59e0b',risk:(halfK*.25).toFixed(1)+'%',desc:'條件不完整，縮小倉位',bg:'rgba(245,158,11,.05)',border:'rgba(245,158,11,.15)'},
+    {g:'C', name:'Fold',        color:'#ef4444',risk:'0%',desc:'不符條件，棄牌',bg:'rgba(239,68,68,.05)',border:'rgba(239,68,68,.13)'},
+  ].map(row=>`<div style="background:${row.bg};border:1px solid ${row.border};border-radius:7px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${row.color}"></div>
+    <div style="font-family:var(--mono);font-size:17px;font-weight:800;color:${row.color};width:28px;text-align:center">${row.g}</div>
+    <div style="flex:1"><div style="font-size:11px;color:${row.color};font-family:var(--mono);letter-spacing:1px">${row.name}</div><div style="font-size:11px;color:var(--lo);margin-top:2px">${row.desc}</div></div>
+    <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${row.color}">${row.risk}</div>
+  </div>`).join('');}
+}
+
+function setupToggleCF(id) {
+  if (_setupChecked.has(id)) _setupChecked.delete(id); else _setupChecked.add(id);
+  const cb = document.getElementById('scb-'+id);
+  if (cb) { const on=_setupChecked.has(id); cb.style.background=on?'var(--green)':'transparent'; cb.style.borderColor=on?'var(--green)':'var(--border2)'; cb.textContent=on?'✓':''; }
+  updateSetup();
+}
+
+function buildCFList() {
+  const el = document.getElementById('setup-cf-list');
+  if (!el) return;
+  const TIER_COLOR = {必要:'#ef4444',高:'#f59e0b',中:'#38bdf8',低:'#3a5a50'};
+  el.innerHTML = SETUP_CF.map(f => {
+    const on = _setupChecked.has(f.id);
+    const tc = TIER_COLOR[f.tier]||'#3a5a50';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #0d1612;cursor:pointer" onclick="setupToggleCF('${f.id}')">
+      <div id="scb-${f.id}" style="width:17px;height:17px;border-radius:3px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;transition:all .15s;flex-shrink:0;background:${on?'var(--green)':'transparent'};border-color:${on?'var(--green)':'var(--border2)'};">${on?'✓':''}</div>
+      <span style="font-size:11px;color:var(--mid);flex:1;line-height:1.4">${f.l}</span>
+      <span style="font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--mono);letter-spacing:1px;background:${tc}18;color:${tc};border:1px solid ${tc}28">${f.tier}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--lo);width:24px;text-align:right">+${f.pts}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Simulation helpers ──
+function simKellyMonthSetup(wr, rr, halfK, tpd, days=20) {
+  const TIERS=[{p:.15,m:1.0},{p:.35,m:.70},{p:.30,m:.35},{p:.20,m:0}];
+  const flat=[], kelly=[];
+  for(let d=0;d<days;d++) for(let t=0;t<tpd;t++){
+    const win=Math.random()<wr;
+    flat.push(win?rr:-1);
+    const r=Math.random(); let cum=0,mult=0;
+    for(const tier of TIERS){cum+=tier.p;if(r<cum){mult=tier.m;break;}}
+    if(mult===0)kelly.push(0); else { const kr=Math.min(halfK*mult,3); kelly.push(win?kr*rr:-kr); }
+  }
+  return {flat,kelly};
+}
+
+function runDistSim() {
+  const {wr,rr,tpd}=getSetupParams();
+  const fullK=kellyFormula(wr,rr)*100, halfK=fullK/2;
+  const flatR=[],kellyR=[];
+  for(let i=0;i<800;i++){
+    const {flat,kelly}=simKellyMonthSetup(wr,rr,halfK,tpd);
+    flatR.push(flat.reduce((a,b)=>a+b,0)); kellyR.push(kelly.reduce((a,b)=>a+b,0));
+  }
+  const pct=(arr,q)=>{const s=[...arr].sort((a,b)=>a-b);return s[Math.floor(q*s.length)];};
+  _setupDist={
+    flat: {p10:pct(flatR,.1),p25:pct(flatR,.25),p50:pct(flatR,.5),p75:pct(flatR,.75),p90:pct(flatR,.9),pLoss:flatR.filter(r=>r<0).length/800},
+    kelly:{p10:pct(kellyR,.1),p25:pct(kellyR,.25),p50:pct(kellyR,.5),p75:pct(kellyR,.75),p90:pct(kellyR,.9),pLoss:kellyR.filter(r=>r<0).length/800},
+  };
+  const {wr:wr2,rr:rr2,tpd:tpd2}=getSetupParams();
+  const hk2=kellyFormula(wr2,rr2)*50;
+  _setupSim=simKellyMonthSetup(wr2,rr2,hk2,tpd2);
+  if(_setupTab==='dist')renderDistTab();
+  if(_setupTab==='sim')renderSimTab();
+}
+
+function drawSetupLine(canvas, flat, kelly, h) {
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio||1;
+  const W=canvas.offsetWidth*dpr, H=(h||140)*dpr;
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const buildEq=arr=>{let v=0,eq=[0];for(const t of arr){v+=t;eq.push(v);}return eq;};
+  const fe=buildEq(flat),ke=buildEq(kelly);
+  const all=[...fe,...ke], mn=Math.min(...all), mx=Math.max(...all), rng=mx-mn||1;
+  const pad={t:10,b:10,l:6,r:6}, cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const drawL=(eq,color,fill)=>{
+    const pts=eq.map((v,i)=>[pad.l+(i/(eq.length-1))*cW,pad.t+((mx-v)/rng)*cH]);
+    if(fill){const gr=ctx.createLinearGradient(0,0,0,H);gr.addColorStop(0,fill);gr.addColorStop(1,'rgba(0,0,0,0)');ctx.beginPath();pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.lineTo(pts[pts.length-1][0],H);ctx.lineTo(pts[0][0],H);ctx.closePath();ctx.fillStyle=gr;ctx.fill();}
+    ctx.beginPath();pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.strokeStyle=color;ctx.lineWidth=1.5*dpr;ctx.stroke();
+  };
+  const zy=pad.t+((mx-0)/rng)*cH;
+  ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(W-pad.r,zy);ctx.stroke();ctx.setLineDash([]);
+  drawL(fe,'rgba(60,90,80,.9)',null);
+  drawL(ke,'#22c55e','rgba(34,197,94,.1)');
+}
+
+function drawSingleLine(canvas, trades, h) {
+  if (!canvas || !trades.length) return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth*dpr,H=(h||90)*dpr;
+  canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  let eq=[0],v=0;
+  for(const t of trades){v+=t;eq.push(v);}
+  const mn=Math.min(...eq),mx=Math.max(...eq),rng=mx-mn||1;
+  const pad={t:8,b:8,l:4,r:4},cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  const last=eq[eq.length-1],col=last>=0?'#22c55e':'#ef4444';
+  const zy=pad.t+((mx-0)/rng)*cH;
+  ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(W-pad.r,zy);ctx.stroke();ctx.setLineDash([]);
+  const gr=ctx.createLinearGradient(0,0,0,H);
+  gr.addColorStop(0,last>=0?'rgba(34,197,94,.14)':'rgba(239,68,68,.1)');gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();eq.forEach((vv,i)=>{const x=pad.l+(i/(eq.length-1))*cW,y=pad.t+((mx-vv)/rng)*cH;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(W-pad.r,H);ctx.lineTo(pad.l,H);ctx.closePath();ctx.fillStyle=gr;ctx.fill();
+  ctx.beginPath();eq.forEach((vv,i)=>{const x=pad.l+(i/(eq.length-1))*cW,y=pad.t+((mx-vv)/rng)*cH;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.strokeStyle=col;ctx.lineWidth=1.5*dpr;ctx.stroke();
+}
+
+function renderDistTab() {
+  const d = _setupDist;
+  const tbody = document.getElementById('dist-tbody');
+  if(tbody) tbody.innerHTML=[
+    {lbl:'最差 10%',k:'p10',fc:'#ef4444'},
+    {lbl:'偏差 25%',k:'p25',fc:'#f59e0b'},
+    {lbl:'中位數',  k:'p50',fc:'#38bdf8'},
+    {lbl:'良好 75%',k:'p75',fc:'#22c55e'},
+    {lbl:'最佳 10%',k:'p90',fc:'#22c55e'},
+  ].map(({lbl,k,fc})=>{
+    const fv=d.flat[k],kv=d.kelly[k],diff=kv-fv;
+    return `<tr style="border-bottom:1px solid #0d1612">
+      <td style="padding:9px 0;color:var(--mid)">${lbl}</td>
+      <td style="padding:9px 8px;text-align:center;font-family:var(--mono);color:#506050">${fv>0?'+':''}${fv.toFixed(1)}R</td>
+      <td style="padding:9px 8px;text-align:center;font-family:var(--mono);color:${fc};font-weight:500">${kv>0?'+':''}${kv.toFixed(1)}R</td>
+      <td style="padding:9px 0;text-align:right;font-family:var(--mono);font-size:11px;color:${diff>0?'var(--green)':'var(--red)'}">${diff>0?'+':''}${diff.toFixed(1)}</td>
+    </tr>`;
+  }).join('')+`<tr style="border-top:1px solid var(--border2)">
+    <td style="padding:9px 0;color:var(--mid)">月虧損機率</td>
+    <td style="padding:9px 8px;text-align:center;font-family:var(--mono);color:#506050">${(d.flat.pLoss*100).toFixed(0)}%</td>
+    <td style="padding:9px 8px;text-align:center;font-family:var(--mono);color:var(--green);font-weight:500">${(d.kelly.pLoss*100).toFixed(0)}%</td>
+    <td style="padding:9px 0;text-align:right;font-family:var(--mono);font-size:11px;color:${d.kelly.pLoss<d.flat.pLoss?'var(--green)':'var(--red)'}"}>${((d.kelly.pLoss-d.flat.pLoss)*100).toFixed(0)}%</td>
+  </tr>`;
+  // Canvas
+  setTimeout(()=>{
+    const cv=document.getElementById('distEqCanvas');
+    if(cv) drawSetupLine(cv, _setupSim.flat, _setupSim.kelly, 140);
+    const flatSum=_setupSim.flat.reduce((a,b)=>a+b,0), kellySum=_setupSim.kelly.reduce((a,b)=>a+b,0);
+    const fsEl=document.getElementById('dist-flat-sum'); if(fsEl)fsEl.textContent='Flat: '+(flatSum>=0?'+':'')+flatSum.toFixed(1)+'R';
+    const ksEl=document.getElementById('dist-kelly-sum'); if(ksEl){ksEl.textContent='Kelly: '+(kellySum>=0?'+':'')+kellySum.toFixed(1)+'R';ksEl.style.color=kellySum>=0?'var(--green)':'var(--red)';}
+    const tEl=document.getElementById('dist-target'); if(tEl)tEl.textContent='0 ~ +'+Math.max(2,Math.round(d.kelly.p50*.6))+'R';
+    const nEl=document.getElementById('dist-normal'); if(nEl)nEl.textContent='+'+Math.round(d.kelly.p25)+' ~ +'+Math.round(d.kelly.p75)+'R';
+    const fEl=document.getElementById('dist-floor'); if(fEl)fEl.textContent=d.kelly.p10.toFixed(1)+'R';
+  },50);
+}
+
+function renderSimTab() {
+  const {wr,rr,tpd}=getSetupParams();
+  const {flat,kelly}=_setupSim;
+  const days=20;
+  const seqF=Array.from({length:days},(_,i)=>flat.slice(i*tpd,(i+1)*tpd).reduce((a,b)=>a+b,0));
+  const seqK=Array.from({length:days},(_,i)=>kelly.slice(i*tpd,(i+1)*tpd).reduce((a,b)=>a+b,0));
+  const maxLS=(arr,v)=>{let m=0,cc=0;for(const x of arr){x===v?(cc++,m=Math.max(m,cc)):cc=0;}return m;};
+  const wArrF=flat.map(t=>t>0?'W':'L');
+  const flatSum=flat.reduce((a,b)=>a+b,0), kellySum=kelly.reduce((a,b)=>a+b,0);
+  const winsF=flat.filter(t=>t>0).length, winsK=kelly.filter(t=>t>0&&t!==0).length;
+  // Flat day dots
+  const fdEl=document.getElementById('sim-flat-dots');
+  if(fdEl)fdEl.innerHTML=seqF.map((r,i)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <div style="width:34px;height:34px;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:9px;background:${r>0?'rgba(34,197,94,.12)':'rgba(239,68,68,.12)'};border:1px solid ${r>0?'rgba(34,197,94,.3)':'rgba(239,68,68,.25)'};color:${r>0?'#22c55e':'#ef4444'}">
+      <span>${r>0?'+':''}${r.toFixed(1)}</span><span style="font-size:7px;opacity:.5">R</span></div>
+    <span style="font-family:var(--mono);font-size:8px;color:var(--lo)">D${i+1}</span></div>`).join('');
+  const kdEl=document.getElementById('sim-kelly-dots');
+  if(kdEl)kdEl.innerHTML=seqK.map((r,i)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <div style="width:34px;height:34px;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:9px;background:${r>0?'rgba(34,197,94,.12)':r<0?'rgba(239,68,68,.12)':'rgba(255,255,255,.03)'};border:1px solid ${r>0?'rgba(34,197,94,.3)':r<0?'rgba(239,68,68,.25)':'var(--border2)'};color:${r>0?'#22c55e':r<0?'#ef4444':'var(--lo)'}">
+      <span>${r>0?'+':''}${r.toFixed(1)}</span><span style="font-size:7px;opacity:.5">R</span></div>
+    <span style="font-family:var(--mono);font-size:8px;color:var(--lo)">D${i+1}</span></div>`).join('');
+  // Canvases
+  setTimeout(()=>{
+    const cF=document.getElementById('simFlatCanvas');if(cF)drawSingleLine(cF,flat,90);
+    const cK=document.getElementById('simKellyCanvas');if(cK)drawSingleLine(cK,kelly,90);
+  },50);
+  // Stats
+  const fpEl=document.getElementById('sim-flat-pnl');if(fpEl){fpEl.textContent=(flatSum>=0?'+':'')+flatSum.toFixed(1)+'R';fpEl.style.color=flatSum>=0?'var(--green)':'var(--red)';}
+  const fwEl=document.getElementById('sim-flat-wl');if(fwEl)fwEl.textContent=winsF+'/'+flat.length;
+  const fsEl=document.getElementById('sim-flat-streak');if(fsEl)fsEl.textContent=maxLS(wArrF,'L');
+  const kpEl=document.getElementById('sim-kelly-pnl');if(kpEl){kpEl.textContent=(kellySum>=0?'+':'')+kellySum.toFixed(1)+'R';kpEl.style.color=kellySum>=0?'var(--green)':'var(--red)';}
+  const kwEl=document.getElementById('sim-kelly-wl');if(kwEl)kwEl.textContent=winsK+'/'+kelly.filter(t=>t!==0).length;
+  // Sequence dots
+  const sdEl=document.getElementById('sim-seq-dots');
+  if(sdEl)sdEl.innerHTML=flat.slice(0,60).map((t,i)=>`<div style="width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:10px;background:${t>0?'rgba(34,197,94,.12)':'rgba(239,68,68,.12)'};border:1px solid ${t>0?'rgba(34,197,94,.3)':'rgba(239,68,68,.25)'};color:${t>0?'#22c55e':'#ef4444'}" title="#${i+1}: ${t>0?'+':''}${t.toFixed(1)}R">${t>0?'W':'L'}</div>`).join('');
+}
+
+function pStreakCalc(k, p, n) { return 1 - Math.pow(1 - (1-p)**k, n/k); }
+
+function renderStreakTab() {
+  const {wr,rr,tpd}=getSetupParams();
+  const tpm=tpd*20;
+  const fullK=kellyFormula(wr,rr)*100, halfK=fullK/2;
+  const exp=wr*rr-(1-wr);
+  // Prob list
+  const plEl=document.getElementById('streak-prob-list');
+  if(plEl)plEl.innerHTML=[2,3,4,5,6,7].map(k=>{
+    const p=pStreakCalc(k,wr,tpm);
+    const color=k<=3?'#ef4444':k<=5?'#f59e0b':'#38bdf8';
+    const label=k<=3?'幾乎必然':k<=5?'很可能':'偶爾';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #0d1612;font-size:12px">
+      <span style="color:var(--mid)">連敗 <strong style="color:var(--hi)">${k}</strong> 次</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:80px;height:5px;background:var(--border2);border-radius:3px"><div style="height:100%;border-radius:3px;background:${color};width:${Math.min(p*100,100).toFixed(0)}%"></div></div>
+        <span style="font-family:var(--mono);font-size:11px;color:${color};width:36px;text-align:right">${(p*100).toFixed(0)}%</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--lo);width:44px;text-align:right">${label}</span>
+      </div>
+    </div>`;
+  }).join('');
+  // Loss impact list
+  const llEl=document.getElementById('streak-loss-list');
+  if(llEl)llEl.innerHTML=[2,3,4,5,6,7].map(k=>{
+    const flatLoss=k;
+    const kellyLoss=k*(halfK*.6);
+    const recT=exp>0?Math.ceil(flatLoss/exp):'∞';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #0d1612;font-size:12px">
+      <span style="color:var(--mid)">連敗 ${k} 次</span>
+      <div style="display:flex;gap:14px">
+        <div style="text-align:right"><div style="font-family:var(--mono);font-size:12px;color:#506050">−${flatLoss.toFixed(0)}R</div><div style="font-size:9px;color:var(--lo)">Flat</div></div>
+        <div style="text-align:right"><div style="font-family:var(--mono);font-size:12px;color:var(--green)">−${kellyLoss.toFixed(1)}R</div><div style="font-size:9px;color:var(--lo)">Kelly</div></div>
+        <div style="text-align:right"><div style="font-family:var(--mono);font-size:12px;color:var(--amber)">${recT}筆</div><div style="font-size:9px;color:var(--lo)">回本</div></div>
+      </div>
+    </div>`;
+  }).join('');
+  // Normal / stop lists
+  const nl=['連敗 3–4 次後 PNL 下降','某週全部交易虧損','月底勝率只有 35%','好幾天沒有 A/A+ Setup','某次大贏後連輸 3 次','Kelly 倉位較小的月份收益低'];
+  const sl=['連敗後加大倉位「報復」','把 B Setup 升級成 A+','移動止損「再給一點空間」','超過每日上限強迫交易','連敗 5 次後跳過記錄繼續做','月度虧損超過 8–10R'];
+  const nnEl=document.getElementById('streak-normal-list');if(nnEl)nnEl.innerHTML=nl.map(t=>`<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #0d1612;font-size:11px;color:var(--mid);line-height:1.6"><span style="color:var(--green);flex-shrink:0">✓</span>${t}</div>`).join('');
+  const ssEl=document.getElementById('streak-stop-list');if(ssEl)ssEl.innerHTML=sl.map(t=>`<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #0d1612;font-size:11px;color:var(--mid);line-height:1.6"><span style="color:var(--red);flex-shrink:0">✗</span>${t}</div>`).join('');
+}
+
+function renderDailyTab() {
+  // Phases
+  const phEl=document.getElementById('daily-phases');
+  if(phEl)phEl.innerHTML=[
+    {now:true, label:'PHASE 1 · 現在 · 月 1–3 · 執行校準期', title:'目標：執行一致性，不是 PNL 最大化', body:'勝率目標 35–45% · 執行符合率 >80% · Kelly 分級開始建立直覺', note:'月度 PNL 結果在此階段不具評估意義 — 繼續累積樣本', noteColor:'var(--amber)'},
+    {now:false,label:'PHASE 2 · 月 4–6 · 穩定化期', body:'勝率穩定 >40%，開始按實際統計調整 Kelly 參數，月度 PNL 開始有參考價值'},
+    {now:false,label:'PHASE 3 · 月 7+ · 成長期', body:'系統性邊際確認後，再考慮規模化風險與增加 Kelly 倍數'},
+  ].map(ph=>`<div style="background:var(--bg3);border-radius:6px;padding:13px;border-left:3px solid ${ph.now?'var(--amber)':'var(--border)'};margin-bottom:10px;${ph.now?'':'opacity:.5'}">
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:${ph.now?'var(--amber)':'var(--lo)'};margin-bottom:${ph.now?6:0}px">${ph.label}</div>
+    ${ph.now?`<div style="font-size:13px;color:var(--hi);font-weight:600;margin-bottom:6px">${ph.title}</div>`:''}
+    <div style="font-size:11px;color:var(--mid);line-height:1.7">${ph.body}</div>
+    ${ph.note?`<div style="font-size:11px;color:${ph.noteColor||'var(--lo)'};margin-top:4px">${ph.note}</div>`:''}
+  </div>`).join('');
+  // Pre-trade
+  const preData=[
+    {icon:'🎯',bg:'rgba(34,197,94,.08)', q:'1. 這手牌有多強？先評分再決定倉位', detail:'用 Confluence 評分器評估今天的 Setup → 得出 A+/A/B/C → 對應 Kelly 倉位。在不知道牌力之前，不決定下注大小。', score:'Score 75+ = A+ · 55–74 = A · 35–54 = B · <35 = C (Fold)'},
+    {icon:'📐',bg:'rgba(56,189,248,.08)', q:'2. Kelly 倉位是否正確計算？', detail:'Half Kelly × 牌力倍數 = 今天的風險。不因連勝而加碼，不因連敗而減碼（Kelly 已經自動調整了）。', score:'按計算執行 = ✓ · 憑感覺調整 = ✗'},
+    {icon:'🕙',bg:'rgba(245,158,11,.08)', q:'3. 現在是 Kill Zone 嗎？', detail:'NYAM 9:30–11am NY（台灣時間 22:30–00:00 冬令 / 21:30–23:00 夏令）。Kill Zone 外的 Setup 自動降級或跳過。', score:'在 Kill Zone = ✓ · 窗口外 = 降一級或 Fold'},
+  ];
+  const preEl=document.getElementById('daily-pre');
+  if(preEl)preEl.innerHTML=preData.map(({icon,bg,q,detail,score})=>`<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #0d1612">
+    <div style="width:30px;height:30px;background:${bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${icon}</div>
+    <div><div style="font-size:13px;color:var(--hi);font-weight:600;margin-bottom:4px">${q}</div>
+    <div style="font-size:11px;color:var(--mid);line-height:1.7;margin-bottom:4px">${detail}</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--green)">${score}</div></div>
+  </div>`).join('');
+  // Post-trade
+  const postData=[
+    {icon:'🎯',bg:'rgba(34,197,94,.08)', q:'Setup 是否符合 ICT 條件？', score:'全符合 = ✓ · 勉強 = ✗'},
+    {icon:'📐',bg:'rgba(56,189,248,.08)', q:'風險執行是否按計劃？（止損未移動 · 未提前出場）', score:'按計劃 = ✓ · 有違規 = ✗'},
+    {icon:'🛑',bg:'rgba(245,158,11,.08)', q:'是否遵守每日交易上限？（1–2 筆，沒 Setup 不做）', score:'遵守 = ✓ · 超標 = ✗'},
+  ];
+  const postEl=document.getElementById('daily-post');
+  if(postEl)postEl.innerHTML=postData.map(({icon,bg,q,score})=>`<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid #0d1612;align-items:center">
+    <div style="width:28px;height:28px;background:${bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${icon}</div>
+    <div style="flex:1"><div style="font-size:12px;color:var(--hi);margin-bottom:3px">${q}</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--green)">${score}</div></div>
+  </div>`).join('');
+}
+
+function renderSetup() {
+  buildCFList();
+  updateSetup();
+  runDistSim();
+  if (_setupTab !== 'grader') switchSetupTab(_setupTab, null);
+}
+
 </script>
 
 <!-- ── Checklist Example Modal ── -->
