@@ -1524,7 +1524,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
           <span class="fl" style="display:flex;align-items:center;gap:4px">Grade
             <span id="m-grade-chip" style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid transparent"></span>
           </span>
-          <select id="m-grade" style="width:100%" onchange="updateGradeChip()">
+          <select id="m-grade" style="width:100%" onchange="this.dataset.manualOverride='1';updateGradeChip()">
             <option value="">— 選擇 —</option>
             <option value="A+">A+</option><option value="A">A</option>
             <option value="B">B</option><option value="C">C</option>
@@ -1553,7 +1553,8 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <div style="margin-bottom:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
         <div style="display:flex;align-items:center;margin-bottom:8px">
           <span style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase">Confluence Score</span>
-          <span id="m-conf-score-lbl" style="font-family:var(--mono);font-size:10px;color:var(--amber);margin-left:auto">0 / 100</span>
+          <span id="m-conf-grade-chip" style="font-family:var(--mono);font-size:11px;font-weight:800;padding:2px 9px;border-radius:4px;border:1px solid transparent;margin-left:auto;margin-right:8px;transition:all .2s"></span>
+          <span id="m-conf-score-lbl" style="font-family:var(--mono);font-size:10px;color:var(--amber)">0 / 100</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px" id="m-conf-items"></div>
         <div style="margin-top:8px;height:4px;background:var(--bg);border-radius:2px;overflow:hidden">
@@ -3113,6 +3114,23 @@ function updateConfScore(){
   const bar=document.getElementById('m-conf-bar');
   if(lbl){ lbl.textContent=score+' / '+CONF_MAX; lbl.style.color=color; }
   if(bar){ bar.style.width=(pct*100)+'%'; bar.style.background=color; }
+  // Auto-derive grade from confluence score
+  const autoGrade = pct>=0.78?'A+':pct>=0.58?'A':pct>=0.38?'B':'C';
+  const gradeColors={'A+':'#f5c842','A':'var(--green)','B':'var(--amber)','C':'var(--red)'};
+  const gradeBg={'A+':'rgba(245,200,66,.12)','A':'rgba(5,150,105,.1)','B':'rgba(217,119,6,.1)','C':'rgba(220,38,38,.1)'};
+  const chip=document.getElementById('m-conf-grade-chip');
+  if(chip){
+    chip.textContent=autoGrade;
+    chip.style.color=gradeColors[autoGrade];
+    chip.style.background=gradeBg[autoGrade];
+    chip.style.borderColor=gradeColors[autoGrade]+'50';
+  }
+  // Sync the grade select if it hasn't been manually overridden
+  const gradeEl=document.getElementById('m-grade');
+  if(gradeEl && !gradeEl.dataset.manualOverride){
+    gradeEl.value=autoGrade;
+    updateGradeChip();
+  }
 }
 
 function updateGradeChip(){
@@ -4111,6 +4129,7 @@ function openAddModal(){
   buildConfItems(); resetConfValues(); updateGradeChip();
   ['m-session','m-grade','m-protocol'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const ot=document.getElementById('m-outcome-type');if(ot)ot.value='normal';
+  const grEl2=document.getElementById('m-grade');if(grEl2)delete grEl2.dataset.manualOverride;
   populateAssetSelects();
   renderAssetList();
   const pub=document.getElementById('m-public');
@@ -4388,25 +4407,55 @@ function _computeLegs(){
   // PnL computed independently — always available
   const totalPnl = _legs.reduce((s,l)=>s+(parseFloat(l.pnl)||0),0);
   const hasPnl = _legs.some(l=>parseFloat(l.pnl));
+
   const legsWithEntry = _legs.filter(l => parseFloat(l.entryPrice));
   if(!legsWithEntry.length) return {avgEntry:0,avgExit:0,totalRisk:0,weightedR:null,totalPnl,hasPnl,noEntry:true};
-  const hasSizes = _legs.every(l => parseFloat(l.size) > 0);
-  const totalSize = hasSizes ? _legs.reduce((s,l)=>s+(parseFloat(l.size)||0),0) : legsWithEntry.length;
-  const w = l => hasSizes ? (parseFloat(l.size)||0)/totalSize : 1/legsWithEntry.length;
-  const avgEntry = legsWithEntry.reduce((s,l)=>s+parseFloat(l.entryPrice)*w(l),0);
-  const legsWithExit = _legs.filter(l=>parseFloat(l.entryPrice)&&parseFloat(l.exitPrice));
+
+  // ── Weights: derived from legs WITH entry prices only (fixes weight-sum != 1 bug) ──
+  const entrySizes  = legsWithEntry.map(l => parseFloat(l.size)||0);
+  const hasESizes   = entrySizes.every(s => s > 0);
+  const eTotalSize  = hasESizes ? entrySizes.reduce((a,b)=>a+b,0) : legsWithEntry.length;
+  const eW = (l,i)  => hasESizes ? entrySizes[i]/eTotalSize : 1/legsWithEntry.length;
+
+  const avgEntry = legsWithEntry.reduce((s,l,i) => s + parseFloat(l.entryPrice)*eW(l,i), 0);
+
+  // ── avgExit: weight by size of exited legs only ──
+  const legsWithExit = legsWithEntry.filter(l => parseFloat(l.exitPrice));
   let avgExit = 0;
   if(legsWithExit.length){
-    const exitTotalSize = hasSizes ? legsWithExit.reduce((s,l)=>s+(parseFloat(l.size)||0),0) : legsWithExit.length;
-    avgExit = legsWithExit.reduce((s,l)=>s+parseFloat(l.exitPrice)*(hasSizes?(parseFloat(l.size)||0)/exitTotalSize:1/legsWithExit.length),0);
+    const xSizes    = legsWithExit.map(l => parseFloat(l.size)||0);
+    const hasXSizes = xSizes.every(s => s > 0);
+    const xTotal    = hasXSizes ? xSizes.reduce((a,b)=>a+b,0) : legsWithExit.length;
+    avgExit = legsWithExit.reduce((s,l,i) => {
+      const w = hasXSizes ? xSizes[i]/xTotal : 1/legsWithExit.length;
+      return s + parseFloat(l.exitPrice)*w;
+    }, 0);
   }
+
   const totalRisk = _legs.reduce((s,l)=>s+(parseFloat(l.risk)||0),0);
-  const legsWithR = _legs.filter(l=>legR(l,dir)!=null);
-  // 總 R = 各腳 R 直接相加（不做加權平均）
+
+  // ── weightedR: weight by (size × slDist) = dollar-risk contribution per leg ──
+  // Correct formula: totalR = Σ(legR × $risk_i) / Σ($risk_i)
+  // = (total $profit) / (total $risk), same as first-principles P&L/Risk
+  // e.g. Leg1 50% size slDist=2 Leg2 50% size slDist=3 → weights 100:150
+  //      R = (100×2R + 150×1R) / 250 = 350/250 = 1.4R  (not 1.5R)
+  const legsWithR = legsWithEntry.filter(l => legR(l,dir) != null);
   let weightedR = null;
   if(legsWithR.length){
-    weightedR = legsWithR.reduce((s,l)=>s+legR(l,dir),0);
+    const riskWeights = legsWithR.map(l => {
+      const sz = parseFloat(l.size) || 1;
+      const slDist = Math.abs(parseFloat(l.entryPrice) - parseFloat(l.sl));
+      return sz * slDist;
+    });
+    const totalRW = riskWeights.reduce((a,b)=>a+b, 0);
+    if(totalRW > 0){
+      weightedR = legsWithR.reduce((s,l,i) => s + legR(l,dir) * (riskWeights[i]/totalRW), 0);
+    } else {
+      // fallback: equal weight (no size or SL filled in yet)
+      weightedR = legsWithR.reduce((s,l) => s + legR(l,dir), 0) / legsWithR.length;
+    }
   }
+
   return{avgEntry,avgExit,totalRisk,weightedR,totalPnl,hasPnl};
 }
 
