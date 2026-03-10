@@ -1502,7 +1502,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
         <div class="fg"><span class="fl">日期</span><input type="date" id="m-date" style="width:100%"></div>
         <div class="fg"><span class="fl">資產</span><select id="m-asset" style="width:100%"></select></div>
-        <div class="fg"><span class="fl">方向</span><select id="m-dir" style="width:100%"><option>LONG</option><option>SHORT</option></select></div>
+        <div class="fg"><span class="fl">方向</span><select id="m-dir" style="width:100%" onchange="refreshAllLegR();calcSummaryOnly()"><option>LONG</option><option>SHORT</option></select></div>
         <div class="fg"><span class="fl">狀態</span><select id="m-status" style="width:100%"><option>OPEN</option><option>CLOSED</option><option>TP HIT</option><option>SL HIT</option></select></div>
       </div>
 
@@ -4347,19 +4347,32 @@ function removeLeg(idx){
 }
 
 function legR(leg, dir){
-  // Calculate R for a single leg
   const entry=parseFloat(leg.entryPrice), sl=parseFloat(leg.sl), exit=parseFloat(leg.exitPrice);
   if(!entry||!sl||!exit) return null;
   const slDist=Math.abs(entry-sl);
   if(slDist===0) return null;
+  // Validate SL is on the correct side
+  if(dir==='LONG'  && sl>=entry) return null; // LONG: SL must be below entry
+  if(dir==='SHORT' && sl<=entry) return null; // SHORT: SL must be above entry
   return dir==='LONG' ? (exit-entry)/slDist : (entry-exit)/slDist;
 }
 
-function legRHtml(r){
+function legRHtml(r, invalidSL){
+  if(invalidSL) return '<span style="color:var(--amber)" title="SL方向錯誤">SL?</span>';
   if(r==null) return '<span style="color:var(--lo)">—</span>';
   return r>=0
     ? '<span style="color:var(--green)">+'+r.toFixed(2)+'R</span>'
     : '<span style="color:var(--red)">'+r.toFixed(2)+'R</span>';
+}
+
+function legRWithCheck(leg, dir){
+  const entry=parseFloat(leg.entryPrice), sl=parseFloat(leg.sl);
+  // Detect wrong-side SL for the hint
+  if(entry && sl){
+    if(dir==='LONG'  && sl>=entry) return {r:null, invalidSL:true};
+    if(dir==='SHORT' && sl<=entry) return {r:null, invalidSL:true};
+  }
+  return {r:legR(leg,dir), invalidSL:false};
 }
 
 function renderLegs(){
@@ -4379,7 +4392,7 @@ function renderLegs(){
       <input class="leg-input${leg.exitPrice?' has-val':''}" type="number" data-idx="${i}" data-field="exitPrice" placeholder="出場價" step="0.0001" value="${leg.exitPrice||''}" oninput="updateLeg(${i},'exitPrice',this.value)">
       <input class="leg-input" type="number" data-idx="${i}" data-field="size" placeholder="%" step="1" min="0" max="100" value="${leg.size||''}" oninput="updateLeg(${i},'size',this.value)">
       <input class="leg-input" type="number" data-idx="${i}" data-field="risk" placeholder="%" step="0.5" value="${leg.risk||''}" oninput="updateLeg(${i},'risk',this.value)">
-      <div id="leg-r-${i}" style="font-size:10px;font-family:var(--mono);text-align:center">${legRHtml(legR(leg,dir))}</div>
+      <div id="leg-r-${i}" style="font-size:10px;font-family:var(--mono);text-align:center">${(()=>{const {r,invalidSL}=legRWithCheck(leg,dir);return legRHtml(r,invalidSL);})()}</div>
       <input class="leg-input${leg.pnl?' has-val':''}" type="number" data-idx="${i}" data-field="pnl" placeholder="PnL" step="0.01" value="${leg.pnl||''}" oninput="updateLeg(${i},'pnl',this.value)" title="實際損益金額">
       <button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:10px" onclick="removeLeg(${i})">✕</button>
     </div>`).join('');
@@ -4389,7 +4402,16 @@ function renderLegs(){
 function refreshLegR(idx){
   const dir = document.getElementById('m-dir')?.value||'LONG';
   const el = document.getElementById('leg-r-'+idx);
-  if(el) el.innerHTML = legRHtml(legR(_legs[idx], dir));
+  const {r,invalidSL}=legRWithCheck(_legs[idx],dir); if(el) el.innerHTML=legRHtml(r,invalidSL);
+}
+
+// Refresh ALL leg R cells (called when direction changes)
+function refreshAllLegR(){
+  const dir = document.getElementById('m-dir')?.value||'LONG';
+  _legs.forEach((_,i) => {
+    const el = document.getElementById('leg-r-'+i);
+    const {r,invalidSL}=legRWithCheck(_legs[i],dir); if(el) el.innerHTML=legRHtml(r,invalidSL);
+  });
 }
 
 function updateLeg(idx, field, val){
