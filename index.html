@@ -4473,23 +4473,12 @@ function _computeLegs(){
   // = (total $profit) / (total $risk), same as first-principles P&L/Risk
   // e.g. Leg1 50% size slDist=2 Leg2 50% size slDist=3 → weights 100:150
   //      R = (100×2R + 150×1R) / 250 = 350/250 = 1.4R  (not 1.5R)
+  // 總 R = 各腳 R 直接相加
   const legsWithR = legsWithEntry.filter(l => legR(l,dir) != null);
   let weightedR = null;
   if(legsWithR.length){
-    const riskWeights = legsWithR.map(l => {
-      const sz = parseFloat(l.size) || 1;
-      const slDist = Math.abs(parseFloat(l.entryPrice) - parseFloat(l.sl));
-      return sz * slDist;
-    });
-    const totalRW = riskWeights.reduce((a,b)=>a+b, 0);
-    if(totalRW > 0){
-      weightedR = legsWithR.reduce((s,l,i) => s + legR(l,dir) * (riskWeights[i]/totalRW), 0);
-    } else {
-      // fallback: equal weight (no size or SL filled in yet)
-      weightedR = legsWithR.reduce((s,l) => s + legR(l,dir), 0) / legsWithR.length;
-    }
+    weightedR = legsWithR.reduce((s,l) => s + legR(l,dir), 0);
   }
-
   return{avgEntry,avgExit,totalRisk,weightedR,totalPnl,hasPnl};
 }
 
