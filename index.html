@@ -1570,7 +1570,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
         </div>
         <div class="leg-table">
           <div class="leg-header">
-            <div>入場日期</div><div>入場價</div><div>SL</div><div>出場日期</div><div>出場價</div><div>倉%</div><div>Risk%</div><div style="color:var(--amber)">R</div><div style="color:var(--green)">PnL</div><div></div>
+            <div>入場日期</div><div>入場價</div><div>SL <span style="font-size:8px;color:var(--lo)" title="填第一腳 SL 後，其餘空白腳自動帶入">↓auto</span></div><div>出場日期</div><div>出場價</div><div>倉%</div><div>Risk%</div><div style="color:var(--amber)">R</div><div style="color:var(--green)">PnL</div><div></div>
           </div>
           <div id="legsContainer"></div>
         </div>
@@ -1591,7 +1591,7 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
           <span class="fl" style="display:flex;align-items:center;gap:4px">R 倍數
             <span style="font-family:var(--mono);font-size:9px;color:var(--lo)">(自動/手動)</span>
           </span>
-          <input type="number" id="m-r" style="width:100%" placeholder="自動計算或手動覆蓋" step="0.1">
+          <input type="number" id="m-r" style="width:100%" placeholder="自動計算或手動覆蓋" step="0.1" oninput="this.dataset.manualR=this.value?'1':''">
         </div>
         <div style="display:flex;align-items:flex-end">
           <button class="btn btn-g btn-sm" onclick="applyAutoR()" style="font-size:10px;width:100%">↻ 套用總 R</button>
@@ -4130,6 +4130,7 @@ function openAddModal(){
   ['m-session','m-grade','m-protocol'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const ot=document.getElementById('m-outcome-type');if(ot)ot.value='normal';
   const grEl2=document.getElementById('m-grade');if(grEl2)delete grEl2.dataset.manualOverride;
+  const rEl2=document.getElementById('m-r');if(rEl2){rEl2.value='';delete rEl2.dataset.manualR;}
   populateAssetSelects();
   renderAssetList();
   const pub=document.getElementById('m-public');
@@ -4419,6 +4420,17 @@ function updateLeg(idx, field, val){
   // Update has-val class directly — no DOM rebuild needed
   const inp = document.querySelector('#leg-'+idx+' input[data-field="'+field+'"]');
   if(inp) inp.classList.toggle('has-val', !!val);
+  // Auto-propagate SL to all other legs that are still empty
+  if(field === 'sl' && val){
+    _legs.forEach((l, i) => {
+      if(i !== idx && !l.sl){
+        l.sl = val;
+        const slInp = document.querySelector('#leg-'+i+' input[data-field="sl"]');
+        if(slInp){ slInp.value = val; slInp.classList.add('has-val'); }
+        refreshLegR(i);
+      }
+    });
+  }
   refreshLegR(idx);
   calcSummaryOnly();
 }
@@ -4521,6 +4533,9 @@ function calcSummaryOnly(){
   document.getElementById('m-entry').value = avgEntry.toFixed(4);
   document.getElementById('m-exit').value = avgExit ? avgExit.toFixed(4) : 0;
   document.getElementById('m-risk').value = totalRisk||2;
+  // Auto-write Total R to m-r (only if not manually overridden)
+  const rEl = document.getElementById('m-r');
+  if(rEl && weightedR != null && !rEl.dataset.manualR) rEl.value = weightedR.toFixed(2);
 }
 
 // ── Full recalc + re-render (called after add/remove leg) ──
