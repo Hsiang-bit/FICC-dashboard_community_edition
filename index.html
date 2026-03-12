@@ -2323,6 +2323,7 @@ function load(){
   try{settings=JSON.parse(localStorage.getItem('ficc_settings')||'{}');}catch(e){settings={};}
   try{ganttData=JSON.parse(localStorage.getItem('ficc_gantt')||'{}');}catch(e){ganttData={};}
   if(settings.notionToken) document.getElementById('notionToken').value=settings.notionToken;
+  if(settings.notionProxyUrl) document.getElementById('notionProxyUrl').value=settings.notionProxyUrl;
   if(settings.geminiKey) document.getElementById('geminiKey').value=settings.geminiKey;
   if(settings.pplxKey){const el=document.getElementById('pplxKey');if(el)el.value=settings.pplxKey;}
   if(settings.ghToken){const el=document.getElementById('ghToken');if(el)el.value=settings.ghToken;}
@@ -2356,6 +2357,7 @@ function saveAll(){
 }
 function saveSettings(){
   settings.notionToken=document.getElementById('notionToken').value;
+  settings.notionProxyUrl=document.getElementById('notionProxyUrl')?.value||'';
   settings.geminiKey=document.getElementById('geminiKey').value;
   const pk=document.getElementById('pplxKey');if(pk)settings.pplxKey=pk.value;
   const pid=document.getElementById('notionParentId');
@@ -4657,30 +4659,51 @@ function deleteTrade(){if(!currentTradeId||!confirm('刪除？'))return;trades=t
 async function notionFetch(method, path, body, token){
   const t=token||document.getElementById('notionToken').value.trim()||settings.notionToken||'';
   if(!t)return{ok:false,data:{message:'未填入 Notion Token，請到 Settings 填入'}};
+  const TARGET='https://api.notion.com/v1'+path;
+  const bodyStr=body?JSON.stringify(body):undefined;
+
+  // ── Priority 1: User-configured Worker proxy (most reliable) ──
+  const proxyUrl=(document.getElementById('notionProxyUrl')?.value||'').trim()||settings.notionProxyUrl||'';
+  if(proxyUrl){
+    try{
+      const r=await fetch(proxyUrl,{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-notion-token':t,
+          'x-notion-path':path,
+          'x-notion-method':method,
+        },
+        body:bodyStr,
+        signal:AbortSignal.timeout(12000),
+      });
+      const data=await r.json();
+      if(r.ok||r.status<500)return{ok:r.ok,data};
+    }catch(e){console.warn('Worker proxy failed:',e.message);}
+  }
+
   const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+t,'Notion-Version':'2022-06-28'};
   const opts={method,headers:hdrs};
-  if(body)opts.body=JSON.stringify(body);
-  const TARGET='https://api.notion.com/v1'+path;
+  if(bodyStr)opts.body=bodyStr;
   const errs=[];
 
-  // 1) Direct (works on http:// or with CORS extension)
+  // ── Priority 2: Direct (works with CORS extension) ──
   try{
     const r=await fetch(TARGET,{...opts,signal:AbortSignal.timeout(6000)});
     const data=await r.json();
     if(r.ok||r.status<500)return{ok:r.ok,data};
-    errs.push('直接: HTTP '+r.status+' — '+JSON.stringify(data?.message||'').slice(0,60));
+    errs.push('直接: HTTP '+r.status+' '+JSON.stringify(data?.message||'').slice(0,60));
   }catch(e){errs.push('直接: '+e.message);}
 
-  // 2) corsproxy.io (url= param form)
+  // ── Priority 3: corsproxy.io ──
   try{
     const r=await fetch('https://corsproxy.io/?url='+encodeURIComponent(TARGET),{...opts,signal:AbortSignal.timeout(10000)});
-    const text=await r.text();
-    const data=JSON.parse(text);
+    const data=await r.json();
     if(r.ok||r.status<500)return{ok:r.ok,data};
     errs.push('corsproxy.io: HTTP '+r.status);
   }catch(e){errs.push('corsproxy.io: '+e.message);}
 
-  // 3) cors.sh
+  // ── Priority 4: cors.sh ──
   try{
     const r=await fetch('https://proxy.cors.sh/'+TARGET,{...opts,headers:{...hdrs,'x-cors-api-key':'temp_demo'},signal:AbortSignal.timeout(10000)});
     const data=await r.json();
@@ -4688,17 +4711,11 @@ async function notionFetch(method, path, body, token){
     errs.push('cors.sh: HTTP '+r.status);
   }catch(e){errs.push('cors.sh: '+e.message);}
 
-  // 4) thingproxy
-  try{
-    const r=await fetch('https://thingproxy.freeboard.io/fetch/'+TARGET,{...opts,signal:AbortSignal.timeout(10000)});
-    const text=await r.text();
-    const data=JSON.parse(text);
-    if(r.ok||r.status<500)return{ok:r.ok,data};
-    errs.push('thingproxy: HTTP '+r.status);
-  }catch(e){errs.push('thingproxy: '+e.message);}
-
   const detail=errs.map((e,i)=>`${i+1}. ${e}`).join('\n');
-  const msg=`Notion CORS 限制，所有代理均失敗\n\n${detail}\n\n解決方法：\n① 安裝瀏覽器擴充：CORS Unblock（Chrome/Firefox）\n② 或本機伺服器開啟：\n   python3 -m http.server 8080\n   → http://localhost:8080`;
+  const hasProxy=!!proxyUrl;
+  const msg=hasProxy
+    ?`Worker 代理失敗，其他代理也失敗\n${detail}`
+    :`CORS 限制\n${detail}\n\n解決方法：\n① 部署 Cloudflare Worker（見 notion-worker.js）\n   → 填入 Settings「Notion Proxy URL」\n② 或裝瀏覽器擴充「CORS Unblock」`;
   return{ok:false,data:{message:msg}};
 }
 
