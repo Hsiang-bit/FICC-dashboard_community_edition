@@ -102,7 +102,7 @@ select option{background:var(--bg2)}
 .cl-item{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:var(--r);margin-bottom:4px;cursor:pointer;border:1px solid transparent;transition:all .15s}
 .cl-item:hover{background:var(--bg2);border-color:var(--border2)}
 .cl-item.ck{opacity:.38}.cl-item.ck .cl-txt strong{text-decoration:line-through;color:var(--lo)}
-.cl-cb{width:13px;height:13px;border:1px solid var(--border2);border-radius:2px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:8px}
+.cl-cb{display:none}
 .cl-item.ck .cl-cb{background:var(--green);border-color:var(--green);color:#fff}
 .cl-txt{flex:1}.cl-txt strong{display:block;font-size:calc(var(--fs));font-weight:500;color:var(--hi);margin-bottom:2px}
 .cl-txt span{font-size:calc(var(--fs) - 2px);color:var(--mid);font-family:var(--mono)}
@@ -459,6 +459,8 @@ select option{background:var(--bg2)}
     <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:8px">編輯項目</div>
     <span class="fl">標題</span><input type="text" id="cpTitle" style="width:100%;margin-bottom:6px">
     <span class="fl">說明（副標題）</span><input type="text" id="cpSub" style="width:100%;margin-bottom:6px" placeholder="選填">
+    <span class="fl" style="display:flex;align-items:center;justify-content:space-between">下拉選項 <span style="font-size:9px;color:var(--lo)">每行一個選項</span></span>
+    <textarea id="cpOpts" style="width:100%;margin-bottom:6px;font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border2);color:var(--hi);border-radius:3px;padding:4px 6px;resize:vertical;min-height:80px" placeholder="✅ 確認&#10;⚠️ 待確認&#10;❌ 跳過&#10;N/A"></textarea>
     <span class="fl">標籤樣式</span>
     <select id="cpTag" style="width:100%;margin-bottom:6px">
       <option value="all">灰色 ALL</option><option value="bond">藍色 BOND</option>
@@ -610,7 +612,7 @@ select option{background:var(--bg2)}
   </div>
   <div style="overflow-x:auto">
     <table class="ttable">
-      <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>Grade</th><th>Conf.</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
+      <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>Trend</th><th>Grade</th><th>Conf.</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
       <tbody id="tBody"><tr><td colspan="13" class="t-empty">尚無記錄，點擊「+ 新增交易」</td></tr></tbody>
     </table>
   </div>
@@ -1506,8 +1508,8 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
         <div class="fg"><span class="fl">狀態</span><select id="m-status" style="width:100%"><option>OPEN</option><option>CLOSED</option><option>TP HIT</option><option>SL HIT</option></select></div>
       </div>
 
-      <!-- Row 2: Session / Grade / Protocol / Disq -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+      <!-- Row 2: Session / Grade / Trend / Protocol / Disq -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px">
         <div class="fg"><span class="fl">Session</span>
           <select id="m-session" style="width:100%">
             <option value="">— 選擇 —</option>
@@ -1528,6 +1530,13 @@ create policy "allow all" on ficc_sync for all using (true) with check (true);</
             <option value="">— 選擇 —</option>
             <option value="A+">A+</option><option value="A">A</option>
             <option value="B">B</option><option value="C">C</option>
+          </select>
+        </div>
+        <div class="fg"><span class="fl">Trend</span>
+          <select id="m-trend" style="width:100%">
+            <option value="">— 選擇 —</option>
+            <option value="pro">Pro-Trend</option>
+            <option value="con">Counter-Trend</option>
           </select>
         </div>
         <div class="fg"><span class="fl">Entry Protocol</span>
@@ -3347,10 +3356,16 @@ function loadJournal(date){
   currentJDate=date;
   const j=journals[date]||{};
   // Restore checklist checked state
-  document.querySelectorAll('#clBody .cl-item').forEach(el=>{
-    const ck=j.cl&&j.cl[el.dataset.id];
-    el.classList.toggle('ck',!!ck);
-    el.querySelector('.cl-cb').textContent=ck?'✓':'';
+  document.querySelectorAll('#clBody .cl-dropdown').forEach(sel=>{
+    const id=sel.dataset.clId;
+    const val=(j.cl&&j.cl[id])||'';
+    sel.value=val;
+    const item=sel.closest('.cl-item');
+    if(item){
+      const isPos=val.startsWith('✅');
+      const isWarn=val.startsWith('⚠️');
+      item.style.borderColor=isPos?'rgba(16,185,129,.5)':isWarn?'rgba(245,158,11,.5)':'var(--border)';
+    }
   });
   updateProgress();
   document.querySelectorAll('[data-rs]').forEach(sel=>{if(j.rs&&j.rs[sel.dataset.rs])sel.value=j.rs[sel.dataset.rs];else sel.selectedIndex=0;});
@@ -3371,7 +3386,7 @@ function jDirty(){
 }
 function getJournalSnapshot(){
   const cl={},rs={},macro={},signals={},notes={};
-  document.querySelectorAll('#clBody .cl-item').forEach(el=>cl[el.dataset.id]=el.classList.contains('ck'));
+  document.querySelectorAll('#clBody .cl-dropdown').forEach(sel=>{if(sel.dataset.clId) cl[sel.dataset.clId]=sel.value;});
   document.querySelectorAll('[data-rs]').forEach(sel=>rs[sel.dataset.rs]=sel.value);
   document.querySelectorAll('[data-macro]').forEach(sel=>macro[sel.dataset.macro]=sel.value);
   document.querySelectorAll('[data-sig]').forEach(sel=>signals[sel.dataset.sig]=sel.value);
@@ -3392,47 +3407,55 @@ function setFOMC(v){settings.fomcDate=v;document.getElementById('fomcDisp').text
 // ════════════════════════════════════
 // CHECKLIST — DATA-DRIVEN EDITABLE
 // ════════════════════════════════════
+// Default opts helper
+const _OPTS_CONFIRM  = ['✅ 確認','⚠️ 待確認','❌ 跳過','N/A'];
+const _OPTS_WARN     = ['⚠️ 有FOMC/數據','✅ 無影響','❌ 跳過'];
+const _OPTS_SMT      = ['✅ SMT確認','⚠️ 待觀察','❌ 無SMT','N/A'];
+const _OPTS_SESSION  = ['✅ 在窗口內','❌ 窗口外','N/A'];
+const _OPTS_RS       = ['✅ 方向一致','⚠️ 分歧','❌ 反向','N/A'];
+const _OPTS_PLAN     = ['✅ 已完成','⚠️ 部分','❌ 未做'];
+
 const DEFAULT_CHECKLIST=[
   {id:'sec-macro',label:'01 — Macro',color:'amber',items:[
-    {id:'m1',title:'Macro Regime 確認',sub:'Risk-On/Off/Inflation/Deflation?',tag:'all',tagTxt:'MACRO'},
-    {id:'m2',title:'Yield Curve 形態',sub:'2Y10Y 利差走向？陡化/平化/倒掛？',tag:'all',tagTxt:'YIELD'},
-    {id:'m3',title:'FOMC 日期確認',sub:'本週有FOMC？Bond/FX/Gold禁止新倉',tag:'warn',tagTxt:'FOMC'},
-    {id:'m4',title:'本週重大數據',sub:'CPI/PPI/NFP/PCE/GDP 時間確認',tag:'all',tagTxt:'ECON'},
+    {id:'m1',title:'Macro Regime 確認',sub:'Risk-On/Off/Inflation/Deflation?',tag:'all',tagTxt:'MACRO',opts:[..._OPTS_CONFIRM]},
+    {id:'m2',title:'Yield Curve 形態',sub:'2Y10Y 利差走向？陡化/平化/倒掛？',tag:'all',tagTxt:'YIELD',opts:[..._OPTS_CONFIRM]},
+    {id:'m3',title:'FOMC 日期確認',sub:'本週有FOMC？Bond/FX/Gold禁止新倉',tag:'warn',tagTxt:'FOMC',opts:[..._OPTS_WARN]},
+    {id:'m4',title:'本週重大數據',sub:'CPI/PPI/NFP/PCE/GDP 時間確認',tag:'all',tagTxt:'ECON',opts:[..._OPTS_WARN]},
   ]},
   {id:'sec-bond',label:'02 — Bond',color:'blue',items:[
-    {id:'b1',title:'6am — M/W SMT 確認',sub:'月線/週線SMT？DXY相關性',tag:'bond',tagTxt:'BOND'},
-    {id:'b2',title:'前週五 SMT 結果',sub:'有SMT→週一Entry；無→等週二',tag:'bond',tagTxt:'BOND'},
-    {id:'b3',title:'Entry 窗口 7/8/9am',sub:'本月交易次數 ≤ 2 筆確認',tag:'bond',tagTxt:'BOND'},
-    {id:'b4',title:'月合約換倉確認',sub:'ZF1!/ZB1! Roll Date',tag:'bond',tagTxt:'BOND'},
+    {id:'b1',title:'6am — M/W SMT 確認',sub:'月線/週線SMT？DXY相關性',tag:'bond',tagTxt:'BOND',opts:[..._OPTS_SMT]},
+    {id:'b2',title:'前週五 SMT 結果',sub:'有SMT→週一Entry；無→等週二',tag:'bond',tagTxt:'BOND',opts:[..._OPTS_SMT]},
+    {id:'b3',title:'Entry 窗口 7/8/9am',sub:'本月交易次數 ≤ 2 筆確認',tag:'bond',tagTxt:'BOND',opts:[..._OPTS_SESSION]},
+    {id:'b4',title:'月合約換倉確認',sub:'ZF1!/ZB1! Roll Date',tag:'bond',tagTxt:'BOND',opts:[..._OPTS_CONFIRM]},
   ]},
   {id:'sec-fx',label:'03 — FX',color:'cyan',items:[
-    {id:'f1',title:'12am — M/W SMT (DXY/CHF/GBP)',sub:'三者方向同步確認',tag:'fx',tagTxt:'FX'},
-    {id:'f2',title:'Bond 已先走出方向',sub:'Bond → FX 交易順序',tag:'fx',tagTxt:'FX'},
-    {id:'f3',title:'LN Session 3/4/5am',sub:'僅限週三、四、五',tag:'fx',tagTxt:'FX'},
-    {id:'f4',title:'NY Session 8/9/10am',sub:'RS：Term→DXY→EUR/JPY/AUD',tag:'fx',tagTxt:'FX'},
+    {id:'f1',title:'12am — M/W SMT (DXY/CHF/GBP)',sub:'三者方向同步確認',tag:'fx',tagTxt:'FX',opts:[..._OPTS_SMT]},
+    {id:'f2',title:'Bond 已先走出方向',sub:'Bond → FX 交易順序',tag:'fx',tagTxt:'FX',opts:[..._OPTS_CONFIRM]},
+    {id:'f3',title:'LN Session 3/4/5am',sub:'僅限週三、四、五',tag:'fx',tagTxt:'FX',opts:[..._OPTS_SESSION]},
+    {id:'f4',title:'NY Session 8/9/10am',sub:'RS：Term→DXY→EUR/JPY/AUD',tag:'fx',tagTxt:'FX',opts:[..._OPTS_RS]},
   ]},
   {id:'sec-gold',label:'04 — Gold',color:'amber',items:[
-    {id:'g1',title:'12am — Daily/H4 SMT',sub:'GC1! vs SIL1! divergence',tag:'gold',tagTxt:'GOLD'},
-    {id:'g2',title:'短端利率方向 2Y Yield',sub:'2Y↓→Gold偏多；2Y↑→謹慎',tag:'gold',tagTxt:'GOLD'},
-    {id:'g3',title:'RS：Silver/銅/GDX',sub:'金屬同類方向一致？',tag:'gold',tagTxt:'GOLD'},
-    {id:'g4',title:'等週三後才入場',sub:'今日是否≥週三確認',tag:'gold',tagTxt:'GOLD'},
+    {id:'g1',title:'12am — Daily/H4 SMT',sub:'GC1! vs SIL1! divergence',tag:'gold',tagTxt:'GOLD',opts:[..._OPTS_SMT]},
+    {id:'g2',title:'短端利率方向 2Y Yield',sub:'2Y↓→Gold偏多；2Y↑→謹慎',tag:'gold',tagTxt:'GOLD',opts:['✅ 2Y↓看多','⚠️ 中立','❌ 2Y↑謹慎','N/A']},
+    {id:'g3',title:'RS：Silver/銅/GDX',sub:'金屬同類方向一致？',tag:'gold',tagTxt:'GOLD',opts:[..._OPTS_RS]},
+    {id:'g4',title:'等週三後才入場',sub:'今日是否≥週三確認',tag:'gold',tagTxt:'GOLD',opts:['✅ 週三以後','❌ 週一/週二','N/A']},
   ]},
   {id:'sec-oil',label:'05 — Oil',color:'red',items:[
-    {id:'o1',title:'12am — Daily/H4 SMT',sub:'HO1! vs CL1! divergence',tag:'oil',tagTxt:'OIL'},
-    {id:'o2',title:'長端利率/通膨 10Y/Breakeven',sub:'長端↑/通膨升溫→Oil偏多',tag:'oil',tagTxt:'OIL'},
-    {id:'o3',title:'RS：USOIL/UKOIL/XOM/XOP',sub:'石油股領先CL1!？',tag:'oil',tagTxt:'OIL'},
-    {id:'o4',title:'入場窗口 6/7/8/9am',sub:'FOMC周可持倉不新開',tag:'oil',tagTxt:'OIL'},
+    {id:'o1',title:'12am — Daily/H4 SMT',sub:'HO1! vs CL1! divergence',tag:'oil',tagTxt:'OIL',opts:[..._OPTS_SMT]},
+    {id:'o2',title:'長端利率/通膨 10Y/Breakeven',sub:'長端↑/通膨升溫→Oil偏多',tag:'oil',tagTxt:'OIL',opts:['✅ 通膨升溫偏多','⚠️ 中立','❌ 通膨降溫偏空','N/A']},
+    {id:'o3',title:'RS：USOIL/UKOIL/XOM/XOP',sub:'石油股領先CL1!？',tag:'oil',tagTxt:'OIL',opts:[..._OPTS_RS]},
+    {id:'o4',title:'入場窗口 6/7/8/9am',sub:'FOMC周可持倉不新開',tag:'oil',tagTxt:'OIL',opts:[..._OPTS_SESSION]},
   ]},
   {id:'sec-btc',label:'06 — BTC/ETH',color:'pur',items:[
-    {id:'c1',title:'M/W SMT 確認',sub:'月線/週線High-Low結構',tag:'btc',tagTxt:'BTC'},
-    {id:'c2',title:'H4 BPR 掃描',sub:'Balance Price Range 反應區',tag:'btc',tagTxt:'BTC'},
-    {id:'c3',title:'H4 FVG 確認',sub:'未填補FVG，方向與結構一致',tag:'btc',tagTxt:'BTC'},
-    {id:'c4',title:'BTC Dominance RS',sub:'BTC.D↑→BTC；↓→Altcoin',tag:'btc',tagTxt:'BTC'},
+    {id:'c1',title:'M/W SMT 確認',sub:'月線/週線High-Low結構',tag:'btc',tagTxt:'BTC',opts:[..._OPTS_SMT]},
+    {id:'c2',title:'H4 BPR 掃描',sub:'Balance Price Range 反應區',tag:'btc',tagTxt:'BTC',opts:[..._OPTS_CONFIRM]},
+    {id:'c3',title:'H4 FVG 確認',sub:'未填補FVG，方向與結構一致',tag:'btc',tagTxt:'BTC',opts:[..._OPTS_CONFIRM]},
+    {id:'c4',title:'BTC Dominance RS',sub:'BTC.D↑→BTC；↓→Altcoin',tag:'btc',tagTxt:'BTC',opts:['✅ BTC.D↑看BTC','⚠️ 中立','❌ BTC.D↓看Alt','N/A']},
   ]},
   {id:'sec-eod',label:'07 — EOD',color:'lo',items:[
-    {id:'e1',title:'今日SMT信號記錄',sub:'影響明日計畫',tag:'all',tagTxt:'EOD'},
-    {id:'e2',title:'所有持倉H4巡倉',sub:'SL/TP是否需調整',tag:'all',tagTxt:'EOD'},
-    {id:'e3',title:'明日Pre-Market計畫',sub:'哪些資產有入場機會？',tag:'all',tagTxt:'EOD'},
+    {id:'e1',title:'今日SMT信號記錄',sub:'影響明日計畫',tag:'all',tagTxt:'EOD',opts:[..._OPTS_PLAN]},
+    {id:'e2',title:'所有持倉H4巡倉',sub:'SL/TP是否需調整',tag:'all',tagTxt:'EOD',opts:[..._OPTS_PLAN]},
+    {id:'e3',title:'明日Pre-Market計畫',sub:'哪些資產有入場機會？',tag:'all',tagTxt:'EOD',opts:[..._OPTS_PLAN]},
   ]},
 ];
 
@@ -3512,7 +3535,7 @@ function _renderSubTabChecklist(tab){
 }
 
 function _buildSubTabItem(it,si,ii,tab){
-  const opts = CL_OPTS[it.id];
+  const opts = it.opts || CL_OPTS[it.id] || ['✅ 確認','⚠️ 待確認','❌ 跳過','N/A'];
   const hasEx=!!(it.exImg||it.exNotes);
   const tagColor={all:'var(--border2)',bond:'rgba(37,99,235,.2)',fx:'rgba(8,145,178,.2)',gold:'rgba(217,119,6,.2)',warn:'rgba(220,38,38,.2)',pur:'rgba(124,58,237,.2)',green:'rgba(5,150,105,.2)'};
   const tagTC={all:'var(--lo)',bond:'var(--blue)',fx:'var(--cyan)',gold:'var(--amber)',warn:'var(--red)',pur:'var(--pur)',green:'var(--green)'};
@@ -3523,8 +3546,7 @@ function _buildSubTabItem(it,si,ii,tab){
     :'';
   const exBtn=`<button onclick="event.stopPropagation();openClEx(${si},${ii})" style="opacity:${hasEx?'1':'0'};font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px;border:1px solid var(--border2);background:${hasEx?'rgba(37,99,235,.08)':'transparent'};color:${hasEx?'var(--blue)':'var(--lo)'};cursor:pointer;transition:opacity .15s;flex-shrink:0" class="cl-edit-btn" title="${hasEx?'查看範例':'新增範例'}">${hasEx?'📖':'＋範'}</button>`;
 
-  if (opts) {
-    // ── Dropdown mode ──
+  // ── Dropdown mode (always) ──
     const curVal = getClTabAnswer(tab, it.id);
     const isDone = curVal !== '';
     const isGood = isDone && (curVal.startsWith('✓') || curVal.includes('↑') || curVal.includes('Confirmed') || curVal.includes('Found') || curVal.includes('Long') || curVal.includes('Short') || curVal.includes('Pro') || curVal.includes('Pocket') || curVal.includes('Hold') || curVal.includes('Met') || curVal.includes('≥') || curVal.includes('Buy') || curVal.includes('Sell') || curVal.includes('Leading') || curVal.includes('Bullish') || curVal.includes('Bearish') || curVal.includes('Neutral') || curVal.includes('IOFED') || curVal.includes('FVG') || curVal.includes('OB') || curVal.includes('BPR') || curVal.includes('Breaker') || curVal.includes('Inducement'));
@@ -3549,18 +3571,6 @@ function _buildSubTabItem(it,si,ii,tab){
         ${optionsHTML}
       </select>
     </div>`;
-  }
-
-  // ── Checkbox mode (fallback for items without opts) ──
-  const checked=!!getClChecked(tab)[it.id];
-  return`<div class="cl-item${checked?' ck':''}" onclick="toggleClTabCheck(${si},${ii})" style="position:relative" onmouseover="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='1')" onmouseout="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='0')">
-    <div class="cl-cb">${checked?'✓':''}</div>
-    <div class="cl-txt" style="flex:1;min-width:0">
-      <strong class="${checked?'cl-done':''}">${it.title}</strong>${it.sub?`<span>${it.sub}</span>`:''}
-    </div>
-    ${it.tagTxt?`<span class="cl-tag" style="background:${tb};color:${tt};white-space:nowrap">${it.tagTxt}</span>`:''}
-    ${editBtns}${exBtn}
-  </div>`;
 }
 
 function toggleClTabCheck(si,ii){
@@ -3594,6 +3604,10 @@ function openClPopoverTab(si,ii,event){
   document.getElementById('cpSub').value=it.sub||'';
   document.getElementById('cpTag').value=it.tag||'all';
   document.getElementById('cpTagText').value=it.tagTxt||'';
+  // Load opts for editing (from item data, CL_OPTS, or default)
+  const curOpts = it.opts || CL_OPTS[it.id] || ['✅ 確認','⚠️ 待確認','❌ 跳過','N/A'];
+  const cpOpts = document.getElementById('cpOpts');
+  if(cpOpts) cpOpts.value = curOpts.join('\n');
   posPopover('clEditPopover',event);
 }
 function openClSecPopoverTab(si,event){
@@ -3610,11 +3624,22 @@ function buildItemHTML(it,secIdx,itemIdx,sec){
     ?`<button onclick="event.stopPropagation();openClPopover(${secIdx},${itemIdx},event)" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--amber);cursor:pointer;transition:opacity .15s;margin-left:4px" class="cl-edit-btn">✎</button>
       <button onclick="event.stopPropagation();quickDeleteCl(${secIdx},${itemIdx})" style="opacity:0;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;border:1px solid rgba(255,71,87,.3);background:transparent;color:var(--red);cursor:pointer;transition:opacity .15s" class="cl-edit-btn">✕</button>`
     :'';
-  return`<div class="cl-item${clEditMode?' cl-edit-mode':''}" onclick="toggleCL(this)" data-id="${it.id}" data-si="${secIdx}" data-ii="${itemIdx}" onmouseover="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='1')" onmouseout="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='0')">
-    <div class="cl-cb"></div>
-    <div class="cl-txt"><strong>${it.title}</strong>${it.sub?`<span>${it.sub}</span>`:''}</div>
-    <span class="cl-tag ${it.tag}">${it.tagTxt||it.tag.toUpperCase()}</span>
-    ${editBtns}
+  const opts=it.opts&&it.opts.length?it.opts:['✅ 確認','⚠️ 待確認','❌ 跳過','N/A'];
+  const savedVal=(journals[currentJDate]?.cl||{})[it.id]||'';
+  const isPositive=savedVal.startsWith('✅');
+  const isWarn=savedVal.startsWith('⚠️');
+  const borderColor=isPositive?'rgba(16,185,129,.5)':isWarn?'rgba(245,158,11,.5)':'var(--border)';
+  const optsHTML=opts.map(o=>`<option value="${o}"${savedVal===o?' selected':''}>${o}</option>`).join('');
+  return`<div class="cl-item${clEditMode?' cl-edit-mode':''}" data-id="${it.id}" data-si="${secIdx}" data-ii="${itemIdx}" style="border:1px solid ${borderColor};border-radius:var(--r);padding:5px 8px;margin-bottom:4px;background:var(--bg2);transition:border-color .2s" onmouseover="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='1')" onmouseout="this.querySelectorAll('.cl-edit-btn').forEach(b=>b.style.opacity='0')">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:${opts.length?4:0}px">
+      <div class="cl-txt" style="flex:1"><strong>${it.title}</strong>${it.sub?`<span style="display:block;font-size:10px;color:var(--lo);margin-top:1px">${it.sub}</span>`:''}</div>
+      <span class="cl-tag ${it.tag}" style="flex-shrink:0">${it.tagTxt||it.tag.toUpperCase()}</span>
+      ${editBtns}
+    </div>
+    <select class="cl-dropdown" data-cl-id="${it.id}" onchange="clDropdownChange(this)" onclick="event.stopPropagation()" style="width:100%;font-family:var(--mono);font-size:11px;padding:3px 6px;background:var(--bg);border:1px solid var(--border2);color:var(--hi);border-radius:3px;cursor:pointer">
+      <option value="">— 選擇 —</option>
+      ${optsHTML}
+    </select>
   </div>`;
 }
 
@@ -3634,13 +3659,31 @@ function toggleClEditMode(){
 }
 
 function toggleCL(el){
-  if(clEditMode)return;
-  el.classList.toggle('ck');el.querySelector('.cl-cb').textContent=el.classList.contains('ck')?'✓':'';
-  updateProgress();jDirty();
+  // Legacy no-op — main CL now uses dropdowns
+}
+
+function clDropdownChange(sel){
+  if(clEditMode) return;
+  const id = sel.dataset.clId;
+  const val = sel.value;
+  // Update border color on parent
+  const item = sel.closest('.cl-item');
+  if(item){
+    const isPos = val.startsWith('✅');
+    const isWarn = val.startsWith('⚠️');
+    item.style.borderColor = isPos ? 'rgba(16,185,129,.5)' : isWarn ? 'rgba(245,158,11,.5)' : 'var(--border)';
+  }
+  // Save into journal.cl
+  if(!journals[currentJDate]) journals[currentJDate]={cl:{}};
+  if(!journals[currentJDate].cl) journals[currentJDate].cl={};
+  journals[currentJDate].cl[id] = val;
+  updateProgress();
+  jDirty();
 }
 function updateProgress(){
-  const all=document.querySelectorAll('#clBody .cl-item');
-  const done=document.querySelectorAll('#clBody .cl-item.ck');
+  const drops=[...document.querySelectorAll('#clBody .cl-dropdown')];
+  const all=drops; // count = number of dropdown items
+  const done=drops.filter(s=>s.value&&s.value!=='');
   const pct=all.length?Math.round(done.length/all.length*100):0;
   document.getElementById('clProg').textContent=done.length+'/'+all.length;
   document.getElementById('clFill').style.width=pct+'%';
@@ -3655,6 +3698,8 @@ function openClPopover(si,ii,event){
   document.getElementById('cpSub').value=it.sub||'';
   document.getElementById('cpTag').value=it.tag;
   document.getElementById('cpTagText').value=it.tagTxt||'';
+  const opts=it.opts&&it.opts.length?it.opts:['✅ 確認','⚠️ 待確認','❌ 跳過','N/A'];
+  document.getElementById('cpOpts').value=opts.join('\n');
   posPopover('clEditPopover',event);
 }
 function applyClEdit(){
@@ -3671,6 +3716,9 @@ function applyClEdit(){
       it.sub=document.getElementById('cpSub').value;
       it.tag=document.getElementById('cpTag').value;
       it.tagTxt=document.getElementById('cpTagText').value||document.getElementById('cpTag').value.toUpperCase();
+      // Save opts
+      const rawOpts=document.getElementById('cpOpts')?.value||'';
+      if(rawOpts.trim()) it.opts=rawOpts.split('\n').map(s=>s.trim()).filter(Boolean);
     }
     saveClTabData(clEditing.tab,secs);
     closeClPopover(); clEditing=null;
@@ -3682,6 +3730,9 @@ function applyClEdit(){
   it.sub=document.getElementById('cpSub').value;
   it.tag=document.getElementById('cpTag').value;
   it.tagTxt=document.getElementById('cpTagText').value||document.getElementById('cpTag').value.toUpperCase();
+  const rawOpts=document.getElementById('cpOpts')?.value||'';
+  if(rawOpts.trim()) it.opts=rawOpts.split('\n').map(s=>s.trim()).filter(Boolean);
+  saveClData();
   closeClPopover();renderChecklist();
 }
 function deleteClItem(){
@@ -4010,6 +4061,11 @@ function renderTrades(){
       <td>${t.date}${pubBadge}</td>
       <td><span class="cl-tag ${ac}">${t.asset}</span></td>
       <td class="${dc}">${t.dir==='LONG'?'⬆ L':'⬇ S'}</td>
+      <td>${t.trend==='pro'
+        ?'<span style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid rgba(16,185,129,.4);color:var(--green);background:rgba(16,185,129,.1)">Pro</span>'
+        :t.trend==='con'
+        ?'<span style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid rgba(239,68,68,.4);color:var(--red);background:rgba(239,68,68,.1)">Con</span>'
+        :'<span style="color:var(--lo)">—</span>'}</td>
       <td>${gradeCell}</td>
       <td style="min-width:60px">${confCell}</td>
       <td style="font-family:var(--mono);font-size:11px">${t.entry?t.entry:'—'}${t.legs&&t.legs.length>1?`<span style="font-size:9px;margin-left:3px;background:rgba(37,99,235,.12);color:var(--blue);border:1px solid rgba(37,99,235,.2);border-radius:2px;padding:1px 4px">×${t.legs.length}</span>`:''}</td>
@@ -4130,6 +4186,7 @@ function openAddModal(){
   ['m-session','m-grade','m-protocol'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const ot=document.getElementById('m-outcome-type');if(ot)ot.value='normal';
   const grEl2=document.getElementById('m-grade');if(grEl2)delete grEl2.dataset.manualOverride;
+  const trEl2=document.getElementById('m-trend');if(trEl2)trEl2.value='';
   const rEl2=document.getElementById('m-r');if(rEl2){rEl2.value='';delete rEl2.dataset.manualR;}
   populateAssetSelects();
   renderAssetList();
@@ -4160,6 +4217,7 @@ function openEditModal(id){
   const grEl=document.getElementById('m-grade'); if(grEl){ grEl.value=t.grade||''; updateGradeChip(); }
   const prEl=document.getElementById('m-protocol'); if(prEl) prEl.value=t.protocol||'';
   const otEl=document.getElementById('m-outcome-type'); if(otEl) otEl.value=t.outcome_type||'normal';
+  const trEl=document.getElementById('m-trend'); if(trEl) trEl.value=t.trend||'';
   setConfValues(t);
   const pubEl=document.getElementById('m-public');if(pubEl){pubEl.checked=!!t.is_public;document.getElementById('publicLabel').textContent=t.is_public?'🌐 公開':'🔒 私人';}
   // Load legs
@@ -4560,6 +4618,7 @@ function saveTrade(){
     legs: hasLegs ? JSON.parse(JSON.stringify(_legs)) : undefined,
     // ICT fields
     session:      document.getElementById('m-session')?.value||'',
+    trend:        document.getElementById('m-trend')?.value||'',
     grade:        document.getElementById('m-grade')?.value||'',
     protocol:     document.getElementById('m-protocol')?.value||'',
     outcome_type: document.getElementById('m-outcome-type')?.value||'normal',
