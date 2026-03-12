@@ -1194,6 +1194,10 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
       <button class="btn btn-g btn-sm" onclick="toggleKeyVis('notionToken')">👁</button>
     </div>
     <div class="settings-row">
+      <div class="settings-label">Notion Proxy URL<br><span style="font-size:9px;color:var(--lo);font-weight:400">Cloudflare Worker（選填）</span></div>
+      <input type="text" id="notionProxyUrl" placeholder="https://xxxx.workers.dev" oninput="saveSettings()" style="flex:1;font-size:11px">
+    </div>
+    <div class="settings-row">
       <div class="settings-label">Parent Page ID</div>
       <input type="text" id="notionParentId" placeholder="24127eeaeaf48198b855f6836cfc8da7" oninput="saveSettings()" style="flex:1;font-size:10px">
     </div>
