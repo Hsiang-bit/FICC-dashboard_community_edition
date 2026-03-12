@@ -2947,13 +2947,17 @@ const _origSaveClData = (secs)=>{ clData=secs; localStorage.setItem('ficc_checkl
 // Patch renderChecklist to use tab data
 const _origRenderChecklist = renderChecklist;
 // Tab-aware checked state
+function _clKey(tab){
+  const t=tab||_clTab;
+  // main tab: global (no date), sub-tabs: per-date
+  return t==='main' ? 'ficc_cl_checked_main' : 'ficc_cl_checked_'+t+'_'+(currentJDate||'');
+}
 function getClChecked(tab){
-  const key='ficc_cl_checked_'+(tab||_clTab);
-  try{ return JSON.parse(localStorage.getItem(key)||'{}'); }catch(e){return {};}
+  try{ return JSON.parse(localStorage.getItem(_clKey(tab))||'{}'); }catch(e){return {};}
 }
 function setClChecked(tab,id,val){
   const st=getClChecked(tab); st[id]=val;
-  localStorage.setItem('ficc_cl_checked_'+(tab||_clTab),JSON.stringify(st));
+  localStorage.setItem(_clKey(tab),JSON.stringify(st));
 }
 
 function toggleClTabItem(si,ii){
@@ -3372,6 +3376,8 @@ function loadJournal(date){
   document.querySelectorAll('[data-macro]').forEach(sel=>{if(j.macro&&j.macro[sel.dataset.macro])sel.value=j.macro[sel.dataset.macro];else sel.selectedIndex=0;});
   document.querySelectorAll('[data-sig]').forEach(sel=>{if(j.signals&&j.signals[sel.dataset.sig])sel.value=j.signals[sel.dataset.sig];else sel.selectedIndex=0;});
   document.querySelectorAll('[data-note]').forEach(ta=>{ta.value=(j.notes&&j.notes[ta.dataset.note])||'';});
+  // Re-render active sub-tab checklist with new date's answers
+  if(typeof _clTab!=='undefined' && _clTab!=='main') _renderSubTabChecklist(_clTab);
   jIsDirty=false;
   const b=document.getElementById('jBadge');
   if(journals[date]){b.style.display='inline-block';b.className='jbadge jb-saved';b.textContent='✓ 已存';}
@@ -3850,7 +3856,7 @@ function goJDate(d){
 
 // Notion push journal
 async function pushJournalNotion(){
-  const token=document.getElementById('notionToken').value.trim();
+  const token=document.getElementById('notionToken').value.trim()||settings.notionToken||'';
   if(!token){toast('⚠ 請先填入 Notion Token','e');return;}
   const j=getJournalSnapshot(),sig=j.signals||{},macro=j.macro||{};
   const jDbId=settings.journalDbId||'8eaedd47-07d1-4def-9219-714c675de701';
@@ -4657,25 +4663,26 @@ async function notionFetch(method, path, body, token){
   const TARGET='https://api.notion.com/v1'+path;
   const errs=[];
 
-  // 1) Direct (works from http:// server, fails from file://)
+  // 1) Direct (works on http:// or with CORS extension)
   try{
     const r=await fetch(TARGET,{...opts,signal:AbortSignal.timeout(6000)});
     const data=await r.json();
     if(r.ok||r.status<500)return{ok:r.ok,data};
-    errs.push('直接連線: HTTP '+r.status);
-  }catch(e){errs.push('直接連線: '+e.message);}
+    errs.push('直接: HTTP '+r.status+' — '+JSON.stringify(data?.message||'').slice(0,60));
+  }catch(e){errs.push('直接: '+e.message);}
 
-  // 2) corsproxy.io — most reliable for POST+headers
+  // 2) corsproxy.io (url= param form)
   try{
-    const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(TARGET),{...opts,signal:AbortSignal.timeout(8000)});
-    const data=await r.json();
+    const r=await fetch('https://corsproxy.io/?url='+encodeURIComponent(TARGET),{...opts,signal:AbortSignal.timeout(10000)});
+    const text=await r.text();
+    const data=JSON.parse(text);
     if(r.ok||r.status<500)return{ok:r.ok,data};
-    errs.push('corsproxy: HTTP '+r.status);
-  }catch(e){errs.push('corsproxy: '+e.message);}
+    errs.push('corsproxy.io: HTTP '+r.status);
+  }catch(e){errs.push('corsproxy.io: '+e.message);}
 
   // 3) cors.sh
   try{
-    const r=await fetch('https://cors.sh/'+TARGET,{...opts,headers:{...hdrs,'x-cors-api-key':'temp_demo'},signal:AbortSignal.timeout(8000)});
+    const r=await fetch('https://proxy.cors.sh/'+TARGET,{...opts,headers:{...hdrs,'x-cors-api-key':'temp_demo'},signal:AbortSignal.timeout(10000)});
     const data=await r.json();
     if(r.ok||r.status<500)return{ok:r.ok,data};
     errs.push('cors.sh: HTTP '+r.status);
@@ -4683,17 +4690,18 @@ async function notionFetch(method, path, body, token){
 
   // 4) thingproxy
   try{
-    const r=await fetch('https://thingproxy.freeboard.io/fetch/'+TARGET,{...opts,signal:AbortSignal.timeout(8000)});
+    const r=await fetch('https://thingproxy.freeboard.io/fetch/'+TARGET,{...opts,signal:AbortSignal.timeout(10000)});
     const text=await r.text();
     const data=JSON.parse(text);
     if(r.ok||r.status<500)return{ok:r.ok,data};
     errs.push('thingproxy: HTTP '+r.status);
   }catch(e){errs.push('thingproxy: '+e.message);}
 
-  const msg='所有連線方式均失敗：\n'+errs.join('\n')+
-    '\n\n解法：在終端機執行\npython3 -m http.server 8080\n再從 http://localhost:8080 開啟此頁面';
+  const detail=errs.map((e,i)=>`${i+1}. ${e}`).join('\n');
+  const msg=`Notion CORS 限制，所有代理均失敗\n\n${detail}\n\n解決方法：\n① 安裝瀏覽器擴充：CORS Unblock（Chrome/Firefox）\n② 或本機伺服器開啟：\n   python3 -m http.server 8080\n   → http://localhost:8080`;
   return{ok:false,data:{message:msg}};
 }
+
 
 async function notionPush(url,body,token){
   const path=url.replace('https://api.notion.com/v1','');
