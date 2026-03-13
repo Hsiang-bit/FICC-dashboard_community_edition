@@ -3797,14 +3797,13 @@ function addClItem(si){
     }
   },50);
 }
-function addClSection(){
+function _origAddClSection(){
   const secs=getClData();
   secs.push({id:'sec-'+Date.now(),label:'新分類',color:'lo',items:[]});
   renderChecklist();
   setTimeout(()=>{
     const idx=secs.length-1;
     const secEls=document.querySelectorAll('#clBody .cl-sec-t');
-    // roughly find the last section's edit button
     const allEditBtns=document.querySelectorAll('#clBody .cl-sec-t button');
     const last=allEditBtns[allEditBtns.length-1];
     if(last)last.click();
