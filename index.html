@@ -6790,10 +6790,10 @@ function switchSetupTab(id, btn) {
   document.querySelectorAll('#setup-subtabs .jtab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   if (id==='grader') updateSetup();
-  if (id==='dist') { runDistSim(); renderDistTab(); }
-  if (id==='sim') renderSimTab();
-  if (id==='streaks') renderStreakTab();
-  if (id==='daily') renderDailyTab();
+  if (id==='dist') { setTimeout(()=>{runDistSim(); renderDistTab();}, 50); }
+  if (id==='sim')  { if(!_setupSim.flat.length) runDistSim(); setTimeout(renderSimTab, 50); }
+  if (id==='streaks') setTimeout(renderStreakTab, 50);
+  if (id==='daily')   setTimeout(renderDailyTab, 50);
 }
 
 function kellyFormula(p, rr) { return Math.max(0, (p * rr - (1-p)) / rr); }
@@ -7514,8 +7514,8 @@ function renderCOTSummaryCards() {
 function renderSetup() {
   buildCFList();
   updateSetup();
-  runDistSim();
-  if (_setupTab !== 'grader') switchSetupTab(_setupTab, null);
+  // Always call switchSetupTab to ensure correct tab display and canvas render
+  switchSetupTab(_setupTab, document.querySelector('#setup-subtabs .jtab.active') || document.querySelector('#setup-subtabs .jtab'));
 }
 
 </script>
