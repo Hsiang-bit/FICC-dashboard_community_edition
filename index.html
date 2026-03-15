@@ -7150,10 +7150,11 @@ async function fetchCOT() {
 
   const limit = weeks + 2;
   const mkt = encodeURIComponent(market).replace(/'/g, '%27');
-  // Simple approach: filter by name only, use $limit to get N most recent weeks
-  // Sorted DESC means we get the latest N records for this market
+  // Fetch more records than needed, then slice client-side to get most recent N
+  // This avoids Socrata applying $limit before $order
+  const fetchLimit = Math.max(limit * 4, 200);
   const where = `market_and_exchange_names=%27${mkt}%27`;
-  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=${limit}&$where=${where}&$order=report_date_as_yyyy_mm_dd%20DESC`;
+  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=${fetchLimit}&$where=${where}&$order=report_date_as_yyyy_mm_dd%20DESC`;
 
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
@@ -7161,7 +7162,9 @@ async function fetchCOT() {
     const raw = await r.json();
     if (!raw.length) throw new Error('No data returned');
     // Sort ascending for charts
-    _cotData = raw.sort((a,b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
+    // Sort ascending, then take only the most recent N weeks
+    const allSorted = raw.sort((a,b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
+    _cotData = allSorted.slice(-limit);
     const oldest = _cotData[0]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
     const newest = _cotData[_cotData.length-1]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
     if (st) st.textContent = `✓ ${_cotData.length} 週  ${oldest} → ${newest}`;
