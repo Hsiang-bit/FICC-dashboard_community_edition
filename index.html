@@ -7150,7 +7150,12 @@ async function fetchCOT() {
 
   const limit = weeks + 2;
   const encoded = encodeURIComponent(market);
-  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=${limit}&$where=market_and_exchange_names=%27${encoded}%27&$order=report_date_as_yyyy_mm_dd%20DESC`;
+  // Calculate cutoff date (weeks * 7 days before today + buffer)
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - (weeks * 7 + 30));
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+  const where = `market_and_exchange_names='${market}' AND report_date_as_yyyy_mm_dd >= '${cutoffStr}'`;
+  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=${limit}&$where=${encodeURIComponent(where)}&$order=report_date_as_yyyy_mm_dd%20DESC`;
 
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
@@ -7187,7 +7192,7 @@ function switchCOTView(id, btn) {
   });
   document.querySelectorAll('#page-cot .jtab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  if (_cotData.length) renderCOTView();
+  if (_cotData.length) setTimeout(renderCOTView, 30); // delay so canvas has layout width
 }
 
 function renderCOTView() {
@@ -7271,13 +7276,19 @@ function drawCOTBarChart() {
     ]);
   });
 
-  // X labels (every 4 weeks)
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.font = `${9*dpr}px monospace`;
+  // X labels
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  ctx.font = `${8.5*dpr}px monospace`;
   ctx.textAlign = 'center';
+  const step = n <= 13 ? 1 : n <= 26 ? 2 : n <= 52 ? 4 : 8;
   rows.forEach((r, i) => {
-    if (i % 4 === 0 || i === n-1) {
-      ctx.fillText(dates[i], pad.l + (i+0.5)*bw, H - 6*dpr);
+    if (i % step === 0 || i === n-1) {
+      const x = pad.l + (i+0.5)*bw;
+      // Tick mark
+      ctx.strokeStyle = 'rgba(255,255,255,.2)';
+      ctx.lineWidth = dpr;
+      ctx.beginPath(); ctx.moveTo(x, pad.t+cH); ctx.lineTo(x, pad.t+cH+4*dpr); ctx.stroke();
+      ctx.fillText(dates[i], x, H - 4*dpr);
     }
   });
 
@@ -7341,6 +7352,15 @@ function drawCOTPctBarChart() {
     ctx.textAlign='right';
     ctx.fillText((f*100).toFixed(0)+'%', pad.l-3*dpr, y+3*dpr);
   });
+  // X labels
+  const rowsPB = rows; const nPB = rowsPB.length; const bwPB = cW/nPB;
+  const stepPB = nPB <= 13 ? 1 : nPB <= 26 ? 2 : nPB <= 52 ? 4 : 8;
+  ctx.fillStyle='rgba(255,255,255,.35)'; ctx.font=`${7.5*dpr}px monospace`; ctx.textAlign='center';
+  rowsPB.forEach((r,i) => {
+    if(i % stepPB === 0 || i === nPB-1) {
+      ctx.fillText(r.date.slice(5), pad.l+(i/(nPB-1||1))*cW, H-3*dpr);
+    }
+  });
 }
 
 function drawCOTNetChart() {
@@ -7402,12 +7422,16 @@ function drawCOTNetChart() {
   });
 
   // X labels
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.font = `${9*dpr}px monospace`;
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  ctx.font = `${8.5*dpr}px monospace`;
   ctx.textAlign = 'center';
+  const stepN = n <= 13 ? 1 : n <= 26 ? 2 : n <= 52 ? 4 : 8;
   rows.forEach((r, i) => {
-    if (i % 4 === 0 || i === n-1) {
-      ctx.fillText(r.date.slice(5), pad.l + (i/(n-1))*cW, H - 6*dpr);
+    if (i % stepN === 0 || i === n-1) {
+      const x = pad.l + (i/(n-1||1))*cW;
+      ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=dpr;
+      ctx.beginPath(); ctx.moveTo(x, pad.t+cH); ctx.lineTo(x, pad.t+cH+4*dpr); ctx.stroke();
+      ctx.fillText(r.date.slice(5), x, H - 4*dpr);
     }
   });
 }
@@ -7459,11 +7483,17 @@ function drawCOTPctChart() {
   });
 
   // X labels
-  ctx.fillStyle='rgba(255,255,255,.35)';
-  ctx.font=`${9*dpr}px monospace`;
+  ctx.fillStyle='rgba(255,255,255,.45)';
+  ctx.font=`${8.5*dpr}px monospace`;
   ctx.textAlign='center';
+  const stepP = n <= 13 ? 1 : n <= 26 ? 2 : n <= 52 ? 4 : 8;
   rows.forEach((r,i) => {
-    if(i % 4===0 || i===n-1) ctx.fillText(r.date.slice(5), pad.l+(i/(n-1))*cW, H-6*dpr);
+    if(i % stepP === 0 || i === n-1) {
+      const x = pad.l+(i/(n-1||1))*cW;
+      ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=dpr;
+      ctx.beginPath(); ctx.moveTo(x, pad.t+cH); ctx.lineTo(x, pad.t+cH+4*dpr); ctx.stroke();
+      ctx.fillText(r.date.slice(5), x, H - 4*dpr);
+    }
   });
 }
 
