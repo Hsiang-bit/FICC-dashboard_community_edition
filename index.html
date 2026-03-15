@@ -402,6 +402,7 @@ select option{background:var(--bg2)}
   <button class="ntab" onclick="showPage('macro',this)"><span class="dot" style="background:linear-gradient(to right,#7c3aed,#db2777)"></span>Macro</button>
   <button class="ntab" onclick="showPage('news',this);loadNews()"><span class="dot" style="background:var(--blue)"></span>News</button>
   <button class="ntab" onclick="showPage('stat',this);renderStat()"><span class="dot" style="background:var(--amber)"></span>STAT</button>
+<button class="ntab" onclick="showPage('cot',this);renderCOT()"><span class="dot" style="background:var(--cyan)"></span>COT</button>
 <button class="ntab" onclick="showPage('setup',this);renderSetup()"><span class="dot" style="background:var(--blue)"></span>Setup</button>
 <button class="ntab" onclick="showPage('risk',this)"><span class="dot"></span>Risk</button>
   <button class="ntab" onclick="showPage('settings',this)"><span class="dot"></span>Settings</button>
@@ -618,6 +619,107 @@ select option{background:var(--bg2)}
   </div>
 </div>
 
+
+
+<!-- ═══════ COT PAGE ═══════ -->
+<div class="page" id="page-cot">
+  <div class="sec">
+    <div class="acc" style="background:var(--cyan)"></div>
+    <h2>COT — Commitment of Traders</h2>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--lo)">CFTC Traders in Financial Futures</span>
+  </div>
+
+  <!-- Controls -->
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+    <select id="cot-market" style="font-family:var(--mono);font-size:12px;background:var(--bg2);border:1px solid var(--border2);color:var(--hi);padding:5px 10px;border-radius:var(--r);min-width:220px" onchange="fetchCOT()">
+      <option value="NASDAQ-100 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE">NQ — NASDAQ 100</option>
+      <option value="S&P 500 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE">ES — S&amp;P 500</option>
+      <option value="DOW JONES INDUSTRIAL AVERAGE - CHICAGO BOARD OF TRADE">YM — Dow Jones</option>
+      <option value="EURO FX - CHICAGO MERCANTILE EXCHANGE">6E — Euro FX</option>
+      <option value="JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE">6J — Japanese Yen</option>
+      <option value="BRITISH POUND - CHICAGO MERCANTILE EXCHANGE">6B — British Pound</option>
+      <option value="SWISS FRANC - CHICAGO MERCANTILE EXCHANGE">6S — Swiss Franc</option>
+      <option value="AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE">6A — Australian Dollar</option>
+      <option value="U.S. TREASURY BONDS - CHICAGO BOARD OF TRADE">ZB — US T-Bond</option>
+      <option value="10-YEAR U.S. TREASURY NOTES - CHICAGO BOARD OF TRADE">ZN — 10Y T-Note</option>
+      <option value="5-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE">ZF — 5Y T-Note</option>
+      <option value="2-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE">ZT — 2Y T-Note</option>
+      <option value="GOLD - COMMODITY EXCHANGE INC.">GC — Gold</option>
+      <option value="SILVER - COMMODITY EXCHANGE INC.">SI — Silver</option>
+      <option value="CRUDE OIL, LIGHT SWEET - NEW YORK MERCANTILE EXCHANGE">CL — Crude Oil</option>
+      <option value="BITCOIN - CHICAGO MERCANTILE EXCHANGE">BTC — Bitcoin</option>
+    </select>
+    <select id="cot-range" style="font-family:var(--mono);font-size:12px;background:var(--bg2);border:1px solid var(--border2);color:var(--hi);padding:5px 10px;border-radius:var(--r)" onchange="fetchCOT()">
+      <option value="13">13 週</option>
+      <option value="26" selected>26 週</option>
+      <option value="52">52 週</option>
+      <option value="104">2 年</option>
+    </select>
+    <button class="btn btn-g btn-sm" onclick="fetchCOT()" id="cot-refresh-btn">⟳ 重新載入</button>
+    <span id="cot-status" style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-left:4px"></span>
+  </div>
+
+  <!-- View tabs -->
+  <div style="display:flex;gap:3px;margin-bottom:12px">
+    <button class="jtab active" id="cot-tab-bar" onclick="switchCOTView('bar',this)">📊 倉位 Bar</button>
+    <button class="jtab" id="cot-tab-net" onclick="switchCOTView('net',this)">📈 淨倉 Net</button>
+    <button class="jtab" id="cot-tab-pct" onclick="switchCOTView('pct',this)">% 佔比</button>
+    <button class="jtab" id="cot-tab-table" onclick="switchCOTView('table',this)">📋 Table</button>
+  </div>
+
+  <!-- Bar view -->
+  <div id="cot-view-bar">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--amber);text-align:center;padding:4px">Long Positions</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--red);text-align:center;padding:4px">Short Positions</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--lo);text-align:center;padding:4px">Net (Long − Short)</div>
+    </div>
+    <canvas id="cot-canvas-bar" style="width:100%;display:block" height="260"></canvas>
+    <canvas id="cot-canvas-pct-bar" style="width:100%;display:block;margin-top:8px" height="140"></canvas>
+  </div>
+
+  <!-- Net view -->
+  <div id="cot-view-net" style="display:none">
+    <canvas id="cot-canvas-net" style="width:100%;display:block" height="320"></canvas>
+  </div>
+
+  <!-- Pct view -->
+  <div id="cot-view-pct" style="display:none">
+    <canvas id="cot-canvas-pct" style="width:100%;display:block" height="320"></canvas>
+  </div>
+
+  <!-- Table view -->
+  <div id="cot-view-table" style="display:none;overflow-x:auto">
+    <table class="ttable" id="cot-table" style="font-size:11px">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th style="color:#f59e0b">Dealer L</th><th style="color:#f59e0b">Dealer S</th><th style="color:#f59e0b">Net</th>
+          <th style="color:#3b82f6">AssetMgr L</th><th style="color:#3b82f6">AssetMgr S</th><th style="color:#3b82f6">Net</th>
+          <th style="color:#22c55e">Lev L</th><th style="color:#22c55e">Lev S</th><th style="color:#22c55e">Net</th>
+          <th style="color:#a78bfa">Other L</th><th style="color:#a78bfa">Other S</th><th style="color:#a78bfa">Net</th>
+          <th style="color:var(--lo)">NonRpt L</th><th style="color:var(--lo)">NonRpt S</th><th style="color:var(--lo)">Net</th>
+        </tr>
+      </thead>
+      <tbody id="cot-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Legend -->
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-family:var(--mono);font-size:10px" id="cot-legend">
+    <span><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:4px"></span>Dealer</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:4px"></span>Asset Manager</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:4px"></span>Leveraged</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;margin-right:4px"></span>Other Reportable</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:#6b7280;border-radius:2px;margin-right:4px"></span>Non Reportable</span>
+  </div>
+
+  <!-- Latest week summary cards -->
+  <div style="margin-top:16px">
+    <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:8px">最新一週 — 淨倉位</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px" id="cot-summary-cards"></div>
+  </div>
+</div>
 
 <!-- ═══════ STAT PAGE ═══════ -->
 <div class="page" id="page-stat">
@@ -3322,6 +3424,7 @@ function showPage(id,btn){
   if(id==='gantt')renderGantt();
   if(id==='stat'){setTimeout(renderStat,50);}
   if(id==='setup'){setTimeout(renderSetup,50);}
+  if(id==='cot'){setTimeout(renderCOT,50);}
   if(id==='page-community'||id==='community'){_activeCTab=null;switchCTab('ideas');}
 }
 function showJTab(id,btn){
@@ -7021,6 +7124,386 @@ function renderDailyTab() {
     <div style="flex:1"><div style="font-size:12px;color:var(--hi);margin-bottom:3px">${q}</div>
     <div style="font-family:var(--mono);font-size:10px;color:var(--green)">${score}</div></div>
   </div>`).join('');
+}
+
+
+// ════════════════════════════════════
+// COT — Commitment of Traders
+// ════════════════════════════════════
+let _cotData = [];
+let _cotView = 'bar';
+const COT_COLORS = {
+  dealer:  {l:'#f59e0b', s:'rgba(245,158,11,.35)', net:'#f59e0b'},
+  asset:   {l:'#3b82f6', s:'rgba(59,130,246,.35)',  net:'#3b82f6'},
+  lev:     {l:'#22c55e', s:'rgba(34,197,94,.35)',   net:'#22c55e'},
+  other:   {l:'#a78bfa', s:'rgba(167,139,250,.35)', net:'#a78bfa'},
+  nonrpt:  {l:'#6b7280', s:'rgba(107,114,128,.35)', net:'#6b7280'},
+};
+
+async function fetchCOT() {
+  const market = document.getElementById('cot-market')?.value || '';
+  const weeks  = parseInt(document.getElementById('cot-range')?.value || 26);
+  const st     = document.getElementById('cot-status');
+  const btn    = document.getElementById('cot-refresh-btn');
+  if (st) st.textContent = '⏳ 載入中...';
+  if (btn) btn.disabled = true;
+
+  const limit = weeks + 2;
+  const encoded = encodeURIComponent(market);
+  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=${limit}&$where=market_and_exchange_names=%27${encoded}%27&$order=report_date_as_yyyy_mm_dd%20DESC`;
+
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const raw = await r.json();
+    if (!raw.length) throw new Error('No data returned');
+    // Sort ascending for charts
+    _cotData = raw.sort((a,b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
+    if (st) st.textContent = `✓ ${_cotData.length} weeks  · ${_cotData[_cotData.length-1]?.report_date_as_yyyy_mm_dd}`;
+    renderCOTView();
+  } catch(e) {
+    if (st) st.textContent = '⚠ ' + e.message;
+    console.error('[COT fetch]', e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderCOT() {
+  if (_cotData.length === 0) fetchCOT();
+  else renderCOTView();
+}
+
+function switchCOTView(id, btn) {
+  _cotView = id;
+  ['bar','net','pct','table'].forEach(v => {
+    const el = document.getElementById('cot-view-' + v);
+    if (el) el.style.display = v === id ? '' : 'none';
+  });
+  document.querySelectorAll('#page-cot .jtab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (_cotData.length) renderCOTView();
+}
+
+function renderCOTView() {
+  renderCOTSummaryCards();
+  if (_cotView === 'bar')   { drawCOTBarChart(); drawCOTPctBarChart(); }
+  if (_cotView === 'net')   drawCOTNetChart();
+  if (_cotView === 'pct')   drawCOTPctChart();
+  if (_cotView === 'table') renderCOTTable();
+}
+
+function _cotRow(d) {
+  const n = f => parseInt(d[f] || 0);
+  return {
+    date:   d.report_date_as_yyyy_mm_dd?.slice(0,10) || '',
+    dl:     n('dealer_positions_long_all'),
+    ds:     n('dealer_positions_short_all'),
+    dsp:    n('dealer_positions_spread_all'),
+    al:     n('asset_mgr_positions_long'),
+    as_:    n('asset_mgr_positions_short'),
+    asp:    n('asset_mgr_positions_spread'),
+    ll:     n('lev_money_positions_long'),
+    ls:     n('lev_money_positions_short'),
+    lsp:    n('lev_money_positions_spread'),
+    ol:     n('other_rept_positions_long'),
+    os:     n('other_rept_positions_short'),
+    osp:    n('other_rept_positions_spread'),
+    nl:     n('nonrept_positions_long_all'),
+    ns:     n('nonrept_positions_short_all'),
+  };
+}
+
+function drawCOTBarChart() {
+  const canvas = document.getElementById('cot-canvas-bar');
+  if (!canvas || !_cotData.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth * dpr, H = 260 * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const rows = _cotData.map(_cotRow);
+  const dates = rows.map(r => r.date.slice(5)); // MM-DD
+  const n = rows.length;
+  const pad = { t:10*dpr, b:30*dpr, l:50*dpr, r:10*dpr };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const bw = cW / n;
+  const barW = Math.max(bw * 0.28, 1);
+
+  // Three groups per date: Long, Short, Net(inline)
+  const groupW = bw;
+  const maxVal = Math.max(...rows.flatMap(r => [r.dl+r.al+r.ll+r.ol+r.nl, r.ds+r.as_+r.ls+r.os+r.ns]));
+  const scaleY = v => pad.t + cH * (1 - v / maxVal);
+
+  const drawStack = (x, vals, colors, isShort) => {
+    let y = pad.t + cH;
+    vals.forEach(([v, col]) => {
+      const h = (v / maxVal) * cH;
+      ctx.fillStyle = col;
+      ctx.fillRect(x - barW/2, y - h, barW, h);
+      y -= h;
+    });
+  };
+
+  rows.forEach((r, i) => {
+    const cx = pad.l + (i + 0.5) * bw;
+    // Long bars (left of center)
+    drawStack(cx - bw*0.25, [
+      [r.dl, COT_COLORS.dealer.l],
+      [r.al, COT_COLORS.asset.l],
+      [r.ll, COT_COLORS.lev.l],
+      [r.ol, COT_COLORS.other.l],
+      [r.nl, COT_COLORS.nonrpt.l],
+    ]);
+    // Short bars (right of center)
+    drawStack(cx + bw*0.25, [
+      [r.ds, COT_COLORS.dealer.s],
+      [r.as_, COT_COLORS.asset.s],
+      [r.ls, COT_COLORS.lev.s],
+      [r.os, COT_COLORS.other.s],
+      [r.ns, COT_COLORS.nonrpt.s],
+    ]);
+  });
+
+  // X labels (every 4 weeks)
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.font = `${9*dpr}px monospace`;
+  ctx.textAlign = 'center';
+  rows.forEach((r, i) => {
+    if (i % 4 === 0 || i === n-1) {
+      ctx.fillText(dates[i], pad.l + (i+0.5)*bw, H - 6*dpr);
+    }
+  });
+
+  // Y axis
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.lineWidth = dpr;
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    const y = pad.t + cH * (1-f);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.textAlign = 'right';
+    ctx.font = `${8*dpr}px monospace`;
+    ctx.fillText(Math.round(maxVal * f / 1000) + 'k', pad.l - 4*dpr, y + 3*dpr);
+  });
+}
+
+function drawCOTPctBarChart() {
+  const canvas = document.getElementById('cot-canvas-pct-bar');
+  if (!canvas || !_cotData.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth * dpr, H = 140 * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const rows = _cotData.map(_cotRow);
+  const n = rows.length;
+  const pad = { t:8*dpr, b:20*dpr, l:40*dpr, r:10*dpr };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+
+  const cats = [
+    {key:'d', lk:'dl', sk:'ds', col:COT_COLORS.dealer.l},
+    {key:'a', lk:'al', sk:'as_', col:COT_COLORS.asset.l},
+    {key:'l', lk:'ll', sk:'ls', col:COT_COLORS.lev.l},
+    {key:'o', lk:'ol', sk:'os', col:COT_COLORS.other.l},
+    {key:'n', lk:'nl', sk:'ns', col:COT_COLORS.nonrpt.l},
+  ];
+
+  // Draw % of total long lines
+  cats.forEach(cat => {
+    const pts = rows.map((r, i) => {
+      const total = r.dl+r.al+r.ll+r.ol+r.nl || 1;
+      const pct = r[cat.lk] / total;
+      return [pad.l + (i/(n-1))*cW, pad.t + cH*(1-pct)];
+    });
+    ctx.beginPath();
+    pts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+    ctx.strokeStyle = cat.col;
+    ctx.lineWidth = 1.5*dpr;
+    ctx.stroke();
+  });
+
+  // Y labels
+  [0, 0.1, 0.2, 0.3, 0.4].forEach(f => {
+    const y = pad.t + cH*(1-f);
+    ctx.strokeStyle='rgba(255,255,255,.06)';
+    ctx.lineWidth=dpr;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.25)';
+    ctx.font=`${7.5*dpr}px monospace`;
+    ctx.textAlign='right';
+    ctx.fillText((f*100).toFixed(0)+'%', pad.l-3*dpr, y+3*dpr);
+  });
+}
+
+function drawCOTNetChart() {
+  const canvas = document.getElementById('cot-canvas-net');
+  if (!canvas || !_cotData.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth * dpr, H = 320 * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const rows = _cotData.map(_cotRow);
+  const n = rows.length;
+  const pad = { t:10*dpr, b:30*dpr, l:55*dpr, r:10*dpr };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const midY = pad.t + cH/2;
+
+  const nets = {
+    dealer: rows.map(r => r.dl - r.ds),
+    asset:  rows.map(r => r.al - r.as_),
+    lev:    rows.map(r => r.ll - r.ls),
+    other:  rows.map(r => r.ol - r.os),
+    nonrpt: rows.map(r => r.nl - r.ns),
+  };
+  const allNets = Object.values(nets).flat();
+  const maxAbs = Math.max(...allNets.map(Math.abs), 1);
+  const scaleY = v => midY - (v / maxAbs) * (cH / 2);
+
+  // Zero line
+  ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = dpr;
+  ctx.beginPath(); ctx.moveTo(pad.l, midY); ctx.lineTo(W-pad.r, midY); ctx.stroke();
+
+  // Grid
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    [-1,1].forEach(sign => {
+      const y = midY + sign * f * cH/2;
+      ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = dpr;
+      ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.25)';
+      ctx.font = `${7.5*dpr}px monospace`;
+      ctx.textAlign = 'right';
+      const label = (sign * f * maxAbs / 1000).toFixed(0) + 'k';
+      ctx.fillText(label, pad.l-3*dpr, y+3*dpr);
+    });
+  });
+
+  // Draw each category
+  Object.entries(nets).forEach(([cat, vals]) => {
+    const col = COT_COLORS[cat].net;
+    ctx.beginPath();
+    vals.forEach((v, i) => {
+      const x = pad.l + (i/(n-1))*cW;
+      const y = scaleY(v);
+      i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.8*dpr;
+    ctx.stroke();
+  });
+
+  // X labels
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.font = `${9*dpr}px monospace`;
+  ctx.textAlign = 'center';
+  rows.forEach((r, i) => {
+    if (i % 4 === 0 || i === n-1) {
+      ctx.fillText(r.date.slice(5), pad.l + (i/(n-1))*cW, H - 6*dpr);
+    }
+  });
+}
+
+function drawCOTPctChart() {
+  const canvas = document.getElementById('cot-canvas-pct');
+  if (!canvas || !_cotData.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth * dpr, H = 320 * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const rows = _cotData.map(_cotRow);
+  const n = rows.length;
+  const pad = { t:10*dpr, b:30*dpr, l:38*dpr, r:10*dpr };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+
+  const cats = [
+    {lk:'dl', sk:'ds', col:COT_COLORS.dealer.l, label:'Dealer'},
+    {lk:'al', sk:'as_', col:COT_COLORS.asset.l, label:'Asset Mgr'},
+    {lk:'ll', sk:'ls', col:COT_COLORS.lev.l, label:'Leveraged'},
+    {lk:'ol', sk:'os', col:COT_COLORS.other.l, label:'Other'},
+    {lk:'nl', sk:'ns', col:COT_COLORS.nonrpt.l, label:'NonRpt'},
+  ];
+
+  // Grid
+  [0, 0.1, 0.2, 0.3, 0.4, 0.5].forEach(f => {
+    const y = pad.t + cH*(1-f);
+    ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=dpr;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.25)';
+    ctx.font=`${8*dpr}px monospace`;
+    ctx.textAlign='right';
+    ctx.fillText((f*100).toFixed(0)+'%', pad.l-3*dpr, y+3*dpr);
+  });
+
+  cats.forEach(cat => {
+    const pts = rows.map((r,i) => {
+      const total = r.dl+r.al+r.ll+r.ol+r.nl || 1;
+      const pct = r[cat.lk] / total;
+      return [pad.l + (i/(n-1))*cW, pad.t + cH*(1-pct)];
+    });
+    ctx.beginPath();
+    pts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+    ctx.strokeStyle = cat.col;
+    ctx.lineWidth = 1.8*dpr;
+    ctx.stroke();
+  });
+
+  // X labels
+  ctx.fillStyle='rgba(255,255,255,.35)';
+  ctx.font=`${9*dpr}px monospace`;
+  ctx.textAlign='center';
+  rows.forEach((r,i) => {
+    if(i % 4===0 || i===n-1) ctx.fillText(r.date.slice(5), pad.l+(i/(n-1))*cW, H-6*dpr);
+  });
+}
+
+function renderCOTTable() {
+  const tbody = document.getElementById('cot-tbody');
+  if (!tbody) return;
+  const rows = [..._cotData].reverse().map(_cotRow);
+  tbody.innerHTML = rows.map(r => {
+    const dn = r.dl - r.ds, an = r.al - r.as_, ln = r.ll - r.ls, on = r.ol - r.os, nn = r.nl - r.ns;
+    const nc = v => `style="color:${v>0?'var(--green)':v<0?'var(--red)':'var(--lo)'}"`;
+    const fmt = v => (v>0?'+':'')+Math.round(v/1000)+'k';
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:10px;white-space:nowrap">${r.date}</td>
+      <td>${fmt(r.dl)}</td><td style="color:var(--lo)">${fmt(r.ds)}</td><td ${nc(dn)}>${fmt(dn)}</td>
+      <td>${fmt(r.al)}</td><td style="color:var(--lo)">${fmt(r.as_)}</td><td ${nc(an)}>${fmt(an)}</td>
+      <td>${fmt(r.ll)}</td><td style="color:var(--lo)">${fmt(r.ls)}</td><td ${nc(ln)}>${fmt(ln)}</td>
+      <td>${fmt(r.ol)}</td><td style="color:var(--lo)">${fmt(r.os)}</td><td ${nc(on)}>${fmt(on)}</td>
+      <td>${fmt(r.nl)}</td><td style="color:var(--lo)">${fmt(r.ns)}</td><td ${nc(nn)}>${fmt(nn)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCOTSummaryCards() {
+  const el = document.getElementById('cot-summary-cards');
+  if (!el || !_cotData.length) return;
+  const latest = _cotRow(_cotData[_cotData.length-1]);
+  const prev   = _cotData.length > 1 ? _cotRow(_cotData[_cotData.length-2]) : null;
+  const cats = [
+    {label:'Dealer',       col:COT_COLORS.dealer.l,  nl: latest.dl-latest.ds,  np: prev ? prev.dl-prev.ds  : null},
+    {label:'Asset Manager',col:COT_COLORS.asset.l,   nl: latest.al-latest.as_, np: prev ? prev.al-prev.as_ : null},
+    {label:'Leveraged',    col:COT_COLORS.lev.l,      nl: latest.ll-latest.ls,  np: prev ? prev.ll-prev.ls  : null},
+    {label:'Other Rept',   col:COT_COLORS.other.l,   nl: latest.ol-latest.os,  np: prev ? prev.ol-prev.os  : null},
+    {label:'Non Rept',     col:COT_COLORS.nonrpt.l,  nl: latest.nl-latest.ns,  np: prev ? prev.nl-prev.ns  : null},
+  ];
+  el.innerHTML = cats.map(cat => {
+    const wk = prev ? cat.nl - cat.np : 0;
+    const color = cat.nl > 0 ? 'var(--green)' : cat.nl < 0 ? 'var(--red)' : 'var(--lo)';
+    const wkColor = wk > 0 ? 'var(--green)' : wk < 0 ? 'var(--red)' : 'var(--lo)';
+    const fmt = v => (v>0?'+':'')+Math.round(v/1000)+'k';
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:4px">${cat.label}</div>
+      <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:${color}">${fmt(cat.nl)}</div>
+      <div style="font-family:var(--mono);font-size:9px;color:${wkColor};margin-top:2px">${prev ? 'WoW '+fmt(wk) : '—'}</div>
+    </div>`;
+  }).join('');
 }
 
 function renderSetup() {
