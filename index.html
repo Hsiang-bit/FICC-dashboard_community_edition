@@ -3617,7 +3617,7 @@ function renderChecklist(){
   document.querySelectorAll('.cl-item').forEach(el=>{
     const ck=j.cl&&j.cl[el.dataset.id];
     el.classList.toggle('ck',!!ck);
-    el.querySelector('.cl-cb').textContent=ck?'✓':'';
+    const cb=el.querySelector('.cl-cb'); if(cb) cb.textContent=ck?'✓':'';
   });
   updateProgress();
 }
