@@ -3422,9 +3422,9 @@ function showPage(id,btn){
   if(id==='risk')updateRisk();
   if(id==='tradelog')renderTrades();
   if(id==='gantt')renderGantt();
-  if(id==='stat'){setTimeout(renderStat,50);}
-  if(id==='setup'){setTimeout(renderSetup,50);}
-  if(id==='cot'){setTimeout(renderCOT,50);}
+  if(id==='stat'){setTimeout(renderStat,200);}
+  if(id==='setup'){setTimeout(renderSetup,200);}
+  if(id==='cot'){setTimeout(renderCOT,200);}
   if(id==='page-community'||id==='community'){_activeCTab=null;switchCTab('ideas');}
 }
 function showJTab(id,btn){
@@ -6504,7 +6504,7 @@ initGistSync();
 function drawStatEquity(canvas, rValues, h) {
   if (!canvas || !rValues.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.offsetWidth * dpr, H = (h || canvas.offsetHeight || 160) * dpr;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr, H = (h || canvas.offsetHeight || 160) * dpr;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
@@ -6542,7 +6542,7 @@ function drawStatEquity(canvas, rValues, h) {
 function drawMonthBars(canvas, months) {
   if (!canvas || !months.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.offsetWidth * dpr, H = (canvas.offsetHeight || 120) * dpr;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr, H = (canvas.offsetHeight || 120) * dpr;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
@@ -6928,7 +6928,7 @@ function runDistSim() {
 function drawSetupLine(canvas, flat, kelly, h) {
   if (!canvas) return;
   const dpr = window.devicePixelRatio||1;
-  const W=canvas.offsetWidth*dpr, H=(h||140)*dpr;
+  const W=(canvas.offsetWidth||canvas.parentElement?.clientWidth||800)*dpr, H=(h||140)*dpr;
   canvas.width=W; canvas.height=H;
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
@@ -6950,7 +6950,7 @@ function drawSetupLine(canvas, flat, kelly, h) {
 function drawSingleLine(canvas, trades, h) {
   if (!canvas || !trades.length) return;
   const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth*dpr,H=(h||90)*dpr;
+  const W=(canvas.offsetWidth||canvas.parentElement?.clientWidth||800)*dpr,H=(h||90)*dpr;
   canvas.width=W;canvas.height=H;
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
@@ -7162,7 +7162,12 @@ async function fetchCOT() {
     if (st) st.textContent = `✓ ${_cotData.length} weeks  · ${_cotData[_cotData.length-1]?.report_date_as_yyyy_mm_dd}`;
     renderCOTView();
   } catch(e) {
-    if (st) st.textContent = '⚠ ' + e.message;
+    const msg = e.name==='TypeError' && e.message.includes('fetch')
+      ? '⚠ 網路錯誤 — 請確認網路連線'
+      : e.message==='No data returned'
+      ? '⚠ 查無資料 — 請確認商品名稱'
+      : '⚠ ' + e.message;
+    if (st) st.textContent = msg;
     console.error('[COT fetch]', e);
   } finally {
     if (btn) btn.disabled = false;
@@ -7171,7 +7176,7 @@ async function fetchCOT() {
 
 function renderCOT() {
   if (_cotData.length === 0) fetchCOT();
-  else renderCOTView();
+  else { setTimeout(renderCOTView, 50); } // small delay ensures canvas has layout width
 }
 
 function switchCOTView(id, btn) {
@@ -7218,7 +7223,7 @@ function drawCOTBarChart() {
   const canvas = document.getElementById('cot-canvas-bar');
   if (!canvas || !_cotData.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.offsetWidth * dpr, H = 260 * dpr;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr, H = 260 * dpr;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
@@ -7293,7 +7298,7 @@ function drawCOTPctBarChart() {
   const canvas = document.getElementById('cot-canvas-pct-bar');
   if (!canvas || !_cotData.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.offsetWidth * dpr, H = 140 * dpr;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr, H = 140 * dpr;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
@@ -7342,7 +7347,7 @@ function drawCOTNetChart() {
   const canvas = document.getElementById('cot-canvas-net');
   if (!canvas || !_cotData.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.offsetWidth * dpr, H = 320 * dpr;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr, H = 320 * dpr;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
@@ -7411,7 +7416,7 @@ function drawCOTPctChart() {
   const canvas = document.getElementById('cot-canvas-pct');
   if (!canvas || !_cotData.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = canvas.offsetWidth * dpr, H = 320 * dpr;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr, H = 320 * dpr;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
