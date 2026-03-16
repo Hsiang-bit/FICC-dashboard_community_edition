@@ -7153,18 +7153,32 @@ async function fetchCOT() {
   // ── Step 1: Discover the exact market name in each dataset ──
   // CFTC sometimes changes market name strings between historical/current datasets.
   // We search case-insensitively to handle variations.
-  // Try multiple CFTC TFF dataset IDs - CFTC splits/updates these periodically
-  // gpe5-46if covers 2006-2022; others may cover 2022-present
-  const DATASETS = [
-    { id: 'gpe5-46if', label: 'TFF-A' },
-    { id: 'jun7-ma2s', label: 'TFF-B' },
-    { id: 'yw9k-3nk3', label: 'TFF-C' },
-    { id: 'kh3c-gbw2', label: 'TFF-D' },
+  // ── Auto-discover current TFF dataset from CFTC catalog ──
+  let DATASETS = [
+    { id: 'gpe5-46if', label: 'TFF-A (2006-2022)' },  // confirmed working
+    { id: 'kh3c-gbw2', label: 'TFF-B' },
+    { id: 'jun7-ma2s', label: 'TFF-C' },
+    { id: 'yw9k-3nk3', label: 'TFF-D' },
     { id: 'z2y2-b9ei', label: 'TFF-E' },
     { id: 'r4w3-av2u', label: 'TFF-F' },
     { id: 'wkpe-ygbs', label: 'TFF-G' },
     { id: 'sf94-z9ei', label: 'TFF-H' },
+    { id: 'i7k3-s47b', label: 'TFF-I' },
+    { id: 't6vb-yd5r', label: 'TFF-J' },
   ];
+  // Try to auto-discover from CFTC catalog
+  try {
+    const catUrl = 'https://publicreporting.cftc.gov/api/catalog/v1?q=traders+financial+futures&limit=20';
+    const catR = await fetch(catUrl, {signal: AbortSignal.timeout(5000)});
+    if (catR.ok) {
+      const catData = await catR.json();
+      const discovered = (catData?.results || []).map(d => ({id: d.id, label: 'auto:'+d.name?.slice(0,20)}));
+      if (discovered.length) {
+        console.log(`[COT] Catalog: found ${discovered.length} datasets:`, discovered.map(d=>d.id).join(','));
+        DATASETS = [...discovered, ...DATASETS.filter(d => !discovered.find(x=>x.id===d.id))];
+      }
+    }
+  } catch(e) { /* catalog unavailable, use static list */ }
 
   // Keywords to match against market names in each dataset
   // market value is now a short keyword (e.g. "NASDAQ-100 STOCK INDEX (MINI)")
@@ -7179,10 +7193,11 @@ async function fetchCOT() {
       if (!sr.ok) { console.warn(`[COT] ${id}: HTTP ${sr.status}`); return []; }
       const names = (await sr.json()).map(r => r.market_and_exchange_names).filter(Boolean);
 
-      // Find matching name
-      const matchedName = names.find(n => keywords.some(k => n.toUpperCase().includes(k.toUpperCase())));
+      // Find matching name - try original keywords first, then broader fallbacks
+      const allKeywords = [...keywords, ...keywords.map(k => k.split(' ')[0])]; // add first word as fallback
+      const matchedName = names.find(n => allKeywords.some(k => n.toUpperCase().includes(k.toUpperCase())));
       if (!matchedName) {
-        console.warn(`[COT] ${id}: No match for "${market}" in ${names.length} names`);
+        console.warn(`[COT] ${id}: No match for "${market}" in ${names.length} names. Sample: ${names.slice(0,3).join(' | ')}`);
         return [];
       }
       console.log(`[COT] ${id} (${label}): matched "${matchedName}"`);
