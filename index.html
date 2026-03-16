@@ -632,22 +632,22 @@ select option{background:var(--bg2)}
   <!-- Controls -->
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
     <select id="cot-market" style="font-family:var(--mono);font-size:12px;background:var(--bg2);border:1px solid var(--border2);color:var(--hi);padding:5px 10px;border-radius:var(--r);min-width:220px" onchange="fetchCOT()">
-      <option value="NASDAQ-100 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE">NQ — NASDAQ 100</option>
-      <option value="S&P 500 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE">ES — S&amp;P 500</option>
-      <option value="DOW JONES INDUSTRIAL AVERAGE - CHICAGO BOARD OF TRADE">YM — Dow Jones</option>
-      <option value="EURO FX - CHICAGO MERCANTILE EXCHANGE">6E — Euro FX</option>
-      <option value="JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE">6J — Japanese Yen</option>
-      <option value="BRITISH POUND - CHICAGO MERCANTILE EXCHANGE">6B — British Pound</option>
-      <option value="SWISS FRANC - CHICAGO MERCANTILE EXCHANGE">6S — Swiss Franc</option>
-      <option value="AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE">6A — Australian Dollar</option>
-      <option value="U.S. TREASURY BONDS - CHICAGO BOARD OF TRADE">ZB — US T-Bond</option>
-      <option value="10-YEAR U.S. TREASURY NOTES - CHICAGO BOARD OF TRADE">ZN — 10Y T-Note</option>
-      <option value="5-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE">ZF — 5Y T-Note</option>
-      <option value="2-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE">ZT — 2Y T-Note</option>
-      <option value="GOLD - COMMODITY EXCHANGE INC.">GC — Gold</option>
-      <option value="SILVER - COMMODITY EXCHANGE INC.">SI — Silver</option>
-      <option value="CRUDE OIL, LIGHT SWEET - NEW YORK MERCANTILE EXCHANGE">CL — Crude Oil</option>
-      <option value="BITCOIN - CHICAGO MERCANTILE EXCHANGE">BTC — Bitcoin</option>
+      <option value="NASDAQ-100 STOCK INDEX (MINI)">NQ — NASDAQ 100 E-Mini</option>
+      <option value="S&P 500 STOCK INDEX (MINI)">ES — S&amp;P 500 E-Mini</option>
+      <option value="DOW JONES INDUSTRIAL AVE. (MINI)">YM — Dow Jones E-Mini</option>
+      <option value="EURO FX">6E — Euro FX</option>
+      <option value="JAPANESE YEN">6J — Japanese Yen</option>
+      <option value="BRITISH POUND">6B — British Pound</option>
+      <option value="SWISS FRANC">6S — Swiss Franc</option>
+      <option value="AUSTRALIAN DOLLAR">6A — Australian Dollar</option>
+      <option value="U.S. TREASURY BONDS">ZB — US T-Bond</option>
+      <option value="10-YEAR U.S. TREASURY NOTES">ZN — 10Y T-Note</option>
+      <option value="5-YEAR TREASURY NOTES">ZF — 5Y T-Note</option>
+      <option value="2-YEAR TREASURY NOTES">ZT — 2Y T-Note</option>
+      <option value="GOLD">GC — Gold</option>
+      <option value="SILVER">SI — Silver</option>
+      <option value="CRUDE OIL, LIGHT SWEET">CL — Crude Oil</option>
+      <option value="BITCOIN">BTC — Bitcoin</option>
     </select>
     <select id="cot-range" style="font-family:var(--mono);font-size:12px;background:var(--bg2);border:1px solid var(--border2);color:var(--hi);padding:5px 10px;border-radius:var(--r)" onchange="fetchCOT()">
       <option value="13">13 週</option>
@@ -7153,32 +7153,23 @@ async function fetchCOT() {
   // ── Step 1: Discover the exact market name in each dataset ──
   // CFTC sometimes changes market name strings between historical/current datasets.
   // We search case-insensitively to handle variations.
+  // Try multiple CFTC TFF dataset IDs - CFTC splits/updates these periodically
+  // gpe5-46if covers 2006-2022; others may cover 2022-present
   const DATASETS = [
-    { id: '6ddc-airb', label: 'Current (2016+)' },
-    { id: 'gpe5-46if', label: 'Historical (–2015)' },
+    { id: 'gpe5-46if', label: 'TFF-A' },
+    { id: 'jun7-ma2s', label: 'TFF-B' },
+    { id: 'yw9k-3nk3', label: 'TFF-C' },
+    { id: 'kh3c-gbw2', label: 'TFF-D' },
+    { id: 'z2y2-b9ei', label: 'TFF-E' },
+    { id: 'r4w3-av2u', label: 'TFF-F' },
+    { id: 'wkpe-ygbs', label: 'TFF-G' },
+    { id: 'sf94-z9ei', label: 'TFF-H' },
   ];
 
   // Keywords to match against market names in each dataset
-  const MARKET_KEYWORDS = {
-    'NASDAQ-100 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE': ['NASDAQ-100','NASDAQ 100','NQ','NASDAQ100'],
-    'S&P 500 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE':    ['S&P 500','S&P500','SP 500'],
-    'DOW JONES INDUSTRIAL AVERAGE - CHICAGO BOARD OF TRADE':['DOW JONES','YM'],
-    'EURO FX - CHICAGO MERCANTILE EXCHANGE':                ['EURO FX','EUR/USD','6E'],
-    'JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE':           ['JAPANESE YEN','JPY'],
-    'BRITISH POUND - CHICAGO MERCANTILE EXCHANGE':          ['BRITISH POUND','GBP'],
-    'SWISS FRANC - CHICAGO MERCANTILE EXCHANGE':            ['SWISS FRANC','CHF'],
-    'AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE':      ['AUSTRALIAN DOLLAR','AUD'],
-    'U.S. TREASURY BONDS - CHICAGO BOARD OF TRADE':         ['TREASURY BONDS','T-BOND','ZB'],
-    '10-YEAR U.S. TREASURY NOTES - CHICAGO BOARD OF TRADE': ['10-YEAR','10 YEAR','ZN'],
-    '5-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE':       ['5-YEAR TREASURY','5 YEAR','ZF'],
-    '2-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE':       ['2-YEAR TREASURY','2 YEAR','ZT'],
-    'GOLD - COMMODITY EXCHANGE INC.':                       ['GOLD','GC'],
-    'SILVER - COMMODITY EXCHANGE INC.':                     ['SILVER','SI'],
-    'CRUDE OIL, LIGHT SWEET - NEW YORK MERCANTILE EXCHANGE':['CRUDE OIL','CL'],
-    'BITCOIN - CHICAGO MERCANTILE EXCHANGE':                ['BITCOIN','BTC'],
-  };
-
-  const keywords = MARKET_KEYWORDS[market] || [market.split(' - ')[0]];
+  // market value is now a short keyword (e.g. "NASDAQ-100 STOCK INDEX (MINI)")
+  // Use it directly as a keyword for matching
+  const keywords = [market];
 
   const fetchDataset = async ({ id, label }) => {
     try {
