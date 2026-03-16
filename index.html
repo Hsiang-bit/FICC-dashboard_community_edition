@@ -7150,11 +7150,10 @@ async function fetchCOT() {
 
   const limit = weeks + 2;
   const mkt = encodeURIComponent(market).replace(/'/g, '%27');
-  // Fetch more records than needed, then slice client-side to get most recent N
-  // This avoids Socrata applying $limit before $order
-  const fetchLimit = Math.max(limit * 4, 200);
+  // NQ has ~680 records since 2013. Fetch 2000 to guarantee getting ALL records
+  // regardless of API ordering, then sort + slice client-side for guaranteed recent data
   const where = `market_and_exchange_names=%27${mkt}%27`;
-  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=${fetchLimit}&$where=${where}&$order=report_date_as_yyyy_mm_dd%20DESC`;
+  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=2000&$where=${where}`;
 
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
