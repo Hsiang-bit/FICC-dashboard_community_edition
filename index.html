@@ -7150,19 +7150,29 @@ async function fetchCOT() {
 
   const limit = weeks + 2;
   const mkt = encodeURIComponent(market).replace(/'/g, '%27');
-  // NQ has ~680 records since 2013. Fetch 2000 to guarantee getting ALL records
-  // regardless of API ordering, then sort + slice client-side for guaranteed recent data
   const where = `market_and_exchange_names=%27${mkt}%27`;
-  const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=2000&$where=${where}`;
+  // CFTC has two TFF datasets:
+  // gpe5-46if = historical (2010–2015), 6ddc-airb = current (2016–present)
+  // Fetch from BOTH, merge, then sort + slice for correct recent data
+  const urlCurrent    = `https://publicreporting.cftc.gov/resource/6ddc-airb.json?$limit=2000&$where=${where}`;
+  const urlHistorical = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=2000&$where=${where}`;
+  const url = urlCurrent; // primary; fallback to historical if needed
 
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const raw = await r.json();
+    // Fetch current dataset; also try historical if needed for older ranges
+    const [rCurr, rHist] = await Promise.allSettled([
+      fetch(urlCurrent,    { signal: AbortSignal.timeout(15000) }).then(r=>r.json()),
+      fetch(urlHistorical, { signal: AbortSignal.timeout(15000) }).then(r=>r.json()),
+    ]);
+    const curr = rCurr.status === 'fulfilled' && Array.isArray(rCurr.value) ? rCurr.value : [];
+    const hist = rHist.status === 'fulfilled' && Array.isArray(rHist.value) ? rHist.value : [];
+    const raw = [...curr, ...hist];
     if (!raw.length) throw new Error('No data returned');
-    // Sort ascending for charts
-    // Sort ascending, then take only the most recent N weeks
-    const allSorted = raw.sort((a,b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
+    // Deduplicate by date, sort ascending, slice most recent N
+    const seen = new Set();
+    const allSorted = raw
+      .filter(d => { const k = d.report_date_as_yyyy_mm_dd; if(seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a,b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
     _cotData = allSorted.slice(-limit);
     const oldest = _cotData[0]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
     const newest = _cotData[_cotData.length-1]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
