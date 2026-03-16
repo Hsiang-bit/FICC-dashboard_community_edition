@@ -7149,79 +7149,96 @@ async function fetchCOT() {
   if (btn) btn.disabled = true;
 
   const limit = weeks + 2;
-  const mkt = encodeURIComponent(market).replace(/'/g, '%27');
-  const where = `market_and_exchange_names=%27${mkt}%27`;
 
-  // Try multiple CFTC TFF dataset IDs (CFTC splits data across historical/current datasets)
+  // ── Step 1: Discover the exact market name in each dataset ──
+  // CFTC sometimes changes market name strings between historical/current datasets.
+  // We search case-insensitively to handle variations.
   const DATASETS = [
-    '6ddc-airb',  // TFF Current (2016+) - primary
-    'jun7-ma2s',  // possible alternate
-    'yw9k-3nk3',  // possible alternate
-    'kh3c-gbw2',  // possible alternate
-    'gpe5-46if',  // TFF Historical (2010-2015) - fallback
+    { id: '6ddc-airb', label: 'Current (2016+)' },
+    { id: 'gpe5-46if', label: 'Historical (–2015)' },
   ];
 
-  const tryDS = async (id) => {
+  // Keywords to match against market names in each dataset
+  const MARKET_KEYWORDS = {
+    'NASDAQ-100 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE': ['NASDAQ-100','NASDAQ 100','NQ','NASDAQ100'],
+    'S&P 500 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE':    ['S&P 500','S&P500','SP 500'],
+    'DOW JONES INDUSTRIAL AVERAGE - CHICAGO BOARD OF TRADE':['DOW JONES','YM'],
+    'EURO FX - CHICAGO MERCANTILE EXCHANGE':                ['EURO FX','EUR/USD','6E'],
+    'JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE':           ['JAPANESE YEN','JPY'],
+    'BRITISH POUND - CHICAGO MERCANTILE EXCHANGE':          ['BRITISH POUND','GBP'],
+    'SWISS FRANC - CHICAGO MERCANTILE EXCHANGE':            ['SWISS FRANC','CHF'],
+    'AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE':      ['AUSTRALIAN DOLLAR','AUD'],
+    'U.S. TREASURY BONDS - CHICAGO BOARD OF TRADE':         ['TREASURY BONDS','T-BOND','ZB'],
+    '10-YEAR U.S. TREASURY NOTES - CHICAGO BOARD OF TRADE': ['10-YEAR','10 YEAR','ZN'],
+    '5-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE':       ['5-YEAR TREASURY','5 YEAR','ZF'],
+    '2-YEAR TREASURY NOTES - CHICAGO BOARD OF TRADE':       ['2-YEAR TREASURY','2 YEAR','ZT'],
+    'GOLD - COMMODITY EXCHANGE INC.':                       ['GOLD','GC'],
+    'SILVER - COMMODITY EXCHANGE INC.':                     ['SILVER','SI'],
+    'CRUDE OIL, LIGHT SWEET - NEW YORK MERCANTILE EXCHANGE':['CRUDE OIL','CL'],
+    'BITCOIN - CHICAGO MERCANTILE EXCHANGE':                ['BITCOIN','BTC'],
+  };
+
+  const keywords = MARKET_KEYWORDS[market] || [market.split(' - ')[0]];
+
+  const fetchDataset = async ({ id, label }) => {
     try {
-      // First check max date in this dataset (fast)
-      const metaUrl = `https://publicreporting.cftc.gov/resource/${id}.json?$select=max(report_date_as_yyyy_mm_dd)%20as%20mx&$where=${where}`;
-      const mr = await fetch(metaUrl, {signal: AbortSignal.timeout(8000)});
-      if (!mr.ok) return {id, skip: true, reason: 'HTTP '+mr.status};
-      const meta = await mr.json();
-      const maxDate = meta[0]?.mx?.slice(0,10);
-      if (!maxDate) return {id, skip: true, reason: 'no data'};
-      console.log(`[COT] ${id}: max date = ${maxDate}`);
-      // Fetch records from this dataset
-      const url = `https://publicreporting.cftc.gov/resource/${id}.json?$limit=2000&$where=${where}`;
-      const r = await fetch(url, {signal: AbortSignal.timeout(15000)});
-      if (!r.ok) return {id, skip: true, reason: 'fetch HTTP '+r.status};
+      // Get sample of market names from this dataset to find exact match
+      const sampleUrl = `https://publicreporting.cftc.gov/resource/${id}.json?$select=distinct%20market_and_exchange_names&$limit=500`;
+      const sr = await fetch(sampleUrl, { signal: AbortSignal.timeout(10000) });
+      if (!sr.ok) { console.warn(`[COT] ${id}: HTTP ${sr.status}`); return []; }
+      const names = (await sr.json()).map(r => r.market_and_exchange_names).filter(Boolean);
+
+      // Find matching name
+      const matchedName = names.find(n => keywords.some(k => n.toUpperCase().includes(k.toUpperCase())));
+      if (!matchedName) {
+        console.warn(`[COT] ${id}: No match for "${market}" in ${names.length} names`);
+        return [];
+      }
+      console.log(`[COT] ${id} (${label}): matched "${matchedName}"`);
+
+      // Fetch all records for this market
+      const mkt = encodeURIComponent(matchedName).replace(/'/g,'%27');
+      const url = `https://publicreporting.cftc.gov/resource/${id}.json?$limit=2000&$where=market_and_exchange_names=%27${mkt}%27`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (!r.ok) { console.warn(`[COT] ${id}: data HTTP ${r.status}`); return []; }
       const d = await r.json();
-      return {id, data: Array.isArray(d) ? d : [], maxDate};
+      if (!Array.isArray(d) || !d.length) { console.warn(`[COT] ${id}: empty`); return []; }
+      const dates = d.map(x => x.report_date_as_yyyy_mm_dd?.slice(0,10)).filter(Boolean).sort();
+      console.log(`[COT] ${id}: ${d.length} records ${dates[0]} → ${dates[dates.length-1]}`);
+      return d;
     } catch(e) {
       console.warn(`[COT] ${id}: ${e.message}`);
-      return {id, skip: true, reason: e.message};
+      return [];
     }
   };
 
   try {
-    // Try all datasets
-    const results = await Promise.all(DATASETS.map(tryDS));
-    const allData = results.flatMap(r => r.data || []);
+    const results = await Promise.all(DATASETS.map(fetchDataset));
+    const allData = results.flat();
 
-    if (!allData.length) {
-      // Log which ones failed for debugging
-      results.forEach(r => console.log(`[COT] ${r.id}: ${r.skip ? 'SKIP - '+r.reason : r.data?.length+' records'}`));
-      throw new Error('No data returned');
-    }
+    if (!allData.length) throw new Error('No data returned');
 
-    // Deduplicate by date, sort ascending, slice most recent N
+    // Deduplicate by date, sort ascending, take most recent N
     const seen = new Set();
     const allSorted = allData
-      .filter(d => {
-        const k = d.report_date_as_yyyy_mm_dd;
-        if (!k || seen.has(k)) return false;
-        seen.add(k); return true;
-      })
-      .sort((a, b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
+      .filter(d => { const k = d.report_date_as_yyyy_mm_dd; if (!k||seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a,b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
 
     _cotData = allSorted.slice(-limit);
-
     const oldest = _cotData[0]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
     const newest = _cotData[_cotData.length-1]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
-    console.log(`[COT] Final: ${_cotData.length} records ${oldest} → ${newest} (total pool: ${allSorted.length})`);
+    console.log(`[COT] ✓ Final: ${_cotData.length} records ${oldest} → ${newest} (pool: ${allSorted.length})`);
     if (st) st.textContent = `✓ ${_cotData.length} 週  ${oldest} → ${newest}`;
     renderCOTView();
   } catch(e) {
-    const msg = e.message === 'No data returned'
-      ? '⚠ 查無資料 — 請開啟 F12 Console 查看詳情'
+    if (st) st.textContent = e.message === 'No data returned'
+      ? '⚠ 查無資料 — 開啟 F12 Console 查看 [COT] 記錄'
       : '⚠ ' + e.message;
-    if (st) st.textContent = msg;
-    console.error('[COT fetch error]', e.message);
+    console.error('[COT]', e.message);
   } finally {
     if (btn) btn.disabled = false;
   }
 }
-
 
 function renderCOT() {
   if (_cotData.length === 0) fetchCOT();
