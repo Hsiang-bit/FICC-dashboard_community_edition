@@ -7151,49 +7151,81 @@ async function fetchCOT() {
   const limit = weeks + 2;
   const mkt = encodeURIComponent(market).replace(/'/g, '%27');
   const where = `market_and_exchange_names=%27${mkt}%27`;
-  // CFTC has two TFF datasets:
-  // gpe5-46if = historical (2010–2015), 6ddc-airb = current (2016–present)
-  // Fetch from BOTH, merge, then sort + slice for correct recent data
-  const urlCurrent    = `https://publicreporting.cftc.gov/resource/6ddc-airb.json?$limit=2000&$where=${where}`;
-  const urlHistorical = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=2000&$where=${where}`;
-  const url = urlCurrent; // primary; fallback to historical if needed
+
+  // Try multiple CFTC TFF dataset IDs (CFTC splits data across historical/current datasets)
+  const DATASETS = [
+    '6ddc-airb',  // TFF Current (2016+) - primary
+    'jun7-ma2s',  // possible alternate
+    'yw9k-3nk3',  // possible alternate
+    'kh3c-gbw2',  // possible alternate
+    'gpe5-46if',  // TFF Historical (2010-2015) - fallback
+  ];
+
+  const tryDS = async (id) => {
+    try {
+      // First check max date in this dataset (fast)
+      const metaUrl = `https://publicreporting.cftc.gov/resource/${id}.json?$select=max(report_date_as_yyyy_mm_dd)%20as%20mx&$where=${where}`;
+      const mr = await fetch(metaUrl, {signal: AbortSignal.timeout(8000)});
+      if (!mr.ok) return {id, skip: true, reason: 'HTTP '+mr.status};
+      const meta = await mr.json();
+      const maxDate = meta[0]?.mx?.slice(0,10);
+      if (!maxDate) return {id, skip: true, reason: 'no data'};
+      console.log(`[COT] ${id}: max date = ${maxDate}`);
+      // Fetch records from this dataset
+      const url = `https://publicreporting.cftc.gov/resource/${id}.json?$limit=2000&$where=${where}`;
+      const r = await fetch(url, {signal: AbortSignal.timeout(15000)});
+      if (!r.ok) return {id, skip: true, reason: 'fetch HTTP '+r.status};
+      const d = await r.json();
+      return {id, data: Array.isArray(d) ? d : [], maxDate};
+    } catch(e) {
+      console.warn(`[COT] ${id}: ${e.message}`);
+      return {id, skip: true, reason: e.message};
+    }
+  };
 
   try {
-    // Fetch current dataset; also try historical if needed for older ranges
-    const [rCurr, rHist] = await Promise.allSettled([
-      fetch(urlCurrent,    { signal: AbortSignal.timeout(15000) }).then(r=>r.json()),
-      fetch(urlHistorical, { signal: AbortSignal.timeout(15000) }).then(r=>r.json()),
-    ]);
-    const curr = rCurr.status === 'fulfilled' && Array.isArray(rCurr.value) ? rCurr.value : [];
-    const hist = rHist.status === 'fulfilled' && Array.isArray(rHist.value) ? rHist.value : [];
-    const raw = [...curr, ...hist];
-    if (!raw.length) throw new Error('No data returned');
+    // Try all datasets
+    const results = await Promise.all(DATASETS.map(tryDS));
+    const allData = results.flatMap(r => r.data || []);
+
+    if (!allData.length) {
+      // Log which ones failed for debugging
+      results.forEach(r => console.log(`[COT] ${r.id}: ${r.skip ? 'SKIP - '+r.reason : r.data?.length+' records'}`));
+      throw new Error('No data returned');
+    }
+
     // Deduplicate by date, sort ascending, slice most recent N
     const seen = new Set();
-    const allSorted = raw
-      .filter(d => { const k = d.report_date_as_yyyy_mm_dd; if(seen.has(k)) return false; seen.add(k); return true; })
-      .sort((a,b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
+    const allSorted = allData
+      .filter(d => {
+        const k = d.report_date_as_yyyy_mm_dd;
+        if (!k || seen.has(k)) return false;
+        seen.add(k); return true;
+      })
+      .sort((a, b) => a.report_date_as_yyyy_mm_dd.localeCompare(b.report_date_as_yyyy_mm_dd));
+
     _cotData = allSorted.slice(-limit);
+
     const oldest = _cotData[0]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
     const newest = _cotData[_cotData.length-1]?.report_date_as_yyyy_mm_dd?.slice(0,10) || '';
+    console.log(`[COT] Final: ${_cotData.length} records ${oldest} → ${newest} (total pool: ${allSorted.length})`);
     if (st) st.textContent = `✓ ${_cotData.length} 週  ${oldest} → ${newest}`;
     renderCOTView();
   } catch(e) {
-    const msg = e.name==='TypeError' && e.message.includes('fetch')
-      ? '⚠ 網路錯誤 — 請確認網路連線'
-      : e.message==='No data returned'
-      ? '⚠ 查無資料 — 請確認商品名稱'
+    const msg = e.message === 'No data returned'
+      ? '⚠ 查無資料 — 請開啟 F12 Console 查看詳情'
       : '⚠ ' + e.message;
     if (st) st.textContent = msg;
-    console.error('[COT fetch]', e);
+    console.error('[COT fetch error]', e.message);
   } finally {
     if (btn) btn.disabled = false;
   }
 }
 
+
 function renderCOT() {
   if (_cotData.length === 0) fetchCOT();
-  else { setTimeout(renderCOTView, 50); } // small delay ensures canvas has layout width
+  else { setTimeout(renderCOTView, 50); }
 }
 
 function switchCOTView(id, btn) {
@@ -7204,7 +7236,7 @@ function switchCOTView(id, btn) {
   });
   document.querySelectorAll('#page-cot .jtab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  if (_cotData.length) setTimeout(renderCOTView, 30); // delay so canvas has layout width
+  if (_cotData.length) setTimeout(renderCOTView, 30);
 }
 
 function renderCOTView() {
@@ -7244,76 +7276,41 @@ function drawCOTBarChart() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
-
   const rows = _cotData.map(_cotRow);
-  const dates = rows.map(r => r.date.slice(5)); // MM-DD
   const n = rows.length;
   const pad = { t:10*dpr, b:30*dpr, l:50*dpr, r:10*dpr };
   const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
   const bw = cW / n;
   const barW = Math.max(bw * 0.28, 1);
-
-  // Three groups per date: Long, Short, Net(inline)
-  const groupW = bw;
-  const maxVal = Math.max(...rows.flatMap(r => [r.dl+r.al+r.ll+r.ol+r.nl, r.ds+r.as_+r.ls+r.os+r.ns]));
-  const scaleY = v => pad.t + cH * (1 - v / maxVal);
-
-  const drawStack = (x, vals, colors, isShort) => {
+  const maxVal = Math.max(...rows.flatMap(r => [r.dl+r.al+r.ll+r.ol+r.nl, r.ds+r.as_+r.ls+r.os+r.ns]), 1);
+  const drawStack = (x, vals) => {
     let y = pad.t + cH;
     vals.forEach(([v, col]) => {
       const h = (v / maxVal) * cH;
-      ctx.fillStyle = col;
-      ctx.fillRect(x - barW/2, y - h, barW, h);
-      y -= h;
+      ctx.fillStyle = col; ctx.fillRect(x - barW/2, y - h, barW, h); y -= h;
     });
   };
-
   rows.forEach((r, i) => {
     const cx = pad.l + (i + 0.5) * bw;
-    // Long bars (left of center)
-    drawStack(cx - bw*0.25, [
-      [r.dl, COT_COLORS.dealer.l],
-      [r.al, COT_COLORS.asset.l],
-      [r.ll, COT_COLORS.lev.l],
-      [r.ol, COT_COLORS.other.l],
-      [r.nl, COT_COLORS.nonrpt.l],
-    ]);
-    // Short bars (right of center)
-    drawStack(cx + bw*0.25, [
-      [r.ds, COT_COLORS.dealer.s],
-      [r.as_, COT_COLORS.asset.s],
-      [r.ls, COT_COLORS.lev.s],
-      [r.os, COT_COLORS.other.s],
-      [r.ns, COT_COLORS.nonrpt.s],
-    ]);
+    drawStack(cx - bw*0.25, [[r.dl,COT_COLORS.dealer.l],[r.al,COT_COLORS.asset.l],[r.ll,COT_COLORS.lev.l],[r.ol,COT_COLORS.other.l],[r.nl,COT_COLORS.nonrpt.l]]);
+    drawStack(cx + bw*0.25, [[r.ds,COT_COLORS.dealer.s],[r.as_,COT_COLORS.asset.s],[r.ls,COT_COLORS.lev.s],[r.os,COT_COLORS.other.s],[r.ns,COT_COLORS.nonrpt.s]]);
   });
-
-  // X labels
-  ctx.fillStyle = 'rgba(255,255,255,.45)';
-  ctx.font = `${8.5*dpr}px monospace`;
-  ctx.textAlign = 'center';
   const step = n <= 13 ? 1 : n <= 26 ? 2 : n <= 52 ? 4 : 8;
-  rows.forEach((r, i) => {
-    if (i % step === 0 || i === n-1) {
-      const x = pad.l + (i+0.5)*bw;
-      // Tick mark
-      ctx.strokeStyle = 'rgba(255,255,255,.2)';
-      ctx.lineWidth = dpr;
-      ctx.beginPath(); ctx.moveTo(x, pad.t+cH); ctx.lineTo(x, pad.t+cH+4*dpr); ctx.stroke();
-      ctx.fillText(dates[i], x, H - 4*dpr);
+  ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font=`${8.5*dpr}px monospace`; ctx.textAlign='center';
+  rows.forEach((r,i) => {
+    if(i % step === 0 || i === n-1) {
+      const x = pad.l+(i+0.5)*bw;
+      ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=dpr;
+      ctx.beginPath(); ctx.moveTo(x,pad.t+cH); ctx.lineTo(x,pad.t+cH+4*dpr); ctx.stroke();
+      ctx.fillText(r.date.slice(5), x, H-4*dpr);
     }
   });
-
-  // Y axis
-  ctx.strokeStyle = 'rgba(255,255,255,.08)';
-  ctx.lineWidth = dpr;
-  [0.25, 0.5, 0.75, 1].forEach(f => {
-    const y = pad.t + cH * (1-f);
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.3)';
-    ctx.textAlign = 'right';
-    ctx.font = `${8*dpr}px monospace`;
-    ctx.fillText(Math.round(maxVal * f / 1000) + 'k', pad.l - 4*dpr, y + 3*dpr);
+  [0.25,0.5,0.75,1].forEach(f => {
+    const y = pad.t+cH*(1-f);
+    ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=dpr;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.3)'; ctx.textAlign='right'; ctx.font=`${8*dpr}px monospace`;
+    ctx.fillText(Math.round(maxVal*f/1000)+'k', pad.l-4*dpr, y+3*dpr);
   });
 }
 
@@ -7325,54 +7322,29 @@ function drawCOTPctBarChart() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
-
   const rows = _cotData.map(_cotRow);
   const n = rows.length;
   const pad = { t:8*dpr, b:20*dpr, l:40*dpr, r:10*dpr };
-  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
-
+  const cW = W-pad.l-pad.r, cH = H-pad.t-pad.b;
   const cats = [
-    {key:'d', lk:'dl', sk:'ds', col:COT_COLORS.dealer.l},
-    {key:'a', lk:'al', sk:'as_', col:COT_COLORS.asset.l},
-    {key:'l', lk:'ll', sk:'ls', col:COT_COLORS.lev.l},
-    {key:'o', lk:'ol', sk:'os', col:COT_COLORS.other.l},
-    {key:'n', lk:'nl', sk:'ns', col:COT_COLORS.nonrpt.l},
+    {lk:'dl',col:COT_COLORS.dealer.l},{lk:'al',col:COT_COLORS.asset.l},
+    {lk:'ll',col:COT_COLORS.lev.l},{lk:'ol',col:COT_COLORS.other.l},{lk:'nl',col:COT_COLORS.nonrpt.l},
   ];
-
-  // Draw % of total long lines
   cats.forEach(cat => {
-    const pts = rows.map((r, i) => {
-      const total = r.dl+r.al+r.ll+r.ol+r.nl || 1;
-      const pct = r[cat.lk] / total;
-      return [pad.l + (i/(n-1))*cW, pad.t + cH*(1-pct)];
-    });
-    ctx.beginPath();
-    pts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
-    ctx.strokeStyle = cat.col;
-    ctx.lineWidth = 1.5*dpr;
-    ctx.stroke();
+    const pts = rows.map((r,i) => { const t=r.dl+r.al+r.ll+r.ol+r.nl||1; return [pad.l+(i/(n-1||1))*cW, pad.t+cH*(1-r[cat.lk]/t)]; });
+    ctx.beginPath(); pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+    ctx.strokeStyle=cat.col; ctx.lineWidth=1.5*dpr; ctx.stroke();
   });
-
-  // Y labels
-  [0, 0.1, 0.2, 0.3, 0.4].forEach(f => {
-    const y = pad.t + cH*(1-f);
-    ctx.strokeStyle='rgba(255,255,255,.06)';
-    ctx.lineWidth=dpr;
+  [0,0.1,0.2,0.3,0.4].forEach(f => {
+    const y=pad.t+cH*(1-f);
+    ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=dpr;
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.25)';
-    ctx.font=`${7.5*dpr}px monospace`;
-    ctx.textAlign='right';
+    ctx.fillStyle='rgba(255,255,255,.25)'; ctx.font=`${7.5*dpr}px monospace`; ctx.textAlign='right';
     ctx.fillText((f*100).toFixed(0)+'%', pad.l-3*dpr, y+3*dpr);
   });
-  // X labels
-  const rowsPB = rows; const nPB = rowsPB.length; const bwPB = cW/nPB;
-  const stepPB = nPB <= 13 ? 1 : nPB <= 26 ? 2 : nPB <= 52 ? 4 : 8;
+  const step=n<=13?1:n<=26?2:n<=52?4:8;
   ctx.fillStyle='rgba(255,255,255,.35)'; ctx.font=`${7.5*dpr}px monospace`; ctx.textAlign='center';
-  rowsPB.forEach((r,i) => {
-    if(i % stepPB === 0 || i === nPB-1) {
-      ctx.fillText(r.date.slice(5), pad.l+(i/(nPB-1||1))*cW, H-3*dpr);
-    }
-  });
+  rows.forEach((r,i)=>{ if(i%step===0||i===n-1) ctx.fillText(r.date.slice(5), pad.l+(i/(n-1||1))*cW, H-3*dpr); });
 }
 
 function drawCOTNetChart() {
@@ -7383,67 +7355,39 @@ function drawCOTNetChart() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
-
   const rows = _cotData.map(_cotRow);
   const n = rows.length;
   const pad = { t:10*dpr, b:30*dpr, l:55*dpr, r:10*dpr };
-  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
-  const midY = pad.t + cH/2;
-
+  const cW = W-pad.l-pad.r, cH = H-pad.t-pad.b;
+  const midY = pad.t+cH/2;
   const nets = {
-    dealer: rows.map(r => r.dl - r.ds),
-    asset:  rows.map(r => r.al - r.as_),
-    lev:    rows.map(r => r.ll - r.ls),
-    other:  rows.map(r => r.ol - r.os),
-    nonrpt: rows.map(r => r.nl - r.ns),
+    dealer:rows.map(r=>r.dl-r.ds), asset:rows.map(r=>r.al-r.as_),
+    lev:rows.map(r=>r.ll-r.ls), other:rows.map(r=>r.ol-r.os), nonrpt:rows.map(r=>r.nl-r.ns),
   };
-  const allNets = Object.values(nets).flat();
-  const maxAbs = Math.max(...allNets.map(Math.abs), 1);
-  const scaleY = v => midY - (v / maxAbs) * (cH / 2);
-
-  // Zero line
-  ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = dpr;
-  ctx.beginPath(); ctx.moveTo(pad.l, midY); ctx.lineTo(W-pad.r, midY); ctx.stroke();
-
-  // Grid
-  [0.25, 0.5, 0.75, 1].forEach(f => {
-    [-1,1].forEach(sign => {
-      const y = midY + sign * f * cH/2;
-      ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = dpr;
-      ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,.25)';
-      ctx.font = `${7.5*dpr}px monospace`;
-      ctx.textAlign = 'right';
-      const label = (sign * f * maxAbs / 1000).toFixed(0) + 'k';
-      ctx.fillText(label, pad.l-3*dpr, y+3*dpr);
-    });
-  });
-
-  // Draw each category
-  Object.entries(nets).forEach(([cat, vals]) => {
-    const col = COT_COLORS[cat].net;
+  const maxAbs = Math.max(...Object.values(nets).flat().map(Math.abs), 1);
+  const sy = v => midY-(v/maxAbs)*(cH/2);
+  ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=dpr;
+  ctx.beginPath();ctx.moveTo(pad.l,midY);ctx.lineTo(W-pad.r,midY);ctx.stroke();
+  [0.25,0.5,0.75,1].forEach(f=>[-1,1].forEach(s=>{
+    const y=midY+s*f*cH/2;
+    ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=dpr;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.25)'; ctx.font=`${7.5*dpr}px monospace`; ctx.textAlign='right';
+    ctx.fillText((s*f*maxAbs/1000).toFixed(0)+'k', pad.l-3*dpr, y+3*dpr);
+  }));
+  Object.entries(nets).forEach(([cat,vals])=>{
     ctx.beginPath();
-    vals.forEach((v, i) => {
-      const x = pad.l + (i/(n-1))*cW;
-      const y = scaleY(v);
-      i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-    });
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 1.8*dpr;
-    ctx.stroke();
+    vals.forEach((v,i)=>{ const x=pad.l+(i/(n-1||1))*cW, y=sy(v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.strokeStyle=COT_COLORS[cat].net; ctx.lineWidth=1.8*dpr; ctx.stroke();
   });
-
-  // X labels
-  ctx.fillStyle = 'rgba(255,255,255,.45)';
-  ctx.font = `${8.5*dpr}px monospace`;
-  ctx.textAlign = 'center';
-  const stepN = n <= 13 ? 1 : n <= 26 ? 2 : n <= 52 ? 4 : 8;
-  rows.forEach((r, i) => {
-    if (i % stepN === 0 || i === n-1) {
-      const x = pad.l + (i/(n-1||1))*cW;
+  const step=n<=13?1:n<=26?2:n<=52?4:8;
+  ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font=`${8.5*dpr}px monospace`; ctx.textAlign='center';
+  rows.forEach((r,i)=>{
+    if(i%step===0||i===n-1){
+      const x=pad.l+(i/(n-1||1))*cW;
       ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=dpr;
-      ctx.beginPath(); ctx.moveTo(x, pad.t+cH); ctx.lineTo(x, pad.t+cH+4*dpr); ctx.stroke();
-      ctx.fillText(r.date.slice(5), x, H - 4*dpr);
+      ctx.beginPath();ctx.moveTo(x,pad.t+cH);ctx.lineTo(x,pad.t+cH+4*dpr);ctx.stroke();
+      ctx.fillText(r.date.slice(5),x,H-4*dpr);
     }
   });
 }
@@ -7456,55 +7400,34 @@ function drawCOTPctChart() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
-
   const rows = _cotData.map(_cotRow);
   const n = rows.length;
   const pad = { t:10*dpr, b:30*dpr, l:38*dpr, r:10*dpr };
-  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
-
+  const cW = W-pad.l-pad.r, cH = H-pad.t-pad.b;
   const cats = [
-    {lk:'dl', sk:'ds', col:COT_COLORS.dealer.l, label:'Dealer'},
-    {lk:'al', sk:'as_', col:COT_COLORS.asset.l, label:'Asset Mgr'},
-    {lk:'ll', sk:'ls', col:COT_COLORS.lev.l, label:'Leveraged'},
-    {lk:'ol', sk:'os', col:COT_COLORS.other.l, label:'Other'},
-    {lk:'nl', sk:'ns', col:COT_COLORS.nonrpt.l, label:'NonRpt'},
+    {lk:'dl',col:COT_COLORS.dealer.l},{lk:'al',col:COT_COLORS.asset.l},
+    {lk:'ll',col:COT_COLORS.lev.l},{lk:'ol',col:COT_COLORS.other.l},{lk:'nl',col:COT_COLORS.nonrpt.l},
   ];
-
-  // Grid
-  [0, 0.1, 0.2, 0.3, 0.4, 0.5].forEach(f => {
-    const y = pad.t + cH*(1-f);
+  [0,0.1,0.2,0.3,0.4,0.5].forEach(f=>{
+    const y=pad.t+cH*(1-f);
     ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=dpr;
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.25)';
-    ctx.font=`${8*dpr}px monospace`;
-    ctx.textAlign='right';
+    ctx.fillStyle='rgba(255,255,255,.25)'; ctx.font=`${8*dpr}px monospace`; ctx.textAlign='right';
     ctx.fillText((f*100).toFixed(0)+'%', pad.l-3*dpr, y+3*dpr);
   });
-
-  cats.forEach(cat => {
-    const pts = rows.map((r,i) => {
-      const total = r.dl+r.al+r.ll+r.ol+r.nl || 1;
-      const pct = r[cat.lk] / total;
-      return [pad.l + (i/(n-1))*cW, pad.t + cH*(1-pct)];
-    });
-    ctx.beginPath();
-    pts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
-    ctx.strokeStyle = cat.col;
-    ctx.lineWidth = 1.8*dpr;
-    ctx.stroke();
+  cats.forEach(cat=>{
+    const pts=rows.map((r,i)=>{ const t=r.dl+r.al+r.ll+r.ol+r.nl||1; return [pad.l+(i/(n-1||1))*cW, pad.t+cH*(1-r[cat.lk]/t)]; });
+    ctx.beginPath();pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+    ctx.strokeStyle=cat.col; ctx.lineWidth=1.8*dpr; ctx.stroke();
   });
-
-  // X labels
-  ctx.fillStyle='rgba(255,255,255,.45)';
-  ctx.font=`${8.5*dpr}px monospace`;
-  ctx.textAlign='center';
-  const stepP = n <= 13 ? 1 : n <= 26 ? 2 : n <= 52 ? 4 : 8;
-  rows.forEach((r,i) => {
-    if(i % stepP === 0 || i === n-1) {
-      const x = pad.l+(i/(n-1||1))*cW;
+  const step=n<=13?1:n<=26?2:n<=52?4:8;
+  ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font=`${8.5*dpr}px monospace`; ctx.textAlign='center';
+  rows.forEach((r,i)=>{
+    if(i%step===0||i===n-1){
+      const x=pad.l+(i/(n-1||1))*cW;
       ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=dpr;
-      ctx.beginPath(); ctx.moveTo(x, pad.t+cH); ctx.lineTo(x, pad.t+cH+4*dpr); ctx.stroke();
-      ctx.fillText(r.date.slice(5), x, H - 4*dpr);
+      ctx.beginPath();ctx.moveTo(x,pad.t+cH);ctx.lineTo(x,pad.t+cH+4*dpr);ctx.stroke();
+      ctx.fillText(r.date.slice(5),x,H-4*dpr);
     }
   });
 }
@@ -7514,7 +7437,7 @@ function renderCOTTable() {
   if (!tbody) return;
   const rows = [..._cotData].reverse().map(_cotRow);
   tbody.innerHTML = rows.map(r => {
-    const dn = r.dl - r.ds, an = r.al - r.as_, ln = r.ll - r.ls, on = r.ol - r.os, nn = r.nl - r.ns;
+    const dn=r.dl-r.ds, an=r.al-r.as_, ln=r.ll-r.ls, on=r.ol-r.os, nn=r.nl-r.ns;
     const nc = v => `style="color:${v>0?'var(--green)':v<0?'var(--red)':'var(--lo)'}"`;
     const fmt = v => (v>0?'+':'')+Math.round(v/1000)+'k';
     return `<tr>
@@ -7534,21 +7457,21 @@ function renderCOTSummaryCards() {
   const latest = _cotRow(_cotData[_cotData.length-1]);
   const prev   = _cotData.length > 1 ? _cotRow(_cotData[_cotData.length-2]) : null;
   const cats = [
-    {label:'Dealer',       col:COT_COLORS.dealer.l,  nl: latest.dl-latest.ds,  np: prev ? prev.dl-prev.ds  : null},
-    {label:'Asset Manager',col:COT_COLORS.asset.l,   nl: latest.al-latest.as_, np: prev ? prev.al-prev.as_ : null},
-    {label:'Leveraged',    col:COT_COLORS.lev.l,      nl: latest.ll-latest.ls,  np: prev ? prev.ll-prev.ls  : null},
-    {label:'Other Rept',   col:COT_COLORS.other.l,   nl: latest.ol-latest.os,  np: prev ? prev.ol-prev.os  : null},
-    {label:'Non Rept',     col:COT_COLORS.nonrpt.l,  nl: latest.nl-latest.ns,  np: prev ? prev.nl-prev.ns  : null},
+    {label:'Dealer',       col:COT_COLORS.dealer.l,  nl:latest.dl-latest.ds,  np:prev?prev.dl-prev.ds:null},
+    {label:'Asset Manager',col:COT_COLORS.asset.l,   nl:latest.al-latest.as_, np:prev?prev.al-prev.as_:null},
+    {label:'Leveraged',    col:COT_COLORS.lev.l,      nl:latest.ll-latest.ls,  np:prev?prev.ll-prev.ls:null},
+    {label:'Other Rept',   col:COT_COLORS.other.l,   nl:latest.ol-latest.os,  np:prev?prev.ol-prev.os:null},
+    {label:'Non Rept',     col:COT_COLORS.nonrpt.l,  nl:latest.nl-latest.ns,  np:prev?prev.nl-prev.ns:null},
   ];
   el.innerHTML = cats.map(cat => {
-    const wk = prev ? cat.nl - cat.np : 0;
-    const color = cat.nl > 0 ? 'var(--green)' : cat.nl < 0 ? 'var(--red)' : 'var(--lo)';
-    const wkColor = wk > 0 ? 'var(--green)' : wk < 0 ? 'var(--red)' : 'var(--lo)';
+    const wk = prev ? cat.nl-cat.np : 0;
+    const color = cat.nl>0?'var(--green)':cat.nl<0?'var(--red)':'var(--lo)';
+    const wkColor = wk>0?'var(--green)':wk<0?'var(--red)':'var(--lo)';
     const fmt = v => (v>0?'+':'')+Math.round(v/1000)+'k';
     return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px">
       <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:4px">${cat.label}</div>
       <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:${color}">${fmt(cat.nl)}</div>
-      <div style="font-family:var(--mono);font-size:9px;color:${wkColor};margin-top:2px">${prev ? 'WoW '+fmt(wk) : '—'}</div>
+      <div style="font-family:var(--mono);font-size:9px;color:${wkColor};margin-top:2px">${prev?'WoW '+fmt(wk):'—'}</div>
     </div>`;
   }).join('');
 }
@@ -7556,7 +7479,6 @@ function renderCOTSummaryCards() {
 function renderSetup() {
   buildCFList();
   updateSetup();
-  // Always call switchSetupTab to ensure correct tab display and canvas render
   switchSetupTab(_setupTab, document.querySelector('#setup-subtabs .jtab.active') || document.querySelector('#setup-subtabs .jtab'));
 }
 
@@ -7572,14 +7494,11 @@ function renderSetup() {
       </div>
       <button onclick="closeClEx()" style="background:none;border:none;font-size:18px;color:var(--lo);cursor:pointer;padding:0 4px">✕</button>
     </div>
-    <!-- Image area -->
     <div id="clExImgWrap" style="display:none;margin-bottom:16px">
       <img id="clExImg" src="" alt="範例圖" style="width:100%;border-radius:var(--r);border:1px solid var(--border);cursor:pointer" onclick="window.open(this.src,'_blank')" title="點擊開新分頁">
       <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px;text-align:right">點擊圖片開新分頁 ↗</div>
     </div>
-    <!-- Text notes -->
     <div id="clExNotes" style="font-family:var(--sans);font-size:12px;color:var(--mid);line-height:1.8;white-space:pre-wrap"></div>
-    <!-- Edit area (edit mode only) -->
     <div id="clExEditArea" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
       <div style="font-family:var(--cond);font-size:10px;font-weight:800;color:var(--lo);text-transform:uppercase;margin-bottom:8px">編輯範例內容</div>
       <span class="fl">TradingView 圖表 URL</span>
