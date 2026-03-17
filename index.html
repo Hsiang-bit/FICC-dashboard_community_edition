@@ -5475,11 +5475,10 @@ async function loadNews(force=false){
 }
 
 function parseFFJson(json){
-  // FF JSON format: [{title, country, date, time, impact, forecast, previous, actual}, ...]
-  // All times are in New York time (ET) — display as NY time regardless of user timezone
-  const NY = 'America/New_York';
-  const fmtDate = dt => new Intl.DateTimeFormat('sv-SE',{timeZone:NY,year:'numeric',month:'2-digit',day:'2-digit'}).format(dt); // → "YYYY-MM-DD"
-  const fmtTime = dt => new Intl.DateTimeFormat('en-US',{timeZone:NY,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt).replace('24:','00:');
+  // Display all times in Taiwan time (UTC+8)
+  const TW = 'Asia/Taipei';
+  const fmtDate = dt => new Intl.DateTimeFormat('sv-SE',{timeZone:TW,year:'numeric',month:'2-digit',day:'2-digit'}).format(dt);
+  const fmtTime = dt => new Intl.DateTimeFormat('en-US',{timeZone:TW,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt).replace('24:','00:');
 
   return json.map(ev=>{
     const imp=(ev.impact||'').toLowerCase();
@@ -5488,19 +5487,17 @@ function parseFFJson(json){
     let timeStr='All Day';
 
     if(dateStr.includes('T')){
-      // ISO datetime — may have offset (-0500) or be bare UTC (no Z)
-      // Append Z if no timezone info to force UTC interpretation
+      // ISO with offset (e.g. "2026-03-19T14:00:00-0400") or bare → force UTC if no offset
       const isoStr = dateStr.match(/[Zz]$|[+\-]\d{2}:?\d{2}$/) ? dateStr : dateStr+'Z';
       const dt = new Date(isoStr);
       dateStr = fmtDate(dt);
-      timeStr = fmtTime(dt);
+      timeStr = fmtTime(dt) + ' (台灣)';
     } else if(dateStr.match(/^\d{2}-\d{2}-\d{4}$/)){
       const[m,d,y]=dateStr.split('-');
       dateStr=`${y}-${m}-${d}`;
     }
 
-    // Legacy separate time field: FF gives UTC times (e.g. "6:00pm" = 18:00 UTC for FOMC at 2pm ET)
-    // Must convert UTC → NY time
+    // Legacy time field: FF sends UTC (e.g. "6:00pm" UTC = 2pm ET = next day 02:00 TW)
     if(ev.time && ev.time!=='' && timeStr==='All Day'){
       const tm=(ev.time||'').match(/^(\d+):(\d+)(am|pm)$/i);
       if(tm){
@@ -5508,19 +5505,15 @@ function parseFFJson(json){
         const min=tm[2], ampm=tm[3].toLowerCase();
         if(ampm==='pm'&&h!==12)h+=12;
         if(ampm==='am'&&h===12)h=0;
-        // Build a UTC Date for today with this time, then display in NY tz
         const utcDt = new Date(`${dateStr}T${String(h).padStart(2,'0')}:${min}:00Z`);
-        dateStr = fmtDate(utcDt); // re-derive date in NY tz (handles midnight crossing)
-        timeStr = fmtTime(utcDt) + ' ET';
+        dateStr = fmtDate(utcDt);
+        timeStr = fmtTime(utcDt) + ' (台灣)';
       }
-    } else if(timeStr!=='All Day'){
-      timeStr=timeStr+' ET';
     }
 
     return{
       date:dateStr,
       time:timeStr,
-      rawTime:ev.time||ev.date||'', // keep for debug
       currency:ev.country||'',
       title:ev.title||'',
       impact:impLevel,
@@ -5548,7 +5541,8 @@ function parseFFXML(xml){
       const previous=item.querySelector('previous')?.textContent||'';
       const imp=impact.includes('high')?'high':impact.includes('medium')||impact.includes('moderate')?'med':'low';
       // FF XML times are already ET
-      const et_time = time && time !== 'All Day' ? time + ' ET' : time;
+      // XML times are UTC strings; convert via Date
+const et_time = time && time !== 'All Day' ? time : time;
       events.push({date,time:et_time,currency:country,title,impact:imp,actual,forecast,previous});
     });
   }catch(e){}
@@ -5560,7 +5554,7 @@ function loadMockEvents(){
   const p=n=>String(n).padStart(2,'0');
   const d=(off)=>{const dt=new Date(now);dt.setDate(dt.getDate()+off);return dt.getFullYear()+'-'+p(dt.getMonth()+1)+'-'+p(dt.getDate());};
   allEvents=[
-    {date:d(0),time:'08:30 ET',currency:'USD',title:'Initial Jobless Claims',impact:'med',actual:'',forecast:'215K',previous:'218K'},
+    {date:d(0),time:'08:30',currency:'USD',title:'Initial Jobless Claims',impact:'med',actual:'',forecast:'215K',previous:'218K'},
     {date:d(0),time:'10:00',currency:'USD',title:'ISM Services PMI',impact:'high',actual:'',forecast:'53.0',previous:'52.8'},
     {date:d(1),time:'08:30',currency:'USD',title:'Non-Farm Employment Change',impact:'high',actual:'',forecast:'185K',previous:'200K'},
     {date:d(1),time:'08:30',currency:'USD',title:'Unemployment Rate',impact:'high',actual:'',forecast:'4.1%',previous:'4.1%'},
