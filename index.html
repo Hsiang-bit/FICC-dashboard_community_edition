@@ -5488,9 +5488,10 @@ function parseFFJson(json){
     let timeStr='All Day';
 
     if(dateStr.includes('T')){
-      // ISO datetime with offset e.g. "2026-01-27T13:30:00-0500"
-      // Parse the exact UTC moment, then display in NY time
-      const dt = new Date(dateStr);
+      // ISO datetime — may have offset (-0500) or be bare UTC (no Z)
+      // Append Z if no timezone info to force UTC interpretation
+      const isoStr = dateStr.match(/[Zz]$|[+\-]\d{2}:?\d{2}$/) ? dateStr : dateStr+'Z';
+      const dt = new Date(isoStr);
       dateStr = fmtDate(dt);
       timeStr = fmtTime(dt);
     } else if(dateStr.match(/^\d{2}-\d{2}-\d{4}$/)){
@@ -5498,7 +5499,8 @@ function parseFFJson(json){
       dateStr=`${y}-${m}-${d}`;
     }
 
-    // Legacy separate time field: "8:30am" → already NY time per FF convention → keep as-is
+    // Legacy separate time field: FF gives UTC times (e.g. "6:00pm" = 18:00 UTC for FOMC at 2pm ET)
+    // Must convert UTC → NY time
     if(ev.time && ev.time!=='' && timeStr==='All Day'){
       const tm=(ev.time||'').match(/^(\d+):(\d+)(am|pm)$/i);
       if(tm){
@@ -5506,7 +5508,10 @@ function parseFFJson(json){
         const min=tm[2], ampm=tm[3].toLowerCase();
         if(ampm==='pm'&&h!==12)h+=12;
         if(ampm==='am'&&h===12)h=0;
-        timeStr=String(h).padStart(2,'0')+':'+min+' ET';
+        // Build a UTC Date for today with this time, then display in NY tz
+        const utcDt = new Date(`${dateStr}T${String(h).padStart(2,'0')}:${min}:00Z`);
+        dateStr = fmtDate(utcDt); // re-derive date in NY tz (handles midnight crossing)
+        timeStr = fmtTime(utcDt) + ' ET';
       }
     } else if(timeStr!=='All Day'){
       timeStr=timeStr+' ET';
@@ -5515,6 +5520,7 @@ function parseFFJson(json){
     return{
       date:dateStr,
       time:timeStr,
+      rawTime:ev.time||ev.date||'', // keep for debug
       currency:ev.country||'',
       title:ev.title||'',
       impact:impLevel,
@@ -5608,7 +5614,7 @@ function renderNews(){
       const impColor=e.impact==='high'?'#ff4757':e.impact==='med'?'#f5a623':'#00d67e';
       const actualColor=e.actual?(parseFloat(e.actual)>parseFloat(e.forecast||0)?'var(--green)':'var(--red)'):'var(--lo)';
       return`<div class="news-event">
-        <span class="news-time">${e.time||'All Day'}</span>
+        <span class="news-time" title="raw: ${e.rawTime||''}">&#x1F551; ${e.time||'All Day'}</span>
         <div class="news-impact ${e.impact}" title="${e.impact} impact"></div>
         <div class="news-body">
           <div class="news-title">${e.title}</div>
