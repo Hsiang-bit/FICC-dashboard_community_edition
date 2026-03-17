@@ -5476,22 +5476,29 @@ async function loadNews(force=false){
 
 function parseFFJson(json){
   // FF JSON format: [{title, country, date, time, impact, forecast, previous, actual}, ...]
+  // All times are in New York time (ET) — display as NY time regardless of user timezone
+  const NY = 'America/New_York';
+  const fmtDate = dt => new Intl.DateTimeFormat('sv-SE',{timeZone:NY,year:'numeric',month:'2-digit',day:'2-digit'}).format(dt); // → "YYYY-MM-DD"
+  const fmtTime = dt => new Intl.DateTimeFormat('en-US',{timeZone:NY,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt).replace('24:','00:');
+
   return json.map(ev=>{
     const imp=(ev.impact||'').toLowerCase();
     const impLevel=imp==='high'?'high':imp==='medium'||imp==='moderate'?'med':'low';
-    // date: "01-27-2026" (MM-DD-YYYY), "2026-01-27", or ISO "2026-01-27T13:30:00-0500"
     let dateStr=ev.date||'';
     let timeStr='All Day';
+
     if(dateStr.includes('T')){
-      // ISO datetime — extract both date and time
-      const dtLocal = new Date(dateStr);
-      dateStr = dtLocal.getFullYear()+'-'+String(dtLocal.getMonth()+1).padStart(2,'0')+'-'+String(dtLocal.getDate()).padStart(2,'0');
-      timeStr = String(dtLocal.getHours()).padStart(2,'0')+':'+String(dtLocal.getMinutes()).padStart(2,'0');
+      // ISO datetime with offset e.g. "2026-01-27T13:30:00-0500"
+      // Parse the exact UTC moment, then display in NY time
+      const dt = new Date(dateStr);
+      dateStr = fmtDate(dt);
+      timeStr = fmtTime(dt);
     } else if(dateStr.match(/^\d{2}-\d{2}-\d{4}$/)){
       const[m,d,y]=dateStr.split('-');
       dateStr=`${y}-${m}-${d}`;
     }
-    // If separate time field exists (legacy format): "8:30am" → "08:30"
+
+    // Legacy separate time field: "8:30am" → already NY time per FF convention → keep as-is
     if(ev.time && ev.time!=='' && timeStr==='All Day'){
       const tm=(ev.time||'').match(/^(\d+):(\d+)(am|pm)$/i);
       if(tm){
@@ -5499,9 +5506,12 @@ function parseFFJson(json){
         const min=tm[2], ampm=tm[3].toLowerCase();
         if(ampm==='pm'&&h!==12)h+=12;
         if(ampm==='am'&&h===12)h=0;
-        timeStr=String(h).padStart(2,'0')+':'+min;
+        timeStr=String(h).padStart(2,'0')+':'+min+' ET';
       }
+    } else if(timeStr!=='All Day'){
+      timeStr=timeStr+' ET';
     }
+
     return{
       date:dateStr,
       time:timeStr,
@@ -5531,7 +5541,9 @@ function parseFFXML(xml){
       const forecast=item.querySelector('forecast')?.textContent||'';
       const previous=item.querySelector('previous')?.textContent||'';
       const imp=impact.includes('high')?'high':impact.includes('medium')||impact.includes('moderate')?'med':'low';
-      events.push({date,time,currency:country,title,impact:imp,actual,forecast,previous});
+      // FF XML times are already ET
+      const et_time = time && time !== 'All Day' ? time + ' ET' : time;
+      events.push({date,time:et_time,currency:country,title,impact:imp,actual,forecast,previous});
     });
   }catch(e){}
   return events;
@@ -5542,7 +5554,7 @@ function loadMockEvents(){
   const p=n=>String(n).padStart(2,'0');
   const d=(off)=>{const dt=new Date(now);dt.setDate(dt.getDate()+off);return dt.getFullYear()+'-'+p(dt.getMonth()+1)+'-'+p(dt.getDate());};
   allEvents=[
-    {date:d(0),time:'08:30',currency:'USD',title:'Initial Jobless Claims',impact:'med',actual:'',forecast:'215K',previous:'218K'},
+    {date:d(0),time:'08:30 ET',currency:'USD',title:'Initial Jobless Claims',impact:'med',actual:'',forecast:'215K',previous:'218K'},
     {date:d(0),time:'10:00',currency:'USD',title:'ISM Services PMI',impact:'high',actual:'',forecast:'53.0',previous:'52.8'},
     {date:d(1),time:'08:30',currency:'USD',title:'Non-Farm Employment Change',impact:'high',actual:'',forecast:'185K',previous:'200K'},
     {date:d(1),time:'08:30',currency:'USD',title:'Unemployment Rate',impact:'high',actual:'',forecast:'4.1%',previous:'4.1%'},
