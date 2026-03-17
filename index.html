@@ -5238,9 +5238,9 @@ function buildContext(){
     const notes=j.notes||{};
     const sigs=j.signals||{};
     const macro=j.macro||{};
-    return`[${d}] Checklist:${j.score||0}/${j.total||0} | Regime:${macro.regime||'—'} | DXY:${macro.dxy||'—'} | Signals: Bond ${sigs.bond} FX ${sigs.fx} Gold ${sigs.gold} Oil ${sigs.oil} BTC ${sigs.btc}\nNotes: ${(notes.pre||'').slice(0,200)}\nIdeas: ${(notes.ideas||'').slice(0,200)}\nEOD: ${(notes.eod||'').slice(0,200)}`;
+    return`[${d}] Checklist:${j.score||0}/${j.total||0} | Regime:${macro.regime||'—'} | DXY:${macro.dxy||'—'} | Signals: Bond ${sigs.bond} FX ${sigs.fx} Gold ${sigs.gold} Oil ${sigs.oil} BTC ${sigs.btc}\nNotes: ${(notes.pre||'').slice(0,500)}\nIdeas: ${(notes.ideas||'').slice(0,500)}\nEOD: ${(notes.eod||'').slice(0,500)}`;
   }).join('\n\n');
-  const tradeText=trades.map(t=>`[${t.date}] ${t.asset} ${t.dir} | Entry:${t.entry} Exit:${t.exit||'open'} | Risk:${t.risk}% R:${t.r}x | PnL:${t.pnl!=null?t.pnl.toFixed(2)+'R':'open'} | Status:${t.status} | Reason: ${(t.reason||'').slice(0,100)}`).join('\n');
+  const tradeText=trades.map(t=>`[${t.date}] ${t.asset} ${t.dir} | Entry:${t.entry} Exit:${t.exit||'open'} | Risk:${t.risk}% R:${t.r}x | PnL:${t.pnl!=null?t.pnl.toFixed(2)+'R':'open'} | Grade:${t.grade||'—'} | Session:${t.session||'—'} | Status:${t.status} | Reason: ${(t.reason||'')} | Confluence: ${(t.confluenceNote||t.notes||'')}`).join('\n');
   return{journalText,tradeText};
 }
 const QUICK_PROMPTS={
