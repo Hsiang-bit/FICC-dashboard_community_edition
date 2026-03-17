@@ -1134,7 +1134,7 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
   <div class="sec"><div class="acc" style="background:var(--blue)"></div><h2>Economic Calendar</h2><div class="sbadge">ForexFactory</div>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
       <span id="newsStatus" style="font-family:var(--mono);font-size:9px;color:var(--lo)"></span>
-      <button class="btn btn-a btn-sm" onclick="loadNews(true)">↺ 重新載入</button>
+      <button class="btn btn-a btn-sm" onclick="newsLoaded=false;loadNews(true)">↺ 重新載入</button>
       <a href="https://www.forexfactory.com/calendar" target="_blank" class="btn btn-g btn-sm" style="text-decoration:none">↗ 開啟原網站</a>
     </div>
   </div>
@@ -5413,16 +5413,23 @@ async function loadNews(force=false){
   status.textContent='載入中...';
 
   // ── Try 1: FF JSON feed (most reliable, real data) ──
-  const FF_JSON='https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+  const ts = Date.now(); // cache bust
+  const FF_JSON='https://nfs.faireconomy.media/ff_calendar_thisweek.json?t='+ts;
+  const FF_JSON2='https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.json?t='+ts;
   const PROXIES=[
-    u=>u,                                              // direct
-    u=>'https://corsproxy.io/?'+encodeURIComponent(u), // corsproxy
-    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u), // allorigins
+    u=>u,                                                                  // direct
+    u=>'https://corsproxy.io/?url='+encodeURIComponent(u),                // corsproxy v2
+    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),       // allorigins
+    u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u),  // codetabs
+    u=>'https://thingproxy.freeboard.io/fetch/'+u,                        // thingproxy
   ];
+  // Also try cdn subdomain
+  const FF_URLS = [FF_JSON, FF_JSON2];
 
-  for(const proxy of PROXIES){
+  for(const ffUrl of FF_URLS){
+   for(const proxy of PROXIES){
     try{
-      const url=proxy(FF_JSON);
+      const url=proxy(ffUrl);
       const r=await fetch(url,{signal:AbortSignal.timeout(7000)});
       if(!r.ok)continue;
       const raw=await r.text();
@@ -5434,10 +5441,13 @@ async function loadNews(force=false){
 
       allEvents=parseFFJson(json);
       newsLoaded=true;
-      status.textContent='✓ '+allEvents.length+' 個事件（本週）';
+      const now_ts=new Date();
+      const hhmm=String(now_ts.getHours()).padStart(2,'0')+':'+String(now_ts.getMinutes()).padStart(2,'0');
+      status.textContent='✓ '+allEvents.length+' 個事件 · 更新 '+hhmm;
       renderNews();
       return;
     }catch(e){continue;}
+   }
   }
 
   // ── Try 2: FF XML feed ──
