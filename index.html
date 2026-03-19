@@ -2519,7 +2519,8 @@ async function sbPush(silent=false){
   }
   if(!silent) sbSetStatus('☁️ 上傳中...','var(--lo)');
   const snapshot=sbBuildSnapshot();
-  const {ok,status,err}=await sbFetch('POST','ficc_v3',snapshot);
+  const pushKey='ficc_v3_'+(currentUser?.id||settings.userId||'anon');
+  const {ok,status,err}=await sbFetch('POST',pushKey,snapshot);
   if(!ok){
     const msg=err||'HTTP '+status;
     if(!silent) toast('⚠ Supabase 上傳失敗：'+msg,'e');
