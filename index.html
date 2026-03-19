@@ -2464,9 +2464,18 @@ function sbStripCharts(tradeArr){
 
 async function sbFetch(method, key, value){
   const base=sbUrl()+'/rest/v1/ficc_sync';
+  // Use user JWT when logged in (required for RLS), fallback to anon key
+  let authToken = sbKey();
+  try {
+    const sb = sbClient();
+    if (sb) {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session?.access_token) authToken = session.access_token;
+    }
+  } catch(e) {}
   const headers={
     'apikey':sbKey(),
-    'Authorization':'Bearer '+sbKey(),
+    'Authorization':'Bearer '+authToken,
     'Content-Type':'application/json',
     'Prefer': method==='POST'?'resolution=merge-duplicates':'',
   };
