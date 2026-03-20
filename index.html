@@ -35,6 +35,23 @@ body{background:var(--paper3);color:var(--mid);font-family:var(--sans);font-size
 
 /* ── TOPBAR ── */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;background:var(--paper);border-bottom:var(--rule);position:sticky;top:0;z-index:300}
+
+/* ── NEWS TICKER ── */
+.tb-ticker{flex:1;overflow:hidden;min-width:0;height:100%;display:flex;align-items:center;mask-image:linear-gradient(to right,transparent,#000 40px,#000 calc(100% - 40px),transparent)}
+.tb-ticker-track{display:flex;gap:0;white-space:nowrap;animation:tickerScroll 60s linear infinite;will-change:transform}
+.tb-ticker-track:hover{animation-play-state:paused}
+@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.tb-news-item{display:inline-flex;align-items:center;gap:6px;padding:0 20px;font-family:var(--mono);font-size:10px;color:var(--mid);border-right:1px solid var(--border);cursor:pointer;transition:color .15s;white-space:nowrap}
+.tb-news-item:hover{color:var(--hi)}
+.tb-news-item .tb-ni-impact{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.tb-news-item .tb-ni-impact.high{background:var(--red)}
+.tb-news-item .tb-ni-impact.med{background:var(--amber)}
+.tb-news-item .tb-ni-impact.low{background:var(--green)}
+.tb-news-item .tb-ni-time{color:var(--lo);font-size:9px}
+.tb-news-item .tb-ni-cur{color:var(--blue);font-weight:700;font-size:9px}
+.tb-news-item .tb-ni-title{color:var(--hi)}
+.tb-news-item .tb-ni-actual{color:var(--green);font-size:9px}
+.tb-ticker-loading{font-family:var(--mono);font-size:10px;color:var(--lo);padding:0 16px}
 .logo{font-family:Georgia,serif;font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
 .logo sub{font-family:var(--mono);color:var(--lo);font-size:9px;vertical-align:middle;margin-left:6px;letter-spacing:.08em;font-weight:400}
 .tb-center{display:flex;gap:18px;font-family:var(--mono);font-size:9px;color:var(--lo)}
@@ -411,13 +428,11 @@ select option{background:var(--paper2)}
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:14px">
     <div class="logo">FICC PRO<sub>v4</sub></div>
-    <div style="width:1px;height:18px;background:var(--border2)"></div>
-    <div class="tb-center">
-      <div class="tk"><span class="tk-v">ZB1!</span><span class="tk-v">117'24</span><span class="tk-u">+0.24%</span></div>
-      <div class="tk"><span class="tk-v">6E1!</span><span class="tk-v">1.1810</span><span class="tk-d">-0.12%</span></div>
-      <div class="tk"><span class="tk-v">GC1!</span><span class="tk-v">2,936</span><span class="tk-u">+0.51%</span></div>
-      <div class="tk"><span class="tk-v">CL1!</span><span class="tk-v">70.28</span><span class="tk-d">-0.43%</span></div>
-      <div class="tk"><span class="tk-v">BTC</span><span class="tk-v">94,210</span><span class="tk-u">+1.82%</span></div>
+    <div style="width:1px;height:18px;background:var(--border2);flex-shrink:0"></div>
+    <div class="tb-ticker" id="tb-ticker-wrap">
+      <div class="tb-ticker-track" id="tb-ticker-track">
+        <span class="tb-ticker-loading">⏳ 載入新聞中...</span>
+      </div>
     </div>
   </div>
   <div class="tb-right">
@@ -2372,6 +2387,7 @@ let currentTradeId=null;
 
 function load(){
   setTimeout(updateKpiStrip, 300);
+  setTimeout(loadTickerNews, 1500);
   try{trades=JSON.parse(localStorage.getItem('ficc_trades')||'[]');}catch(e){trades=[];}
   try{journals=JSON.parse(localStorage.getItem('ficc_journals')||'{}');}catch(e){journals={};}
   try{settings=JSON.parse(localStorage.getItem('ficc_settings')||'{}');}catch(e){settings={};}
@@ -5473,6 +5489,7 @@ async function loadNews(force=false){
       allEvents=parsed;
       newsLoaded=true;
       status.textContent='✓ XML '+allEvents.length+' 個事件';
+      renderNewsTicker();
       renderNews();
       return;
     }catch(e){continue;}
@@ -5578,6 +5595,7 @@ function loadMockEvents(){
   ];
   newsLoaded=true;
   document.getElementById('newsStatus').textContent='⚠ 範例數據';
+  renderNewsTicker();
   renderNews();
 }
 
@@ -7193,6 +7211,201 @@ function updateKpiStrip() {
     });
   }, 100);
 }
+
+
+// ════════════════════════════════════
+// NEWS TICKER — Multi-source financial headlines
+// ════════════════════════════════════
+let _tickerNews = [];   // [{title, source, url, time}]
+let _tickerLoaded = false;
+
+async function loadTickerNews(force=false) {
+  if (_tickerLoaded && !force) { renderNewsTicker(); return; }
+  const track = document.getElementById('tb-ticker-track');
+  if (track) track.innerHTML = '<span class="tb-ticker-loading">⏳ 載入財經新聞...</span>';
+
+  // Try sources in order of priority
+  const finnhubKey = settings?.finnhubKey || '';
+  const avKey      = settings?.alphaVantageKey || '';
+
+  let items = [];
+
+  // ── Source 1: Finnhub (if key set) ──
+  if (finnhubKey && !items.length) {
+    items = await _fetchFinnhub(finnhubKey);
+  }
+
+  // ── Source 2: Alpha Vantage (if key set) ──
+  if (avKey && !items.length) {
+    items = await _fetchAlphaVantage(avKey);
+  }
+
+  // ── Source 3: RSS via proxy (no key needed) ──
+  if (!items.length) {
+    items = await _fetchRSS();
+  }
+
+  // ── Fallback: use economic calendar events ──
+  if (!items.length && typeof allEvents !== 'undefined' && allEvents.length) {
+    items = allEvents
+      .filter(e => e.date >= new Date().toISOString().slice(0,10))
+      .slice(0, 20)
+      .map(e => ({
+        title: `[${e.currency}] ${e.title}${e.actual ? ' A:'+e.actual : e.forecast ? ' F:'+e.forecast : ''}`,
+        source: 'ForexFactory',
+        url: '',
+        time: e.time || '',
+        impact: e.impact,
+      }));
+  }
+
+  _tickerNews = items;
+  _tickerLoaded = items.length > 0;
+  renderNewsTicker();
+}
+
+async function _fetchFinnhub(key) {
+  try {
+    const cats = ['forex','general','merger'];
+    const all = [];
+    for (const cat of cats) {
+      const r = await fetch(`https://finnhub.io/api/v1/news?category=${cat}&token=${key}`, {signal: AbortSignal.timeout(8000)});
+      if (!r.ok) continue;
+      const d = await r.json();
+      if (!Array.isArray(d) || !d.length) continue;
+      d.slice(0, 8).forEach(item => all.push({
+        title: item.headline || item.summary?.slice(0,80) || '',
+        source: item.source || 'Finnhub',
+        url: item.url || '',
+        time: item.datetime ? new Date(item.datetime*1000).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Taipei'}) : '',
+        impact: 'med',
+      }));
+    }
+    console.log('[Ticker] Finnhub:', all.length, 'items');
+    return all.filter(i => i.title);
+  } catch(e) { console.warn('[Ticker] Finnhub error:', e.message); return []; }
+}
+
+async function _fetchAlphaVantage(key) {
+  try {
+    const tickers = 'FOREX:USD,COMMODITY:ALL,CRYPTO:BTC';
+    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${tickers}&sort=LATEST&limit=20&apikey=${key}`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(10000)});
+    if (!r.ok) return [];
+    const d = await r.json();
+    if (!d.feed || !d.feed.length) return [];
+    const items = d.feed.slice(0, 20).map(item => ({
+      title: item.title || '',
+      source: item.source || 'AlphaVantage',
+      url: item.url || '',
+      time: item.time_published ? item.time_published.slice(9,13).replace(/(\d{2})(\d{2})/, '$1:$2') : '',
+      impact: (item.overall_sentiment_score > 0.25 || item.overall_sentiment_score < -0.25) ? 'high' : 'med',
+    }));
+    console.log('[Ticker] Alpha Vantage:', items.length, 'items');
+    return items.filter(i => i.title);
+  } catch(e) { console.warn('[Ticker] AlphaVantage error:', e.message); return []; }
+}
+
+async function _fetchRSS() {
+  const RSS_FEEDS = [
+    { url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories', name: 'MarketWatch' },
+    { url: 'https://www.forexlive.com/feed/news', name: 'ForexLive' },
+    { url: 'https://feeds.reuters.com/reuters/businessNews', name: 'Reuters' },
+    { url: 'https://www.investing.com/rss/news.rss', name: 'Investing.com' },
+    { url: 'https://finance.yahoo.com/rss/topstories', name: 'Yahoo Finance' },
+  ];
+  const PROXIES = [
+    u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+    u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+    u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+  ];
+
+  const parseRSS = (xml, source) => {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, 'text/xml');
+      const items = [...doc.querySelectorAll('item, entry')];
+      return items.slice(0, 10).map(item => {
+        const title = (item.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[|\]\]>/g,'').trim();
+        const link  = item.querySelector('link')?.textContent || item.querySelector('link')?.getAttribute('href') || '';
+        const pubDate = item.querySelector('pubDate, updated, published')?.textContent || '';
+        let timeStr = '';
+        if (pubDate) {
+          try {
+            timeStr = new Date(pubDate).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Taipei'});
+          } catch(e) {}
+        }
+        return { title, source, url: link, time: timeStr, impact: 'med' };
+      }).filter(i => i.title && i.title.length > 5);
+    } catch(e) { return []; }
+  };
+
+  const all = [];
+  for (const feed of RSS_FEEDS) {
+    if (all.length >= 30) break;
+    for (const proxy of PROXIES) {
+      try {
+        const r = await fetch(proxy(feed.url), {signal: AbortSignal.timeout(7000)});
+        if (!r.ok) continue;
+        const text = await r.text();
+        if (!text.includes('<item') && !text.includes('<entry')) continue;
+        const items = parseRSS(text, feed.name);
+        if (items.length) {
+          all.push(...items);
+          console.log(`[Ticker] ${feed.name}: ${items.length} items`);
+          break;
+        }
+      } catch(e) { continue; }
+    }
+  }
+  return all;
+}
+
+function renderNewsTicker() {
+  const track = document.getElementById('tb-ticker-track');
+  if (!track) return;
+
+  if (!_tickerNews.length) {
+    // Show calendar events as fallback
+    if (typeof allEvents !== 'undefined' && allEvents.length) {
+      const today = new Date().toISOString().slice(0,10);
+      const upcoming = allEvents.filter(e => e.date >= today).slice(0, 15);
+      if (upcoming.length) {
+        const html = upcoming.map(e => {
+          const act = e.actual ? ` <span class="tb-ni-actual">A:${e.actual}</span>` : '';
+          return `<span class="tb-news-item" onclick="showPage('news',null);loadNews()">
+            <span class="tb-ni-impact ${e.impact}"></span>
+            <span class="tb-ni-time">${e.time||'All Day'}</span>
+            <span class="tb-ni-cur">${e.currency}</span>
+            <span class="tb-ni-title">${e.title}</span>${act}
+          </span>`;
+        }).join('');
+        track.innerHTML = html + html;
+        track.style.animationDuration = Math.max(25, upcoming.length * 4) + 's';
+        return;
+      }
+    }
+    track.innerHTML = '<span class="tb-ticker-loading">📰 News tab 載入後顯示財經新聞</span>';
+    return;
+  }
+
+  const html = _tickerNews.map(item => {
+    const timeStr = item.time ? `<span class="tb-ni-time">${item.time}</span>` : '';
+    const srcStr  = `<span class="tb-ni-cur">${item.source}</span>`;
+    const onclick = item.url ? `onclick="window.open('${item.url}','_blank')"` : '';
+    return `<span class="tb-news-item" ${onclick} title="${item.title}">
+      <span class="tb-ni-impact ${item.impact||'med'}"></span>
+      ${timeStr}${srcStr}
+      <span class="tb-ni-title">${item.title.slice(0, 80)}${item.title.length>80?'…':''}</span>
+    </span>`;
+  }).join('');
+
+  // Duplicate for seamless loop
+  track.innerHTML = html + html;
+  const speed = Math.max(40, Math.min(150, _tickerNews.length * 5));
+  track.style.animationDuration = speed + 's';
+}
+
 
 </script>
 
