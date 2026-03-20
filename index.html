@@ -7230,17 +7230,20 @@ async function loadTickerNews(force=false) {
 
   let items = [];
 
-  // ── Source 1: Finnhub (if key set) ──
+  // ── Source 1: 華爾街見聞 (no key, Chinese) ──
+  items = await _fetchWallstreetCN();
+
+  // ── Source 2: Finnhub (if key set, English) ──
   if (finnhubKey && !items.length) {
     items = await _fetchFinnhub(finnhubKey);
   }
 
-  // ── Source 2: Alpha Vantage (if key set) ──
+  // ── Source 3: Alpha Vantage (if key set) ──
   if (avKey && !items.length) {
     items = await _fetchAlphaVantage(avKey);
   }
 
-  // ── Source 3: RSS via proxy (no key needed) ──
+  // ── Source 4: English RSS fallback ──
   if (!items.length) {
     items = await _fetchRSS();
   }
@@ -7304,6 +7307,55 @@ async function _fetchAlphaVantage(key) {
     console.log('[Ticker] Alpha Vantage:', items.length, 'items');
     return items.filter(i => i.title);
   } catch(e) { console.warn('[Ticker] AlphaVantage error:', e.message); return []; }
+}
+
+async function _fetchWallstreetCN() {
+  // 華爾街見聞 live feed API
+  const WSJ_API = 'https://api.wallstreetcn.com/apiv1/content/lives?channel=global-channel&limit=20&cursor=0';
+  const PROXIES = [
+    u => u,  // direct (works if CORS allows)
+    u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+    u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+    u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+  ];
+
+  for (const proxy of PROXIES) {
+    try {
+      const r = await fetch(proxy(WSJ_API), {
+        signal: AbortSignal.timeout(8000),
+        headers: {'Accept': 'application/json'}
+      });
+      if (!r.ok) continue;
+      const text = await r.text();
+      let d;
+      try { d = JSON.parse(text); } catch(e) { continue; }
+
+      // Handle allorigins wrapper
+      if (d.contents) try { d = JSON.parse(d.contents); } catch(e) {}
+
+      const items = d?.data?.items || d?.items || [];
+      if (!items.length) continue;
+
+      const news = items.slice(0, 25).map(item => {
+        // content_text may have HTML tags — strip them
+        const raw = item.content_text || item.title || item.content || '';
+        const title = raw.replace(/<[^>]+>/g, '').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').trim().slice(0, 100);
+        const ts = item.display_time || item.created_at || 0;
+        const time = ts ? new Date(ts * 1000).toLocaleTimeString('zh-TW', {
+          hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei'
+        }) : '';
+        const url = item.uri ? 'https://wallstreetcn.com' + item.uri : '';
+        return { title, source: '華爾街見聞', url, time, impact: 'med' };
+      }).filter(i => i.title.length > 5);
+
+      if (news.length) {
+        console.log('[Ticker] 華爾街見聞:', news.length, 'items');
+        return news;
+      }
+    } catch(e) { continue; }
+  }
+  console.warn('[Ticker] 華爾街見聞 failed — trying RSS fallback');
+  return [];
 }
 
 async function _fetchRSS() {
