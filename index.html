@@ -1327,14 +1327,71 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
       </span><br>
       <details style="margin-top:4px">
         <summary style="cursor:pointer;color:var(--blue);font-size:9px">▶ 展開建表 SQL</summary>
-        <code style="display:block;background:var(--bg);padding:8px;border-radius:3px;margin-top:6px;font-size:9px;white-space:pre;border:1px solid var(--border)">create table ficc_sync (
+        <code style="display:block;background:var(--bg);padding:8px;border-radius:3px;margin-top:6px;font-size:9px;white-space:pre;border:1px solid var(--border)">-- 使用者資料
+create table profiles (
+  id uuid primary key references auth.users,
+  username text, bio text,
+  avatar_color text default '#f59e0b',
+  updated_at timestamptz default now()
+);
+
+-- Trade Ideas
+create table ideas (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users,
+  asset text, direction text, timeframe text,
+  entry text, tp text, sl text,
+  title text, content text,
+  created_at timestamptz default now()
+);
+
+-- 留言
+create table comments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users,
+  idea_id uuid references ideas on delete cascade,
+  content text,
+  created_at timestamptz default now()
+);
+
+-- 月度績效
+create table monthly_stats (
+  user_id uuid references auth.users,
+  year_month text,
+  trades_count int, win_rate float,
+  avg_r float, total_pnl float,
+  updated_at timestamptz default now(),
+  primary key (user_id, year_month)
+);
+
+-- 資料同步（新增 trades/journals 獨立欄位）
+create table ficc_sync (
   key text primary key,
+  trades jsonb,
+  journals jsonb,
   value jsonb,
   updated_at timestamptz default now()
 );
--- Allow public read/write (anon key only)
+-- 已有舊表請執行：
+-- alter table ficc_sync add column if not exists trades jsonb;
+-- alter table ficc_sync add column if not exists journals jsonb;
+
+-- RLS
+alter table profiles enable row level security;
+alter table ideas enable row level security;
+alter table comments enable row level security;
+alter table monthly_stats enable row level security;
 alter table ficc_sync enable row level security;
-create policy "allow all" on ficc_sync for all using (true) with check (true);</code>
+
+create policy "public read" on profiles for select using (true);
+create policy "own write" on profiles for all using (auth.uid()=id);
+create policy "public read" on ideas for select using (true);
+create policy "own write" on ideas for all using (auth.uid()=user_id);
+create policy "public read" on comments for select using (true);
+create policy "own write" on comments for all using (auth.uid()=user_id);
+create policy "public read" on monthly_stats for select using (true);
+create policy "own write" on monthly_stats for all using (auth.uid()=user_id);
+create policy "own all" on ficc_sync for all using (key like '%'||auth.uid()::text||'%');</code>
       </details>
     </div>
     <div class="settings-row">
@@ -2366,9 +2423,14 @@ async function saveProfile(){
 async function sbPullSilent(){
   const sb=sbClient(); if(!sb||!currentUser) return;
   try{
-    const { data } = await sb.from('ficc_sync').select('value,updated_at').eq('key','ficc_v3_'+currentUser.id).single();
-    if(!data?.value) return;
-    const snap=data.value;
+    const { data } = await sb.from('ficc_sync').select('trades,journals,value,updated_at').eq('key','ficc_v3_'+currentUser.id).single();
+    if(!data?.value && !data?.trades) return;
+    // Prefer separate columns (newer), fallback to value blob (older data)
+    const snap = {
+      ...(data.value || {}),
+      trades:   data.trades   || data.value?.trades,
+      journals: data.journals || data.value?.journals,
+    };
     const cloudUpdated = data.updated_at ? new Date(data.updated_at) : new Date(0);
     const localUpdated = settings.sbLastPush ? new Date(settings.sbLastPush) : new Date(0);
 
@@ -2536,9 +2598,10 @@ function sbStripCharts(tradeArr){
   });
 }
 
-async function sbFetch(method, key, value){
+async function sbFetch(method, key, payload){
+  // payload for POST: {value, trades, journals}
+  // payload for GET: ignored
   const base=sbUrl()+'/rest/v1/ficc_sync';
-  // Use user JWT when logged in (required for RLS), fallback to anon key
   let authToken = sbKey();
   try {
     const sb = sbClient();
@@ -2555,9 +2618,10 @@ async function sbFetch(method, key, value){
   };
   let url=base, body=null;
   if(method==='GET'){
-    url=base+'?key=eq.'+encodeURIComponent(key)+'&select=value';
+    // Select separate columns + value (fallback)
+    url=base+'?key=eq.'+encodeURIComponent(key)+'&select=trades,journals,value,updated_at';
   } else {
-    body=JSON.stringify({key, value, updated_at: new Date().toISOString()});
+    body=JSON.stringify({key, ...payload, updated_at: new Date().toISOString()});
   }
   try{
     const r=await fetch(url,{method, headers, body});
@@ -2594,7 +2658,13 @@ async function sbPush(silent=false){
   if(!silent) sbSetStatus('☁️ 上傳中...','var(--lo)');
   const snapshot=sbBuildSnapshot();
   const pushKey='ficc_v3_'+(currentUser?.id||settings.userId||'anon');
-  const {ok,status,err}=await sbFetch('POST',pushKey,snapshot);
+  // Write trades+journals as separate columns AND inside value (backward compat)
+  const payload={
+    trades:   snapshot.trades,           // dedicated column (queryable, no size limit)
+    journals: snapshot.journals,         // dedicated column
+    value:    snapshot,                  // full blob for backward compat + other fields
+  };
+  const {ok,status,err}=await sbFetch('POST',pushKey,payload);
   if(!ok){
     const msg=err||'HTTP '+status;
     if(!silent) toast('⚠ Supabase 上傳失敗：'+msg,'e');
@@ -2621,8 +2691,14 @@ async function sbPull(){
     sbSetStatus('✗ 無雲端資料','var(--red)');
     return;
   }
-  const snap=data[0].value;
-  if(!snap){toast('⚠ 雲端資料為空','e');return;}
+  const row = data[0];
+  // Prefer separate columns (newer), fallback to value blob (older data)
+  const snap = {
+    ...(row.value || {}),
+    trades:   row.trades   || row.value?.trades,
+    journals: row.journals || row.value?.journals,
+  };
+  if(!snap.trades && !snap.pushed_at){toast('⚠ 雲端資料為空','e');return;}
 
   const pushedAt=snap.pushed_at?new Date(snap.pushed_at).toLocaleString('zh-TW'):'未知';
   if(!confirm('從雲端還原？\n上傳時間：'+pushedAt+'\n\n⚠ 本地資料會被覆蓋（圖表 base64 保留）'))return;
