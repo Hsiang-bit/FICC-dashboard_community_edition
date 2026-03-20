@@ -2366,15 +2366,47 @@ async function saveProfile(){
 async function sbPullSilent(){
   const sb=sbClient(); if(!sb||!currentUser) return;
   try{
-    const { data } = await sb.from('ficc_sync').select('value').eq('key','ficc_v3_'+currentUser.id).single();
+    const { data } = await sb.from('ficc_sync').select('value,updated_at').eq('key','ficc_v3_'+currentUser.id).single();
     if(!data?.value) return;
     const snap=data.value;
-    if(snap.trades) { const lc={}; trades.forEach(t=>{if(t.id&&t.charts)lc[t.id]=t.charts;}); trades=snap.trades.map(t=>({...t,charts:{...( lc[t.id]||{}), ...(t.charts||{})}})); localStorage.setItem('ficc_trades',JSON.stringify(trades)); }
-    if(snap.journals){journals=snap.journals;localStorage.setItem('ficc_journals',JSON.stringify(journals));}
-    if(snap.gantt){ganttData=snap.gantt;localStorage.setItem('ficc_gantt',JSON.stringify(ganttData));}
-    if(snap.checklist)localStorage.setItem('ficc_checklist',JSON.stringify(snap.checklist));
-    if(snap.macro_md)localStorage.setItem('ficc_macro_md',snap.macro_md);
-  }catch(e){ console.log('sbPullSilent skipped:',e.message); }
+    const cloudUpdated = data.updated_at ? new Date(data.updated_at) : new Date(0);
+    const localUpdated = settings.sbLastPush ? new Date(settings.sbLastPush) : new Date(0);
+
+    // Cloud is newer → merge cloud into local
+    if(cloudUpdated > localUpdated || !trades.length){
+      if(snap.trades){
+        // Preserve local base64 charts (not stored in cloud)
+        const localCharts={};
+        trades.forEach(t=>{if(t.id&&t.charts)localCharts[t.id]=t.charts;});
+        trades=snap.trades.map(t=>({
+          ...t,
+          charts:{...(localCharts[t.id]||{}), ...(t.charts||{})}
+        }));
+        // Update localStorage cache
+        const stripped=trades.map(t=>{
+          if(!t.charts) return t;
+          const ch={};
+          Object.entries(t.charts).forEach(([k,v])=>{if(v&&typeof v==='string'&&!v.startsWith('data:'))ch[k]=v;});
+          return Object.keys(ch).length?{...t,charts:ch}:{...t,charts:undefined};
+        });
+        localStorage.setItem('ficc_trades',JSON.stringify(stripped));
+        renderTrades();
+      }
+      if(snap.journals){journals=snap.journals;localStorage.setItem('ficc_journals',JSON.stringify(journals));}
+      if(snap.gantt){ganttData=snap.gantt;localStorage.setItem('ficc_gantt',JSON.stringify(ganttData));}
+      if(snap.checklist)localStorage.setItem('ficc_checklist',JSON.stringify(snap.checklist));
+      if(snap.macro_md)localStorage.setItem('ficc_macro_md',snap.macro_md);
+      if(snap.rs_config)localStorage.setItem('ficc_rs_config',JSON.stringify(snap.rs_config));
+      console.log('[Supabase] Pulled', trades.length, 'trades from cloud');
+      sbSetStatus('✓ 雲端同步','var(--green)');
+      setTimeout(()=>sbSetStatus('',''),2000);
+      updateKpiStrip();
+    } else {
+      // Local is newer or same → push to cloud to ensure it's up-to-date
+      console.log('[Supabase] Local is newer, pushing...');
+      sbPush(true);
+    }
+  }catch(e){ console.log('[Supabase] pull skipped:',e.message); }
 }
 
 // ════════════════════════════════════
@@ -2388,10 +2420,13 @@ let currentTradeId=null;
 function load(){
   setTimeout(updateKpiStrip, 300);
   setTimeout(loadTickerNews, 1500);
+  // Load from localStorage cache first (instant)
   try{trades=JSON.parse(localStorage.getItem('ficc_trades')||'[]');}catch(e){trades=[];}
   try{journals=JSON.parse(localStorage.getItem('ficc_journals')||'{}');}catch(e){journals={};}
   try{settings=JSON.parse(localStorage.getItem('ficc_settings')||'{}');}catch(e){settings={};}
   try{ganttData=JSON.parse(localStorage.getItem('ficc_gantt')||'{}');}catch(e){ganttData={};}
+  // Show cache immediately, then pull Supabase in background
+  // (sbPullSilent is called after auth in SIGNED_IN handler)
   if(settings.notionToken) document.getElementById('notionToken').value=settings.notionToken;
   if(settings.notionProxyUrl) document.getElementById('notionProxyUrl').value=settings.notionProxyUrl;
   if(settings.geminiKey) document.getElementById('geminiKey').value=settings.geminiKey;
@@ -2444,8 +2479,9 @@ function saveAll(){
     }
     return; // don't trigger cloud sync if local save failed
   }
-  // Debounced cloud sync (3s after last save)
-  if(settings.sbAutoSync) sbDebouncedPush();
+  // Always sync to Supabase when logged in (primary storage)
+  // Debounced 2s to batch rapid saves
+  if (sbReady() && currentUser) sbDebouncedPush();
 }
 function saveSettings(){
   settings.notionToken=document.getElementById('notionToken').value;
@@ -2625,7 +2661,7 @@ async function sbPull(){
 // ── Debounced push (called from saveAll) ──
 function sbDebouncedPush(){
   clearTimeout(_sbPushTimer);
-  _sbPushTimer=setTimeout(()=>sbPush(true),3000);
+  _sbPushTimer=setTimeout(()=>sbPush(true),2000);
 }
 
 // ── Auto sync toggle ──
