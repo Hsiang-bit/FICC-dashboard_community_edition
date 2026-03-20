@@ -5233,6 +5233,7 @@ async function upsertTradeNotion(t, token, tDbId){
     if(!ok)return{ok:false,msg:data.message||'建立失敗'};
     t.notionPageId=data.id;
     await appendChartBlocks(data.id,t.charts,token,t);
+    const chartCount=t.charts?Object.keys(t.charts).filter(k=>t.charts[k]).length:0;
     return{ok:true,pageId:data.id,created:true,chartCount};
   }
 }
@@ -5266,17 +5267,51 @@ async function pushAllTrades(){
   const newTrades=trades.filter(t=>!t.notionPageId);
   if(!newTrades.length){toast('✓ 所有交易已同步，無新增');return;}
 
-  let created=0,failed=0;
-  for(let i=0;i<newTrades.length;i++){
-    const t=newTrades[i];
+  // Pause auto-sync during push to prevent race conditions
+  const wasAutoSync = settings.sbAutoSync;
+  settings.sbAutoSync = false;
+  clearTimeout(_sbPushTimer);
+
+  const btn=document.getElementById('btnPushAll');
+  if(btn) btn.disabled = true;
+
+  let created=0, failed=0;
+  for(let i=0; i<newTrades.length; i++){
+    const t = newTrades[i];
     toast('⏳ 建立 '+(i+1)+'/'+newTrades.length+' — '+t.asset+' '+t.date);
-    const result=await upsertTradeNotion(t,token,tDbId);
-    if(result.ok){created++;saveAll();}
-    else{failed++;console.warn('Push failed:',t.id,result.msg);}
-    await new Promise(r=>setTimeout(r,400));
+    const result = await upsertTradeNotion(t, token, tDbId);
+    if(result.ok){
+      created++;
+      // Save notionPageId to localStorage immediately (no cloud sync yet)
+      try {
+        const stripped = trades.map(tr => {
+          if(!tr.charts) return tr;
+          const ch={};
+          Object.entries(tr.charts).forEach(([k,v])=>{ if(v&&typeof v==='string'&&!v.startsWith('data:')) ch[k]=v; });
+          return Object.keys(ch).length?{...tr,charts:ch}:{...tr,charts:undefined};
+        });
+        localStorage.setItem('ficc_trades', JSON.stringify(stripped));
+      } catch(e) { console.warn('[push] localStorage save failed:', e.message); }
+    } else {
+      failed++;
+      console.warn('Push failed:', t.id, result.msg);
+      toast('⚠ 失敗：'+t.asset+' '+t.date+' — '+(result.msg||'未知錯誤'), 'e');
+    }
+    await new Promise(r=>setTimeout(r,350));
   }
+
+  // Restore auto-sync, then do ONE final save+cloud push
+  settings.sbAutoSync = wasAutoSync;
+  saveAll();
+  // Force immediate Supabase push (not debounced) so cloud has latest notionPageIds
+  if(sbReady() && currentUser) {
+    clearTimeout(_sbPushTimer);
+    sbPush(true);
+  }
+
   renderTrades();
-  toast('✓ 新建 '+created+' 筆'+(failed?'  ⚠ 失敗 '+failed+' 筆':''));
+  if(btn) btn.disabled = false;
+  toast('✓ 新建 '+created+' 筆'+(failed?' ⚠ 失敗 '+failed+' 筆':''));
 }
 
 // ── Sync ALL trades (create new + update existing) ──
