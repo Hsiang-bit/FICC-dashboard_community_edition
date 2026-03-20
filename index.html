@@ -2418,10 +2418,32 @@ function load(){
   }
 }
 function saveAll(){
-  localStorage.setItem('ficc_trades',JSON.stringify(trades));
-  localStorage.setItem('ficc_journals',JSON.stringify(journals));
-  localStorage.setItem('ficc_settings',JSON.stringify(settings));
-  localStorage.setItem('ficc_gantt',JSON.stringify(ganttData));
+  try {
+    // Strip base64 chart images before saving to localStorage (they can be huge)
+    // Charts are kept in memory and synced to Notion/Supabase separately
+    const tradesForStorage = trades.map(t => {
+      if (!t.charts) return t;
+      const charts = {};
+      Object.entries(t.charts).forEach(([k, v]) => {
+        // Keep Notion URLs (short strings), strip base64 data URIs (long)
+        if (v && typeof v === 'string' && !v.startsWith('data:')) charts[k] = v;
+      });
+      return Object.keys(charts).length ? {...t, charts} : {...t, charts: undefined};
+    });
+    localStorage.setItem('ficc_trades', JSON.stringify(tradesForStorage));
+    localStorage.setItem('ficc_journals', JSON.stringify(journals));
+    localStorage.setItem('ficc_settings', JSON.stringify(settings));
+    localStorage.setItem('ficc_gantt', JSON.stringify(ganttData));
+  } catch(e) {
+    if (e.name === 'QuotaExceededError') {
+      toast('⚠ 本地儲存空間已滿！請推送到 Notion/Supabase 後清理圖表快取', 'e');
+      console.error('[saveAll] localStorage quota exceeded:', e.message);
+    } else {
+      toast('⚠ 儲存失敗：' + e.message, 'e');
+      console.error('[saveAll] error:', e);
+    }
+    return; // don't trigger cloud sync if local save failed
+  }
   // Debounced cloud sync (3s after last save)
   if(settings.sbAutoSync) sbDebouncedPush();
 }
