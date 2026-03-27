@@ -6697,10 +6697,14 @@ initGistSync();
 // STAT PAGE
 // ═══════════════════════════════════════════════════
 
+// Store equity data globally for crosshair
+let _eqData = {eq:[], pts:[], pad:{}, dpr:1, W:0, H:0, mn:0, mx:0, rng:1, col:'#22c55e', rValues:[]};
+
 function drawStatEquity(canvas, rValues, h) {
   if (!canvas || !rValues.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr, H = (h || canvas.offsetHeight || 160) * dpr;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr;
+  const H = (h || canvas.offsetHeight || 160) * dpr;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
@@ -6711,12 +6715,16 @@ function drawStatEquity(canvas, rValues, h) {
   const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
   const last = eq[eq.length - 1];
   const col = last >= 0 ? '#22c55e' : '#ef4444';
+  const pts = eq.map((vv, i) => [pad.l + (i / Math.max(eq.length-1, 1)) * cW, pad.t + ((mx - vv) / rng) * cH]);
+
+  // Store for crosshair
+  _eqData = {eq, pts, pad, dpr, W, H, mn, mx, rng, col, rValues, cW, cH};
+
   // Zero line
   const zy = pad.t + ((mx - 0) / rng) * cH;
-  ctx.setLineDash([4,4]); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]); ctx.strokeStyle = 'rgba(128,128,128,0.15)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(pad.l, zy); ctx.lineTo(W - pad.r, zy); ctx.stroke(); ctx.setLineDash([]);
-  // Points
-  const pts = eq.map((vv, i) => [pad.l + (i / Math.max(eq.length-1, 1)) * cW, pad.t + ((mx - vv) / rng) * cH]);
+
   // Fill
   const gr = ctx.createLinearGradient(0, 0, 0, H);
   gr.addColorStop(0, last >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.12)');
@@ -6724,15 +6732,120 @@ function drawStatEquity(canvas, rValues, h) {
   ctx.beginPath(); pts.forEach(([x,y],i) => i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
   ctx.lineTo(pts[pts.length-1][0], H); ctx.lineTo(pts[0][0], H); ctx.closePath();
   ctx.fillStyle = gr; ctx.fill();
+
   // Line
   ctx.beginPath(); pts.forEach(([x,y],i) => i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
   ctx.strokeStyle = col; ctx.lineWidth = 2 * dpr; ctx.stroke();
-  // Dots
-  for (const [x,y] of pts) {
-    ctx.beginPath(); ctx.arc(x, y, 2.5 * dpr, 0, Math.PI*2);
-    ctx.fillStyle = col; ctx.fill();
+
+  // Dots (only if few points)
+  if (eq.length <= 40) {
+    for (const [x,y] of pts) {
+      ctx.beginPath(); ctx.arc(x, y, 2.5 * dpr, 0, Math.PI*2);
+      ctx.fillStyle = col; ctx.fill();
+    }
+  }
+
+  // Attach crosshair listener (once)
+  if (!canvas._xhairBound) {
+    canvas._xhairBound = true;
+    canvas.style.cursor = 'crosshair';
+    canvas.addEventListener('mousemove', eqCrosshair);
+    canvas.addEventListener('mouseleave', eqCrosshairClear);
   }
   return last;
+}
+
+function eqCrosshair(e) {
+  const {eq, pts, pad, dpr, W, H, mn, mx, rng, col, cW, cH} = _eqData;
+  if (!pts.length) return;
+  const canvas = e.currentTarget;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const mouseX = (e.clientX - rect.left) * scaleX;
+
+  // Find nearest point
+  let best = 0, bestDist = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const d = Math.abs(pts[i][0] - mouseX);
+    if (d < bestDist) { bestDist = d; best = i; }
+  }
+
+  const [cx, cy] = pts[best];
+  const val = eq[best];
+  const tradeIdx = best; // 0 = start, 1 = after trade 1, etc.
+
+  // Redraw base
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Zero line
+  const zy = pad.t + ((mx - 0) / rng) * cH;
+  ctx.setLineDash([4,4]); ctx.strokeStyle = 'rgba(128,128,128,0.15)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, zy); ctx.lineTo(W-pad.r, zy); ctx.stroke(); ctx.setLineDash([]);
+
+  // Fill
+  const last = eq[eq.length-1];
+  const gr = ctx.createLinearGradient(0,0,0,H);
+  gr.addColorStop(0, last>=0?'rgba(34,197,94,0.15)':'rgba(239,68,68,0.12)');
+  gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath(); pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.lineTo(pts[pts.length-1][0],H); ctx.lineTo(pts[0][0],H); ctx.closePath();
+  ctx.fillStyle=gr; ctx.fill();
+
+  // Line
+  ctx.beginPath(); pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.strokeStyle=col; ctx.lineWidth=2*dpr; ctx.stroke();
+
+  if (eq.length<=40) {
+    for(const[x,y] of pts){ctx.beginPath();ctx.arc(x,y,2.5*dpr,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();}
+  }
+
+  // Crosshair lines
+  ctx.setLineDash([3,4]);
+  ctx.strokeStyle='rgba(128,128,128,0.35)'; ctx.lineWidth=1*dpr;
+  ctx.beginPath(); ctx.moveTo(cx, pad.t); ctx.lineTo(cx, H-pad.b); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad.l, cy); ctx.lineTo(W-pad.r, cy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Active dot
+  ctx.beginPath(); ctx.arc(cx,cy,4*dpr,0,Math.PI*2);
+  ctx.fillStyle=col; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,4*dpr,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1.5*dpr; ctx.stroke();
+
+  // Tooltip label
+  const sign = val>=0?'+':'';
+  const label = `${sign}${val.toFixed(2)}R${tradeIdx>0?' #'+tradeIdx:''}`;
+  const fs = 10*dpr;
+  ctx.font = `${fs}px monospace`;
+  const tw = ctx.measureText(label).width + 10*dpr;
+  const th = 16*dpr;
+  let tx = cx + 8*dpr;
+  let ty = cy - th/2 - 4*dpr;
+  if (tx + tw > W - pad.r) tx = cx - tw - 8*dpr;
+  if (ty < pad.t) ty = pad.t + 2*dpr;
+
+  ctx.fillStyle = val>=0?'rgba(21,128,61,0.9)':'rgba(153,27,27,0.9)';
+  ctx.beginPath();
+  ctx.roundRect?ctx.roundRect(tx,ty,tw,th,3*dpr):ctx.rect(tx,ty,tw,th);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(label, tx+5*dpr, ty+th-5*dpr);
+
+  // Update header display
+  const eqEndEl = document.getElementById('stat-eq-end');
+  if(eqEndEl) { eqEndEl.textContent=(val>=0?'+':'')+val.toFixed(2)+'R · #'+tradeIdx; eqEndEl.style.color=val>=0?'var(--green)':'var(--red)'; }
+}
+
+function eqCrosshairClear(e) {
+  const {eq, rValues} = _eqData;
+  const canvas = e.currentTarget;
+  // Redraw without crosshair
+  drawStatEquity(canvas, rValues, canvas.height / (window.devicePixelRatio||1));
+  // Restore header
+  const last = eq[eq.length-1]||0;
+  const eqEndEl = document.getElementById('stat-eq-end');
+  if(eqEndEl) { eqEndEl.textContent=(last>=0?'+':'')+last.toFixed(1)+'R'; eqEndEl.style.color=last>=0?'var(--green)':'var(--red)'; }
 }
 
 function drawMonthBars(canvas, months) {
@@ -6799,7 +6912,7 @@ function renderStat() {
   let peak=0, mdd=0, ddSeries=[];
   for(const vv of eq){
     if(vv>peak) peak=vv;
-    const dd = peak>0 ? (peak-vv)/peak*100 : 0;
+    const dd = peak - vv;          // absolute R drawdown (no division)
     ddSeries.push(dd);
     if(dd>mdd) mdd=dd;
   }
@@ -6842,7 +6955,7 @@ function renderStat() {
   if(p1) p1.innerHTML=[
     kpiCell('Cum R', (totalR>=0?'+':'')+totalR.toFixed(1)+'R', `${cl.length} closed trades`, totalR>=0?'var(--green)':'var(--red)'),
     kpiCell('Win Rate', (wr*100).toFixed(1)+'%', `${wins.length}W / ${losses.length}L`, wr>=0.5?'var(--green)':wr>=0.4?'var(--amber)':'var(--red)'),
-    kpiCell('MDD', mdd.toFixed(1)+'%', `Recovery: ${recFactor.toFixed(2)}x`, mdd<10?'var(--green)':mdd<20?'var(--amber)':'var(--red)'),
+    kpiCell('MDD', '−'+mdd.toFixed(2)+'R', `Recovery: ${recFactor.toFixed(2)}x`, mdd<2?'var(--green)':mdd<5?'var(--amber)':'var(--red)'),
     kpiCell('Profit Factor', pf.toFixed(2), pf>=1.5?'Strong edge':pf>=1.0?'Profitable':'Negative EV', pf>=1.5?'var(--green)':pf>=1.0?'var(--amber)':'var(--red)'),
   ].join('');
 
@@ -6864,7 +6977,7 @@ function renderStat() {
     const eqEnd=document.getElementById('stat-eq-end');
     if(eqEnd){eqEnd.textContent=(totalR>=0?'+':'')+totalR.toFixed(1)+'R';eqEnd.style.color=totalR>=0?'var(--green)':'var(--red)';}
     const mddEl=document.getElementById('stat-eq-mdd');
-    if(mddEl){mddEl.textContent='MDD: '+mdd.toFixed(1)+'%';mddEl.style.color=mdd<10?'var(--green)':mdd<20?'var(--amber)':'var(--red)';}
+    if(mddEl){mddEl.textContent='MDD: −'+mdd.toFixed(2)+'R';mddEl.style.color=mdd<2?'var(--green)':mdd<5?'var(--amber)':'var(--red)';}
   },50);
 
   // ④ Risk metrics row
