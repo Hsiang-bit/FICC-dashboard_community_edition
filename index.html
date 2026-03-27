@@ -463,14 +463,7 @@ select option{background:var(--paper2)}
   <button class="ntab" onclick="showPage('page-community',this)" style="border-left:1px solid var(--border2);margin-left:4px"><span class="dot" style="background:linear-gradient(to right,var(--blue),var(--green))"></span>🌐 社群</button>
 </div>
 
-<!-- KPI STRIP -->
-<div class="kpi-strip" id="global-kpi-strip">
-  <div class="kpi-card kc-green"><div class="kpi-card-l">Win Rate</div><div class="kpi-card-v" id="ks-wr">—</div><div class="kpi-card-d" id="ks-wr-d">this month</div></div>
-  <div class="kpi-card kc-blue"><div class="kpi-card-l">Avg R</div><div class="kpi-card-v" id="ks-avgr">—</div><div class="kpi-card-d">per trade</div></div>
-  <div class="kpi-card kc-amber"><div class="kpi-card-l">Cum R</div><div class="kpi-card-v" id="ks-cumr">—</div><div class="kpi-card-d">total</div></div>
-  <div class="kpi-card kc-red"><div class="kpi-card-l">Max DD</div><div class="kpi-card-v" id="ks-dd">—</div><div class="kpi-card-d">drawdown</div></div>
-  <div class="kpi-card kc-gray"><div class="kpi-card-l">Trades</div><div class="kpi-card-v" id="ks-cnt">—</div><div class="kpi-card-d" id="ks-cnt-d">this month</div></div>
-</div>
+
 
 <!-- ═══════ JOURNAL ═══════ -->
 <div class="page active" id="page-journal">
@@ -686,9 +679,14 @@ select option{background:var(--paper2)}
 
 <!-- ═══════ STAT PAGE ═══════ -->
 <div class="page" id="page-stat">
-  <div class="sec"><div class="acc" style="background:var(--amber)"></div><h2>統計分析</h2>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-      <select id="stat-filter" style="font-size:10px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--hi)" onchange="renderStat()">
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:10px;border-bottom:3px double #000">
+    <div>
+      <div style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:var(--ink);letter-spacing:-.02em">Performance Report</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:2px" id="stat-date-range">—</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="stat-filter" style="font-size:10px;padding:4px 8px" onchange="renderStat()">
         <option value="all">全部交易</option>
         <option value="live">實盤</option>
         <option value="backtest">回測</option>
@@ -697,62 +695,86 @@ select option{background:var(--paper2)}
     </div>
   </div>
 
-  <!-- Sample warning -->
-  <div id="stat-warn" style="display:none;margin-bottom:12px"></div>
+  <div id="stat-warn" style="display:none;margin-bottom:14px"></div>
+  <div id="stat-empty" style="display:none;text-align:center;padding:60px;color:var(--lo);font-family:var(--mono);font-size:12px">尚無足夠交易記錄</div>
 
-  <!-- ① Main KPI row -->
-  <div id="stat-kpi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:14px"></div>
+  <!-- ① Primary KPI row — newspaper card style -->
+  <div id="stat-kpi-primary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px"></div>
 
-  <!-- ② Equity Curve -->
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <span style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase">📈 Equity Curve (R)</span>
+  <!-- ② Secondary KPI row -->
+  <div id="stat-kpi-secondary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:18px"></div>
+
+  <!-- ③ Equity Curve + Drawdown -->
+  <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">
+      <span style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink)">Equity Curve</span>
       <div style="display:flex;gap:12px;font-family:var(--mono);font-size:10px">
         <span id="stat-eq-start" style="color:var(--lo)">Start: 0R</span>
-        <span id="stat-eq-end" style="color:var(--green);font-weight:600">—</span>
+        <span id="stat-eq-end" style="color:var(--green);font-weight:700">—</span>
+        <span id="stat-eq-mdd" style="color:var(--red)">MDD: —</span>
       </div>
     </div>
-    <canvas id="statEqCanvas" style="width:100%;height:160px;display:block;border-radius:4px"></canvas>
+    <div style="padding:12px 14px 4px">
+      <canvas id="statEqCanvas" style="width:100%;height:150px;display:block"></canvas>
+    </div>
+    <div style="padding:4px 14px 12px">
+      <div style="font-family:var(--mono);font-size:8px;color:var(--lo);margin-bottom:3px;letter-spacing:.06em;text-transform:uppercase">Drawdown</div>
+      <canvas id="statDDCanvas" style="width:100%;height:50px;display:block"></canvas>
+    </div>
   </div>
 
-  <!-- ③ Monthly R bar chart -->
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
-    <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">📅 月度 R 分佈</div>
-    <canvas id="statMonthCanvas" style="width:100%;height:120px;display:block;border-radius:4px"></canvas>
-    <div id="statMonthLegend" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-family:var(--mono);font-size:9px"></div>
+  <!-- ④ Calendar PnL -->
+  <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink)" id="cal-month-label">—</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g btn-sm" onclick="calChangeMonth(-1)">‹</button>
+        <button class="btn btn-g btn-sm" onclick="calChangeMonth(1)">›</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:2px" id="cal-dow-row"></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border);border-left:1px solid var(--border)" id="cal-grid"></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--mid);padding:8px 4px 0;min-height:28px;border-top:1px solid var(--border);margin-top:2px" id="cal-tooltip">日期格子顯示當日總 R，點擊查看明細</div>
   </div>
 
-  <!-- ④ Grade + Asset breakdown side by side -->
+  <!-- ④ Risk metrics row -->
+  <div id="stat-risk-row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px"></div>
+
+  <!-- ⑤ Monthly bar + trade distribution side by side -->
+  <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Monthly R</div>
+      <canvas id="statMonthCanvas" style="width:100%;height:110px;display:block"></canvas>
+      <div id="statMonthLegend" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;font-family:var(--mono);font-size:9px"></div>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">R Distribution</div>
+      <canvas id="statDistCanvas" style="width:100%;height:110px;display:block"></canvas>
+      <div id="stat-dist-legend" style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:6px"></div>
+    </div>
+  </div>
+
+  <!-- ⑥ Grade / Asset / Session / Streak -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
-      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">🏆 Setup 等級分析</div>
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Setup Grade</div>
       <div id="stat-grade-body"></div>
     </div>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
-      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">📊 資產別分析</div>
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Asset Performance</div>
       <div id="stat-asset-body"></div>
     </div>
   </div>
-
-  <!-- ⑤ Session breakdown + Streak -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
-      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">⏱ Session 分析</div>
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Session Analysis</div>
       <div id="stat-session-body"></div>
     </div>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
-      <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:10px">🔥 連勝/連敗記錄</div>
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Streak & Summary</div>
       <div id="stat-streak-body"></div>
     </div>
   </div>
-
-  <!-- ⑥ Empty state -->
-  <div id="stat-empty" style="display:none;text-align:center;padding:60px 20px;color:var(--lo);font-family:var(--mono);font-size:12px">
-    尚無足夠交易記錄。請先在 Trade Log 新增交易。
-  </div>
-</div>
-
-
 <!-- ═══════ SETUP PAGE ═══════ -->
 <div class="page" id="page-setup">
   <div class="sec"><div class="acc" style="background:var(--blue)"></div><h2>Setup 評分系統</h2>
@@ -6748,137 +6770,157 @@ function drawMonthBars(canvas, months) {
 
 function renderStat() {
   const filter = document.getElementById('stat-filter')?.value || 'all';
-  const base = filter === 'all' ? trades :
-                filter === 'live' ? trades.filter(t => t.mode === 'live') :
-                trades.filter(t => t.mode === 'backtest');
-  const cl = base.filter(t => t.status !== 'OPEN' && t.pnl != null && (t.outcome_type||'normal') === 'normal');
-  cl.sort((a,b) => a.date.localeCompare(b.date));
+  const base = filter==='all' ? trades : filter==='live' ? trades.filter(t=>t.mode==='live') : trades.filter(t=>t.mode==='backtest');
+  const cl = base.filter(t=>t.status!=='OPEN'&&t.pnl!=null&&(t.outcome_type||'normal')==='normal');
+  cl.sort((a,b)=>a.date.localeCompare(b.date));
 
   const emptyEl = document.getElementById('stat-empty');
-  const warnEl = document.getElementById('stat-warn');
+  const warnEl  = document.getElementById('stat-warn');
+  if(!cl.length){if(emptyEl)emptyEl.style.display='block';return;}
+  if(emptyEl) emptyEl.style.display='none';
 
-  if (!cl.length) {
-    if (emptyEl) emptyEl.style.display = 'block';
-    ['stat-kpi','statEqCanvas','statMonthCanvas','stat-grade-body','stat-asset-body','stat-session-body','stat-streak-body'].forEach(id => {
-      const el = document.getElementById(id); if (el && el.parentElement) el.parentElement.style.display='none';
-    });
-    return;
+  // ── Core metrics ──
+  const wins   = cl.filter(t=>t.pnl>0);
+  const losses = cl.filter(t=>t.pnl<0);
+  const wr     = wins.length/cl.length;
+  const totalR = cl.reduce((s,t)=>s+t.pnl,0);
+  const avgR   = totalR/cl.length;
+  const avgWin = wins.length  ? wins.reduce((s,t)=>s+t.pnl,0)/wins.length  : 0;
+  const avgLoss= losses.length? Math.abs(losses.reduce((s,t)=>s+t.pnl,0)/losses.length) : 1;
+  const rr     = avgLoss>0 ? avgWin/avgLoss : 0;
+  const pf     = avgLoss>0&&losses.length ? (wins.reduce((s,t)=>s+t.pnl,0)) / Math.abs(losses.reduce((s,t)=>s+t.pnl,0)) : 0;
+  const exp    = wr*avgWin - (1-wr)*avgLoss;
+  const kellyF = avgLoss>0 ? Math.max(0,(wr*rr-(1-wr))/rr) : 0;
+  const halfK  = kellyF*50;
+
+  // ── Equity & Drawdown series ──
+  let eq=[0], v=0;
+  for(const t of cl){v+=t.pnl; eq.push(v);}
+  let peak=0, mdd=0, ddSeries=[];
+  for(const vv of eq){
+    if(vv>peak) peak=vv;
+    const dd = peak>0 ? (peak-vv)/peak*100 : 0;
+    ddSeries.push(dd);
+    if(dd>mdd) mdd=dd;
   }
-  if (emptyEl) emptyEl.style.display = 'none';
+  const recFactor = mdd>0 ? totalR/mdd : 0;
 
-  const wins = cl.filter(t => t.pnl > 0);
-  const losses = cl.filter(t => t.pnl < 0);
-  const wr = wins.length / cl.length;
-  const totalR = cl.reduce((s, t) => s + t.pnl, 0);
-  const avgR = totalR / cl.length;
-  const avgWin = wins.length ? wins.reduce((s,t)=>s+t.pnl,0)/wins.length : 0;
-  const avgLoss = losses.length ? Math.abs(losses.reduce((s,t)=>s+t.pnl,0)/losses.length) : 1;
-  const rr = avgLoss > 0 ? avgWin / avgLoss : 0;
-  const exp = wr * avgWin - (1 - wr) * avgLoss;
-  const kellyF2 = avgLoss > 0 ? Math.max(0, (wr * rr - (1-wr)) / rr) : 0;
-  const halfK = kellyF2 * 50;
+  // Sharpe-like (using R multiples as returns)
+  const mean = avgR;
+  const std  = cl.length>1 ? Math.sqrt(cl.reduce((s,t)=>s+(t.pnl-mean)**2,0)/(cl.length-1)) : 1;
+  const sharpe = std>0 ? mean/std : 0;
+
+  // Best / worst
+  const best  = Math.max(...cl.map(t=>t.pnl));
+  const worst = Math.min(...cl.map(t=>t.pnl));
+  const bestT = cl.find(t=>t.pnl===best);
+  const worstT= cl.find(t=>t.pnl===worst);
+
+  // Date range
+  const drEl = document.getElementById('stat-date-range');
+  if(drEl) drEl.textContent = `${cl[0].date} → ${cl[cl.length-1].date} · ${cl.length} trades`;
 
   // Sample warning
-  if (warnEl) {
-    if (cl.length < 30) {
-      warnEl.style.display = 'block';
-      warnEl.className = '';
-      warnEl.style.cssText = 'display:block;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.15);border-radius:6px;padding:9px 12px;font-size:11px;color:#806040;margin-bottom:12px';
-      warnEl.innerHTML = `⚠ 樣本警告：目前 <strong>${cl.length}</strong> 筆，建議累積到 100+ 筆後統計才具有顯著性。數字僅供早期方向參考。`;
-    } else if (cl.length >= 100) {
-      warnEl.style.display = 'block';
-      warnEl.style.cssText = 'display:block;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.15);border-radius:6px;padding:9px 12px;font-size:11px;color:#2a7040;margin-bottom:12px';
-      warnEl.innerHTML = `✓ 100 筆達成：統計開始具有參考意義。WR <strong>${(wr*100).toFixed(0)}%</strong>，R:R <strong>${rr.toFixed(2)}</strong>，可輸入 Setup 頁的模擬引擎。`;
-    } else {
-      warnEl.style.display = 'none';
-    }
+  if(warnEl){
+    if(cl.length<30){
+      warnEl.style.display='block';
+      warnEl.style.cssText='display:block;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.15);border-radius:4px;padding:8px 12px;font-size:11px;color:#7a5020;margin-bottom:12px;font-family:var(--mono)';
+      warnEl.innerHTML=`⚠ Sample warning: ${cl.length} trades — statistical significance requires 100+`;
+    }else{warnEl.style.display='none';}
   }
 
-  // KPI cards
-  const kpiEl = document.getElementById('stat-kpi');
-  if (kpiEl) {
-    const kpis = [
-      {l:'Total', v:cl.length, c:'var(--hi)'},
-      {l:'Win Rate', v:(wr*100).toFixed(1)+'%', c:wr>=0.4?'var(--green)':'var(--amber)'},
-      {l:'Avg R', v:(avgR>=0?'+':'')+avgR.toFixed(2)+'R', c:avgR>=0?'var(--green)':'var(--red)'},
-      {l:'Cum R', v:(totalR>=0?'+':'')+totalR.toFixed(1)+'R', c:totalR>=0?'var(--green)':'var(--red)'},
-      {l:'Real R:R', v:'1:'+rr.toFixed(2), c:rr>=2?'var(--green)':'var(--amber)'},
-      {l:'Expectancy', v:(exp>=0?'+':'')+exp.toFixed(3)+'R', c:exp>=0?'var(--green)':'var(--red)'},
-      {l:'½ Kelly', v:halfK.toFixed(1)+'%', c:'var(--gold)'},
-      {l:'Wins', v:wins.length, c:'var(--green)'},
-      {l:'Losses', v:losses.length, c:'var(--red)'},
-    ];
-    kpiEl.innerHTML = kpis.map(k => `<div class="sbox"><div class="sl">${k.l}</div><div class="sv sm" style="color:${k.c}">${k.v}</div></div>`).join('');
-  }
+  // ── Helper: newspaper-style KPI cell ──
+  const kpiCell=(label,value,sub,color='var(--ink)')=>
+    `<div style="background:var(--paper);padding:12px 14px">
+      <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:var(--lo);margin-bottom:4px">${label}</div>
+      <div style="font-family:Georgia,serif;font-size:22px;font-weight:700;color:${color};line-height:1;letter-spacing:-.02em">${value}</div>
+      ${sub?`<div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:3px">${sub}</div>`:''}
+    </div>`;
 
-  // Equity curve
-  setTimeout(() => {
-    const cv = document.getElementById('statEqCanvas');
-    if (cv) {
-      const rVals = cl.map(t => t.pnl);
-      const last = drawStatEquity(cv, rVals, 160);
-      const endEl = document.getElementById('stat-eq-end');
-      if (endEl) { endEl.textContent = 'Now: '+(last>=0?'+':'')+last.toFixed(1)+'R'; endEl.style.color = last>=0?'var(--green)':'var(--red)'; }
-    }
-  }, 50);
+  // ① Primary KPI row
+  const p1=document.getElementById('stat-kpi-primary');
+  if(p1) p1.innerHTML=[
+    kpiCell('Cum R', (totalR>=0?'+':'')+totalR.toFixed(1)+'R', `${cl.length} closed trades`, totalR>=0?'var(--green)':'var(--red)'),
+    kpiCell('Win Rate', (wr*100).toFixed(1)+'%', `${wins.length}W / ${losses.length}L`, wr>=0.5?'var(--green)':wr>=0.4?'var(--amber)':'var(--red)'),
+    kpiCell('MDD', mdd.toFixed(1)+'%', `Recovery: ${recFactor.toFixed(2)}x`, mdd<10?'var(--green)':mdd<20?'var(--amber)':'var(--red)'),
+    kpiCell('Profit Factor', pf.toFixed(2), pf>=1.5?'Strong edge':pf>=1.0?'Profitable':'Negative EV', pf>=1.5?'var(--green)':pf>=1.0?'var(--amber)':'var(--red)'),
+  ].join('');
 
-  // Monthly bar chart
-  const byMonth = {};
-  cl.forEach(t => {
-    const m = t.date ? t.date.slice(0,7) : 'unknown';
-    if (!byMonth[m]) byMonth[m] = {month:m, r:0, n:0, w:0};
-    byMonth[m].r += t.pnl; byMonth[m].n++; if(t.pnl>0) byMonth[m].w++;
-  });
-  const months = Object.values(byMonth).sort((a,b)=>a.month.localeCompare(b.month));
-  const legendEl = document.getElementById('statMonthLegend');
-  if (legendEl) {
-    legendEl.innerHTML = months.map(m => {
-      const col = m.r >= 0 ? 'var(--green)' : 'var(--red)';
-      return `<span style="color:${col};white-space:nowrap">${m.month}: ${m.r>=0?'+':''}${m.r.toFixed(1)}R (${m.n}筆)</span>`;
-    }).join('');
-  }
-  setTimeout(() => {
-    const cv2 = document.getElementById('statMonthCanvas');
-    if (cv2) drawMonthBars(cv2, months);
-  }, 60);
+  // ② Secondary KPI row
+  const p2=document.getElementById('stat-kpi-secondary');
+  if(p2) p2.innerHTML=[
+    kpiCell('Avg R', (avgR>=0?'+':'')+avgR.toFixed(3)+'R', 'per trade', avgR>=0?'var(--green)':'var(--red)'),
+    kpiCell('Real R:R', '1 : '+rr.toFixed(2), `Avg W: +${avgWin.toFixed(2)}R / Avg L: −${avgLoss.toFixed(2)}R`),
+    kpiCell('Expectancy', (exp>=0?'+':'')+exp.toFixed(3)+'R', '½ Kelly: '+halfK.toFixed(1)+'%', exp>=0?'var(--green)':'var(--red)'),
+    kpiCell('Best / Worst', `+${best.toFixed(1)} / ${worst.toFixed(1)}`, `${bestT?.asset||''} / ${worstT?.asset||''}`),
+  ].join('');
 
-  // Grade breakdown
-  const gradeEl = document.getElementById('stat-grade-body');
-  if (gradeEl) {
-    const gc2 = GRADE_COLORS;
-    const gb2 = GRADE_BG;
-    gradeEl.innerHTML = ['A+','A','B','C'].map(g => {
-      const gt = cl.filter(t => t.grade === g);
-      if (!gt.length) return `<div style="padding:5px 0;font-size:11px;color:var(--lo);border-bottom:1px solid var(--border)">${g}: 無資料</div>`;
-      const gw2 = gt.filter(t=>t.pnl>0).length;
-      const gawr = (gw2/gt.length*100).toFixed(0)+'%';
-      const gavgR = (gt.reduce((s,t)=>s+t.pnl,0)/gt.length);
-      const col = gc2[g]||'var(--lo)';
-      const assessment = gw2/gt.length>=0.5&&gavgR>0?'Edge ✓':gavgR<0?'負期望':'發展中';
-      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
-        <span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;border:1px solid ${col}50;color:${col};background:${gb2[g]};min-width:28px;text-align:center">${g}</span>
+  // ③ Equity + Drawdown charts
+  setTimeout(()=>{
+    const cv=document.getElementById('statEqCanvas');
+    if(cv){drawStatEquity(cv,cl.map(t=>t.pnl),150);}
+    const ddCv=document.getElementById('statDDCanvas');
+    if(ddCv){drawDrawdown(ddCv,ddSeries);}
+    const eqEnd=document.getElementById('stat-eq-end');
+    if(eqEnd){eqEnd.textContent=(totalR>=0?'+':'')+totalR.toFixed(1)+'R';eqEnd.style.color=totalR>=0?'var(--green)':'var(--red)';}
+    const mddEl=document.getElementById('stat-eq-mdd');
+    if(mddEl){mddEl.textContent='MDD: '+mdd.toFixed(1)+'%';mddEl.style.color=mdd<10?'var(--green)':mdd<20?'var(--amber)':'var(--red)';}
+  },50);
+
+  // ④ Risk metrics row
+  const p3=document.getElementById('stat-risk-row');
+  if(p3) p3.innerHTML=[
+    kpiCell('Sharpe (R)', sharpe.toFixed(2), sharpe>=1?'Good':'Low', sharpe>=1?'var(--green)':'var(--amber)'),
+    kpiCell('Recovery Factor', recFactor.toFixed(2), 'Cum R / MDD'),
+    kpiCell('Avg Win', '+'+avgWin.toFixed(2)+'R', `${wins.length} winning trades`, 'var(--green)'),
+    kpiCell('Avg Loss', '−'+avgLoss.toFixed(2)+'R', `${losses.length} losing trades`, 'var(--red)'),
+    kpiCell('Std Dev R', std.toFixed(3), 'consistency'),
+  ].join('');
+
+  // ⑤ Monthly bar
+  const byMonth={};
+  cl.forEach(t=>{const m=t.date?t.date.slice(0,7):'?';if(!byMonth[m])byMonth[m]={month:m,r:0,n:0,w:0};byMonth[m].r+=t.pnl;byMonth[m].n++;if(t.pnl>0)byMonth[m].w++;});
+  const months=Object.values(byMonth).sort((a,b)=>a.month.localeCompare(b.month));
+  const legEl=document.getElementById('statMonthLegend');
+  if(legEl) legEl.innerHTML=months.map(m=>{const mc=m.r>=0?'var(--green)':'var(--red)';return`<span style="color:${mc};white-space:nowrap">${m.month}: ${m.r>=0?'+':''}${m.r.toFixed(1)}R</span>`;}).join('');
+  setTimeout(()=>{const cv2=document.getElementById('statMonthCanvas');if(cv2)drawMonthBars(cv2,months);},60);
+
+  // R Distribution histogram
+  setTimeout(()=>{
+    const cv3=document.getElementById('statDistCanvas');
+    if(cv3) drawRDistribution(cv3, cl.map(t=>t.pnl));
+    const dl=document.getElementById('stat-dist-legend');
+    if(dl) dl.innerHTML=`Skew: ${(cl.reduce((s,t)=>s+(t.pnl-mean)**3,0)/cl.length/std**3).toFixed(2)} · Best: +${best.toFixed(2)}R · Worst: ${worst.toFixed(2)}R`;
+  },70);
+
+  // ⑥ Grade breakdown
+  const gradeEl=document.getElementById('stat-grade-body');
+  if(gradeEl){
+    gradeEl.innerHTML=['A+','A','B','C'].map(g=>{
+      const gt=cl.filter(t=>t.grade===g);
+      if(!gt.length)return`<div style="padding:5px 0;font-size:10px;color:var(--lo);border-bottom:1px solid var(--border)">${g}: 無資料</div>`;
+      const gw=gt.filter(t=>t.pnl>0).length;
+      const gwr=(gw/gt.length*100).toFixed(0)+'%';
+      const gavgR=gt.reduce((s,t)=>s+t.pnl,0)/gt.length;
+      const col=GRADE_COLORS[g]||'var(--lo)';
+      return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border:1px solid ${col}50;color:${col};background:${GRADE_BG[g]};min-width:28px;text-align:center">${g}</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--lo)">${gt.length}筆</span>
-        <span style="font-family:var(--mono);font-size:10px;color:${parseFloat(gawr)>=40?'var(--green)':'var(--red)'}">${gawr}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:${parseFloat(gwr)>=40?'var(--green)':'var(--red)'}">${gwr}</span>
         <span style="font-family:var(--mono);font-size:10px;color:${gavgR>=0?'var(--green)':'var(--red)'};flex:1">${gavgR>=0?'+':''}${gavgR.toFixed(2)}R</span>
-        <span style="font-family:var(--mono);font-size:9px;color:${col}">${assessment}</span>
       </div>`;
     }).join('');
   }
 
   // Asset breakdown
-  const assetEl = document.getElementById('stat-asset-body');
-  if (assetEl) {
-    const byAsset = {};
-    cl.forEach(t => {
-      const a = t.asset||'Other';
-      if (!byAsset[a]) byAsset[a] = {n:0,w:0,r:0};
-      byAsset[a].n++; if(t.pnl>0) byAsset[a].w++; byAsset[a].r+=t.pnl;
-    });
-    assetEl.innerHTML = Object.entries(byAsset).sort((a,b)=>b[1].n-a[1].n).map(([a,d]) => {
-      const wr2 = d.n ? d.w/d.n : 0;
-      const avgR2 = d.r/d.n;
-      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
-        <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--hi);min-width:52px">${a}</span>
+  const assetEl=document.getElementById('stat-asset-body');
+  if(assetEl){
+    const byAsset={};
+    cl.forEach(t=>{const a=t.asset||'Other';if(!byAsset[a])byAsset[a]={n:0,w:0,r:0};byAsset[a].n++;if(t.pnl>0)byAsset[a].w++;byAsset[a].r+=t.pnl;});
+    assetEl.innerHTML=Object.entries(byAsset).sort((a,b)=>b[1].r-a[1].r).map(([a,d])=>{
+      const wr2=d.n?d.w/d.n:0;const avgR2=d.r/d.n;
+      return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--hi);min-width:48px">${a}</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--lo)">${d.n}筆</span>
         <span style="font-family:var(--mono);font-size:10px;color:${wr2>=0.4?'var(--green)':'var(--red)'}">${(wr2*100).toFixed(0)}%</span>
         <span style="font-family:var(--mono);font-size:10px;color:${avgR2>=0?'var(--green)':'var(--red)'};flex:1">${avgR2>=0?'+':''}${avgR2.toFixed(2)}R</span>
@@ -6887,19 +6929,14 @@ function renderStat() {
   }
 
   // Session breakdown
-  const sessEl = document.getElementById('stat-session-body');
-  if (sessEl) {
-    const bySess = {};
-    cl.forEach(t => {
-      const s = t.session||'未記錄';
-      if (!bySess[s]) bySess[s] = {n:0,w:0,r:0};
-      bySess[s].n++; if(t.pnl>0) bySess[s].w++; bySess[s].r+=t.pnl;
-    });
-    sessEl.innerHTML = Object.entries(bySess).sort((a,b)=>b[1].n-a[1].n).map(([s,d]) => {
-      const wr3 = d.n?d.w/d.n:0;
-      const avgR3 = d.r/d.n;
-      return `<div style="padding:7px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--mid);margin-bottom:3px">${s}</div>
+  const sessEl=document.getElementById('stat-session-body');
+  if(sessEl){
+    const bySess={};
+    cl.forEach(t=>{const s=t.session||'未記錄';if(!bySess[s])bySess[s]={n:0,w:0,r:0};bySess[s].n++;if(t.pnl>0)bySess[s].w++;bySess[s].r+=t.pnl;});
+    sessEl.innerHTML=Object.entries(bySess).sort((a,b)=>b[1].r-a[1].r).map(([s,d])=>{
+      const wr3=d.n?d.w/d.n:0;const avgR3=d.r/d.n;
+      return`<div style="padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--mid);margin-bottom:2px">${s}</div>
         <div style="display:flex;gap:8px;font-family:var(--mono);font-size:10px">
           <span style="color:var(--lo)">${d.n}筆</span>
           <span style="color:${wr3>=0.4?'var(--green)':'var(--red)'}">${(wr3*100).toFixed(0)}%</span>
@@ -6909,30 +6946,242 @@ function renderStat() {
     }).join('');
   }
 
-  // Streak analysis
-  const streakEl = document.getElementById('stat-streak-body');
-  if (streakEl) {
-    const seq = cl.map(t=>t.pnl>0?'W':'L');
+  // Calendar
+  setTimeout(()=>renderCalPnl(_calY,_calM),80);
+
+  // Streak
+  const streakEl=document.getElementById('stat-streak-body');
+  if(streakEl){
+    const seq=cl.map(t=>t.pnl>0?'W':'L');
     let maxW=0,maxL=0,cw=0,cl2=0;
     for(const s of seq){if(s==='W'){cw++;maxW=Math.max(maxW,cw);cl2=0;}else{cl2++;maxL=Math.max(maxL,cl2);cw=0;}}
-    // Current streak
-    let curStreak=1,curType=seq[seq.length-1];
-    for(let i=seq.length-2;i>=0;i--){if(seq[i]===curType)curStreak++;else break;}
-    streakEl.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-        <div class="sbox" style="text-align:center"><div class="sv sm" style="color:var(--green);font-size:18px">${maxW}</div><div class="sl">最長連勝</div></div>
-        <div class="sbox" style="text-align:center"><div class="sv sm" style="color:var(--red);font-size:18px">${maxL}</div><div class="sl">最長連敗</div></div>
+    let curS=1,curT=seq[seq.length-1];
+    for(let i=seq.length-2;i>=0;i--){if(seq[i]===curT)curS++;else break;}
+    streakEl.innerHTML=`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="text-align:center;padding:10px;background:var(--paper2);border:1px solid var(--border);border-radius:var(--r)">
+          <div style="font-family:Georgia,serif;font-size:22px;font-weight:700;color:var(--green)">${maxW}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-transform:uppercase;letter-spacing:.08em">Max Win Streak</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--paper2);border:1px solid var(--border);border-radius:var(--r)">
+          <div style="font-family:Georgia,serif;font-size:22px;font-weight:700;color:var(--red)">${maxL}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-transform:uppercase;letter-spacing:.08em">Max Loss Streak</div>
+        </div>
       </div>
-      <div style="padding:8px 12px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);font-family:var(--mono);font-size:11px;margin-bottom:10px">
-        當前連${curType==='W'?'勝':'敗'}：<span style="color:${curType==='W'?'var(--green)':'var(--red)'}"> ${curStreak} 次</span>
+      <div style="padding:8px 10px;background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:10px;margin-bottom:8px">
+        Current: <span style="color:${curT==='W'?'var(--green)':'var(--red)'}">
+          ${curS} consecutive ${curT==='W'?'wins':'losses'}
+        </span>
       </div>
-      <div style="font-size:10px;color:var(--lo);line-height:1.7">
-        已成交 <strong style="color:var(--hi)">${cl.length}</strong> 筆 · 
-        <span style="color:var(--green)">${wins.length}W</span> / 
-        <span style="color:var(--red)">${losses.length}L</span>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--lo);line-height:1.8">
+        Trades: <strong style="color:var(--ink)">${cl.length}</strong> ·
+        <span style="color:var(--green)">${wins.length}W</span> / <span style="color:var(--red)">${losses.length}L</span><br>
+        Best month: <strong style="color:var(--green)">${months.length?'+'+Math.max(...months.map(m=>m.r)).toFixed(1)+'R':'—'}</strong> ·
+        Worst: <strong style="color:var(--red)">${months.length?Math.min(...months.map(m=>m.r)).toFixed(1)+'R':'—'}</strong>
       </div>`;
   }
 }
+
+
+// ════════════════════════════════════
+// CALENDAR PnL
+// ════════════════════════════════════
+const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let _calY = new Date().getFullYear();
+let _calM = new Date().getMonth();
+
+function calChangeMonth(d) {
+  _calM += d;
+  if (_calM > 11) { _calM = 0; _calY++; }
+  if (_calM < 0)  { _calM = 11; _calY--; }
+  renderCalPnl(_calY, _calM);
+}
+
+function renderCalPnl(y, m) {
+  _calY = y; _calM = m;
+  const filter = document.getElementById('stat-filter')?.value || 'all';
+  const base = filter==='all' ? trades : filter==='live' ? trades.filter(t=>t.mode==='live') : trades.filter(t=>t.mode==='backtest');
+  const cl = base.filter(t=>t.status!=='OPEN'&&t.pnl!=null&&(t.outcome_type||'normal')==='normal');
+
+  // Build day map
+  const dayMap = {};
+  cl.forEach(t => {
+    if (!t.date) return;
+    if (!dayMap[t.date]) dayMap[t.date] = {pnl:0, trades:[], w:0, l:0};
+    dayMap[t.date].pnl += t.pnl;
+    dayMap[t.date].trades.push(t);
+    t.pnl > 0 ? dayMap[t.date].w++ : dayMap[t.date].l++;
+  });
+
+  const lbl = document.getElementById('cal-month-label');
+  if (lbl) lbl.textContent = CAL_MONTHS[m] + ' ' + y;
+
+  // DOW headers
+  const dowEl = document.getElementById('cal-dow-row');
+  if (dowEl) {
+    dowEl.innerHTML = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d =>
+      `<div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-align:center;padding:4px 0;letter-spacing:.04em">${d}</div>`
+    ).join('');
+  }
+
+  // Grid
+  const gridEl = document.getElementById('cal-grid');
+  if (!gridEl) return;
+
+  const pfx = `${y}-${String(m+1).padStart(2,'0')}`;
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const firstDow = (new Date(y, m, 1).getDay() + 6) % 7; // Mon=0
+  const today = new Date();
+  const isThisMonth = today.getFullYear()===y && today.getMonth()===m;
+
+  // Max abs pnl for intensity scaling
+  const monthVals = Object.entries(dayMap).filter(([k])=>k.startsWith(pfx)).map(([,v])=>Math.abs(v.pnl));
+  const maxAbs = Math.max(...monthVals, 0.1);
+
+  let cells = '';
+  // Empty leading cells
+  for (let i = 0; i < firstDow; i++) {
+    cells += `<div style="border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:56px;background:var(--paper2)"></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dd = String(d).padStart(2,'0');
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${dd}`;
+    const dow = (new Date(y,m,d).getDay()+6)%7;
+    const isWeekend = dow >= 5;
+    const isToday = isThisMonth && today.getDate()===d;
+    const data = dayMap[dateStr];
+
+    let bg = isToday ? 'background:rgba(29,78,216,.06)' : isWeekend ? 'background:var(--paper2)' : '';
+    let heatBar = '';
+    let pnlHtml = '';
+    let dotHtml = '';
+
+    if (data) {
+      const intensity = Math.min(Math.abs(data.pnl)/maxAbs, 1);
+      if (data.pnl >= 0) {
+        const a = (0.12 + intensity*0.5).toFixed(2);
+        bg = `background:rgba(21,128,61,${a})`;
+        heatBar = `<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--green);opacity:${(0.4+intensity*0.5).toFixed(2)}"></div>`;
+        pnlHtml = `<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${intensity>0.5?'#fff':'var(--green)'};margin-top:2px">+${data.pnl.toFixed(1)}R</div>`;
+      } else {
+        const a = (0.1 + intensity*0.45).toFixed(2);
+        bg = `background:rgba(153,27,27,${a})`;
+        heatBar = `<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--red);opacity:${(0.4+intensity*0.5).toFixed(2)}"></div>`;
+        pnlHtml = `<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${intensity>0.5?'#fff':'var(--red)'};margin-top:2px">${data.pnl.toFixed(1)}R</div>`;
+      }
+      const wDot = data.w ? `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${intensity>0.5?'rgba(255,255,255,.7)':'var(--green)'};margin-right:1px"></span>${data.w}` : '';
+      const lDot = data.l ? `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${intensity>0.5?'rgba(255,255,255,.5)':'var(--red)'};margin-left:${data.w?3:0}px;margin-right:1px"></span>${data.l}` : '';
+      dotHtml = `<div style="font-family:var(--mono);font-size:9px;color:${intensity>0.5?'rgba(255,255,255,.7)':'var(--lo)'};display:flex;align-items:center;gap:1px">${wDot}${lDot}</div>`;
+    }
+
+    const dnColor = isToday ? 'var(--blue)' : isWeekend ? 'var(--lo)' : data && Math.abs(data.pnl)/maxAbs>0.5 ? 'rgba(255,255,255,.8)' : 'var(--lo)';
+
+    cells += `<div style="border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:56px;padding:5px 6px;cursor:${data?'pointer':'default'};position:relative;${bg};transition:opacity .12s" onclick="calShowDay('${dateStr}')" ${data?`onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"`:''}">
+      <div style="font-family:var(--mono);font-size:10px;color:${dnColor}">${d}</div>
+      ${pnlHtml}${dotHtml}${heatBar}
+    </div>`;
+  }
+
+  // Trailing empty cells to complete last row
+  const total = firstDow + daysInMonth;
+  const trailing = (7 - total%7) % 7;
+  for (let i=0; i<trailing; i++) {
+    cells += `<div style="border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:56px;background:var(--paper2)"></div>`;
+  }
+
+  gridEl.innerHTML = cells;
+  document.getElementById('cal-tooltip').textContent = '日期格子顯示當日總 R，點擊查看明細';
+}
+
+function calShowDay(dateStr) {
+  const filter = document.getElementById('stat-filter')?.value || 'all';
+  const base = filter==='all' ? trades : filter==='live' ? trades.filter(t=>t.mode==='live') : trades.filter(t=>t.mode==='backtest');
+  const cl = base.filter(t=>t.status!=='OPEN'&&t.pnl!=null&&(t.outcome_type||'normal')==='normal');
+  const dayTrades = cl.filter(t=>t.date===dateStr);
+  const box = document.getElementById('cal-tooltip');
+  if (!box) return;
+  if (!dayTrades.length) { box.textContent = `${dateStr} — 無交易`; return; }
+  const totalR = dayTrades.reduce((s,t)=>s+t.pnl,0);
+  const detail = dayTrades.map(t=>`${t.asset} ${t.dir}${t.grade?` [${t.grade}]`:''} ${t.pnl>=0?'+':''}${t.pnl.toFixed(2)}R`).join('  ·  ');
+  box.innerHTML = `<span style="color:var(--lo)">${dateStr}</span>  <strong style="color:${totalR>=0?'var(--green)':'var(--red)'}">${totalR>=0?'+':''}${totalR.toFixed(2)}R</strong>  <span style="color:var(--mid)">${detail}</span>`;
+}
+
+// ── New: Drawdown chart ──
+function drawDrawdown(canvas, ddSeries) {
+  if (!canvas || !ddSeries.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr;
+  const H = 50 * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  const n = ddSeries.length;
+  const maxDD = Math.max(...ddSeries, 0.1);
+  const pad = {t:2, b:2, l:0, r:0};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const pts = ddSeries.map((v, i) => [pad.l + (i/(n-1||1))*cW, pad.t + (v/maxDD)*cH]);
+  // Fill
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pad.t);
+  pts.forEach(([x,y]) => ctx.lineTo(x, y));
+  ctx.lineTo(pts[pts.length-1][0], pad.t);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(220,38,38,.15)';
+  ctx.fill();
+  // Line
+  ctx.beginPath();
+  pts.forEach(([x,y], i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+  ctx.strokeStyle = 'rgba(220,38,38,.6)';
+  ctx.lineWidth = 1 * dpr;
+  ctx.stroke();
+}
+
+// ── New: R Distribution histogram ──
+function drawRDistribution(canvas, rVals) {
+  if (!canvas || !rVals.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 400) * dpr;
+  const H = 110 * dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  // Bins from -5R to +5R, width 0.5R
+  const binW = 0.5, minR = -5, maxR = 5;
+  const bins = [];
+  for (let b = minR; b < maxR; b += binW) bins.push({lo:b, hi:b+binW, count:0, win: b>=0});
+  rVals.forEach(r => {
+    const idx2 = Math.floor((Math.min(Math.max(r, minR), maxR-0.001) - minR) / binW);
+    if (bins[idx2]) bins[idx2].count++;
+  });
+  const maxCount = Math.max(...bins.map(b=>b.count), 1);
+  const pad = {t:6, b:18, l:4, r:4};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const bw = cW / bins.length;
+  bins.forEach((bin, i) => {
+    const h = (bin.count / maxCount) * cH;
+    const x = pad.l + i * bw;
+    const y = pad.t + cH - h;
+    ctx.fillStyle = bin.win ? 'rgba(21,128,61,.5)' : 'rgba(153,27,27,.5)';
+    ctx.fillRect(x+1, y, Math.max(bw-2,1), h);
+  });
+  // Zero line
+  const zeroX = pad.l + (0 - minR) / binW * bw;
+  ctx.strokeStyle = 'rgba(0,0,0,.3)';
+  ctx.lineWidth = dpr;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(zeroX, pad.t); ctx.lineTo(zeroX, H-pad.b); ctx.stroke();
+  ctx.setLineDash([]);
+  // X labels
+  ctx.fillStyle = 'rgba(0,0,0,.4)';
+  ctx.font = `${7.5*dpr}px monospace`;
+  ctx.textAlign = 'center';
+  [-4,-2,0,2,4].forEach(r => {
+    const x = pad.l + (r - minR) / binW * bw;
+    ctx.fillText(r+'R', x, H - 2*dpr);
+  });
+}
+
 
 
 // ═══════════════════════════════════════════════════
