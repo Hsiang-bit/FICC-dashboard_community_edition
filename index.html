@@ -101,9 +101,9 @@ body{background:var(--paper3);color:var(--mid);font-family:var(--sans);font-size
 @media(max-width:600px){.kpi-strip{grid-template-columns:1fr 1fr}}
 
 /* ── PAGES ── */
-.page{display:none;padding:22px 26px 100px;animation:fadeIn .2s ease}
+.page{display:none;padding:22px 26px 100px;animation:fadeIn .15s ease}
 .page.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
 /* ── LAYOUT ── */
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -409,6 +409,9 @@ select option{background:var(--paper2)}
       ⚠ 尚未設定 Supabase<br>
       請先在程式碼頂端填入 SUPABASE_URL 與 SUPABASE_ANON_KEY<br>
       <span style="color:var(--lo)">或聯絡管理員取得連線資訊</span>
+    </div>
+    <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <button onclick="useWithoutAccount()" style="background:none;border:none;font-family:var(--mono);font-size:10px;color:var(--lo);cursor:pointer;text-decoration:underline;padding:4px 8px">不登入，本地使用（資料僅存此裝置）</button>
     </div>
   </div>
 </div>
@@ -1899,6 +1902,14 @@ function showAuthGate(){
   }
 }
 
+function useWithoutAccount(){
+  localStorage.setItem('ficc_local_mode','1');
+  hideAuthGate();
+  currentUser = null;
+  load(); renderTrades(); loadJournal(currentJDate);
+  toast('本地模式：資料僅存在此裝置，不同步雲端');
+}
+
 function hideAuthGate(){
   document.getElementById('authGate').style.display='none';
 }
@@ -1920,7 +1931,15 @@ function renderUserBar(profile){
 // ── Auth state listener ──
 async function initAuth(){
   const sb = sbClient();
-  if(!sb){ showAuthGate(); return; }
+  if(!sb){
+    // No Supabase configured — check if user previously chose local mode
+    if(localStorage.getItem('ficc_local_mode')==='1'){
+      load(); renderTrades(); loadJournal(currentJDate);
+    } else {
+      showAuthGate();
+    }
+    return;
+  }
   // Listen for auth changes
   let _authInitDone = false;
   sb.auth.onAuthStateChange(async (event, session) => {
@@ -1929,6 +1948,7 @@ async function initAuth(){
     if(session?.user){
       const isNewLogin = !currentUser || currentUser.id !== session.user.id;
       currentUser = session.user;
+      localStorage.removeItem('ficc_local_mode');
       hideAuthGate();
       // Load profile (always refresh on login events)
       if(event==='SIGNED_IN' || event==='INITIAL_SESSION' || !currentProfile){
