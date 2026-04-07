@@ -695,6 +695,7 @@ select option{background:var(--paper2)}
         <option value="backtest">回測</option>
       </select>
       <button class="btn btn-g btn-sm" onclick="renderStat()">↻ 更新</button>
+      <button class="btn btn-g btn-sm" onclick="statDebug()" title="顯示被排除的交易">🔍 檢查</button>
     </div>
   </div>
 
@@ -6777,7 +6778,10 @@ function drawStatEquity(canvas, rValues, h) {
   return last;
 }
 
+let _eqRafId = null;
 function eqCrosshair(e) {
+  if (_eqRafId) return; // throttle to one frame
+  _eqRafId = requestAnimationFrame(() => { _eqRafId = null; });
   const {eq, pts, pad, dpr, W, H, mn, mx, rng, col, cW, cH} = _eqData;
   if (!pts.length) return;
   const canvas = e.currentTarget;
@@ -6903,6 +6907,48 @@ function drawMonthBars(canvas, months) {
   });
 }
 
+
+function statDebug() {
+  const filter = document.getElementById('stat-filter')?.value || 'all';
+  const base = filter==='all' ? trades : filter==='live' ? trades.filter(t=>t.mode==='live') : trades.filter(t=>t.mode==='backtest');
+
+  const excluded = base.filter(t => {
+    const reasons = [];
+    if (t.status === 'OPEN') reasons.push('OPEN status');
+    if (t.pnl == null) reasons.push('pnl is null');
+    if (t.outcome_type && t.outcome_type !== 'normal') reasons.push(`outcome_type="${t.outcome_type}"`);
+    return reasons.length > 0;
+  }).map(t => {
+    const reasons = [];
+    if (t.status === 'OPEN') reasons.push('OPEN status');
+    if (t.pnl == null) reasons.push('pnl is null');
+    if (t.outcome_type && t.outcome_type !== 'normal') reasons.push(`outcome_type="${t.outcome_type}"`);
+    return { id: t.id, date: t.date, asset: t.asset, dir: t.dir, status: t.status, pnl: t.pnl, outcome_type: t.outcome_type, reasons };
+  });
+
+  const included = base.filter(t => t.status !== 'OPEN' && t.pnl != null && (t.outcome_type||'normal') === 'normal');
+
+  if (!excluded.length) {
+    toast(`✓ 全部 ${base.length} 筆都在統計內，無排除`);
+    return;
+  }
+
+  const warnEl = document.getElementById('stat-warn');
+  if (warnEl) {
+    warnEl.style.display = 'block';
+    warnEl.style.cssText = 'display:block;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.2);border-radius:4px;padding:10px 14px;font-size:11px;margin-bottom:12px;font-family:var(--mono)';
+    warnEl.innerHTML = `<strong style="color:var(--blue)">🔍 診斷結果</strong>：共 ${base.length} 筆，統計中 <strong>${included.length}</strong> 筆，排除 <strong style="color:var(--red)">${excluded.length}</strong> 筆<br><br>` +
+      excluded.map(t =>
+        `<div style="padding:4px 0;border-top:1px solid var(--border)">
+          <span style="color:var(--hi)">#${t.id} ${t.date} ${t.asset} ${t.dir}</span>
+          &nbsp;→ 排除原因：<span style="color:var(--red)">${t.reasons.join(', ')}</span>
+          &nbsp;<button class="btn btn-g btn-sm" style="font-size:9px;padding:1px 8px" onclick="openEditModal(${t.id})">編輯修正</button>
+        </div>`
+      ).join('') +
+      `<div style="margin-top:8px;color:var(--lo);font-size:10px">提示：OPEN 狀態或 outcome_type=be 的交易不計入統計。點「編輯修正」可直接修改。</div>`;
+  }
+}
+
 function renderStat() {
   const filter = document.getElementById('stat-filter')?.value || 'all';
   const base = filter==='all' ? trades : filter==='live' ? trades.filter(t=>t.mode==='live') : trades.filter(t=>t.mode==='backtest');
@@ -7018,14 +7064,15 @@ function renderStat() {
   const months=Object.values(byMonth).sort((a,b)=>a.month.localeCompare(b.month));
   const legEl=document.getElementById('statMonthLegend');
   if(legEl) legEl.innerHTML=months.map(m=>{const mc=m.r>=0?'var(--green)':'var(--red)';return`<span style="color:${mc};white-space:nowrap">${m.month}: ${m.r>=0?'+':''}${m.r.toFixed(1)}R</span>`;}).join('');
-  setTimeout(()=>{const cv2=document.getElementById('statMonthCanvas');if(cv2)drawMonthBars(cv2,months);},60);
+  window._statT.push(setTimeout(()=>{const cv2=document.getElementById('statMonthCanvas');if(cv2)drawMonthBars(cv2,months);},60));
 
   // R Distribution histogram
   setTimeout(()=>{
     const cv3=document.getElementById('statDistCanvas');
     if(cv3) drawRDistribution(cv3, cl.map(t=>t.pnl));
     const dl=document.getElementById('stat-dist-legend');
-    if(dl) dl.innerHTML=`Skew: ${(cl.reduce((s,t)=>s+(t.pnl-mean)**3,0)/cl.length/std**3).toFixed(2)} · Best: +${best.toFixed(2)}R · Worst: ${worst.toFixed(2)}R`;
+    const skew = std>0 ? (cl.reduce((s,t)=>s+(t.pnl-mean)**3,0)/cl.length/std**3) : 0;
+    if(dl) dl.innerHTML=`Skew: ${isFinite(skew)?skew.toFixed(2):'—'} · Best: +${best.toFixed(2)}R · Worst: ${worst.toFixed(2)}R`;
   },70);
 
   // ⑥ Grade breakdown
