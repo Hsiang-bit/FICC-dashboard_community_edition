@@ -719,7 +719,7 @@ select option{background:var(--paper2)}
   <div style="overflow-x:auto">
     <table class="ttable">
       <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>Trend</th><th>Grade</th><th>Conf.</th><th>Type</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
-      <tbody id="tBody"><tr><td colspan="13" class="t-empty">尚無記錄，點擊「+ 新增交易」</td></tr></tbody>
+      <tbody id="tBody"><tr><td colspan="18" class="t-empty">尚無記錄，點擊「+ 新增交易」</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -816,6 +816,12 @@ select option{background:var(--paper2)}
       <div id="stat-asset-body"></div>
     </div>
   </div>
+  <!-- Style Analysis row -->
+  <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:14px">
+    <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Style Analysis</div>
+    <div id="stat-style-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px"></div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
     <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
       <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Session Analysis</div>
@@ -4464,6 +4470,7 @@ function renderTrades(){
         :'<span style="color:var(--lo)">—</span>'}</td>
       <td>${gradeCell}</td>
       <td style="min-width:60px">${confCell}</td>
+      <td><span style="font-family:var(--mono);font-size:9px;color:var(--lo)">${t.trade_type?({'scalping':'SCP','day':'DAY','short':'ST','swing':'SW'}[t.trade_type]||t.trade_type):'—'}</span></td>
       <td style="font-family:var(--mono);font-size:11px">${t.entry?t.entry:'—'}${t.legs&&t.legs.length>1?`<span style="font-size:9px;margin-left:3px;background:rgba(37,99,235,.12);color:var(--blue);border:1px solid rgba(37,99,235,.2);border-radius:2px;padding:1px 4px">×${t.legs.length}</span>`:''}</td>
       <td>${t.exit||'—'}</td>
       <td>${t.risk}%</td><td>${t.r?t.r+'R':'—'}</td>
@@ -7237,6 +7244,37 @@ function renderStat() {
         <span style="font-family:var(--mono);font-size:10px;color:${avgR2>=0?'var(--green)':'var(--red)'};flex:1">${avgR2>=0?'+':''}${avgR2.toFixed(2)}R</span>
       </div>`;
     }).join('');
+  }
+
+  // Style breakdown
+  const styleEl = document.getElementById('stat-style-body');
+  if(styleEl){
+    const STYLE_LABELS = {scalping:'Scalping', day:'Day Trade', short:'Short-term', swing:'Swing Trade', '':'未分類'};
+    const STYLE_COLORS = {scalping:'var(--blue)', day:'var(--cyan)', short:'var(--amber)', swing:'var(--pur)', '':'var(--lo)'};
+    const byStyle = {};
+    cl.forEach(t=>{
+      const s = t.trade_type||'';
+      if(!byStyle[s]) byStyle[s]={n:0,w:0,r:0};
+      byStyle[s].n++; if(t.pnl>0) byStyle[s].w++; byStyle[s].r+=t.pnl;
+    });
+    const styleOrder = ['scalping','day','short','swing',''];
+    const hasData = styleOrder.filter(s=>byStyle[s]);
+    styleEl.innerHTML = hasData.length === 0 ? '<span style="font-family:var(--mono);font-size:10px;color:var(--lo)">尚無 Style 資料</span>' :
+      hasData.map(s=>{
+        const d=byStyle[s];
+        const wr2=d.n?d.w/d.n:0;
+        const avgR2=d.r/d.n;
+        const col=STYLE_COLORS[s]||'var(--lo)';
+        const lbl=STYLE_LABELS[s]||s;
+        return`<div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px">
+          <div style="font-family:var(--mono);font-size:9px;font-weight:700;color:${col};letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">${lbl}</div>
+          <div style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:${avgR2>=0?'var(--green)':'var(--red)'};line-height:1">${avgR2>=0?'+':''}${avgR2.toFixed(2)}R</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">${d.n}筆 · ${(wr2*100).toFixed(0)}% WR</div>
+          <div style="margin-top:6px;height:3px;background:var(--border);border-radius:2px">
+            <div style="height:100%;border-radius:2px;background:${col};width:${(wr2*100).toFixed(0)}%;transition:width .3s"></div>
+          </div>
+        </div>`;
+      }).join('');
   }
 
   // Session breakdown
