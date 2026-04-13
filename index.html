@@ -1068,9 +1068,10 @@ select option{background:var(--paper2)}
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:8px;letter-spacing:.04em">GEMINI MODEL</div>
         <select id="geminiModel" style="width:100%;font-size:10px">
-          <option value="gemini-2.5-flash">Gemini 2.5 Flash 🔥（推薦）</option>
-          <option value="gemini-2.0-flash">Gemini 2.0 Flash ⚡（穩定）</option>
-          <option value="gemini-2.5-pro">Gemini 2.5 Pro 🧠（最強推理）</option>
+          <option value="gemini-2.0-flash">Gemini 2.0 Flash ⚡（穩定推薦）</option>
+          <option value="gemini-2.5-flash-preview-04-17">Gemini 2.5 Flash 🔥（最新）</option>
+          <option value="gemini-2.5-pro-preview-03-25">Gemini 2.5 Pro 🧠（最強推理）</option>
+          <option value="gemini-1.5-flash">Gemini 1.5 Flash（備用）</option>
         </select>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:10px;line-height:1.6">API Key 在 Settings 頁設定<br>資料：最近14天日誌 + 所有交易記錄</div>
       </div>
@@ -1088,7 +1089,7 @@ select option{background:var(--paper2)}
             <b>① Settings</b> 填入 Gemini API Key → <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--blue)">免費取得</a><br>
             <b>② 本機啟動</b>（若遇到 CORS 錯誤）：<br>
             <code style="display:block;background:var(--bg);padding:5px 8px;border-radius:3px;margin:5px 0;font-size:9px;border:1px solid var(--border)">cd ~/Downloads && python3 -m http.server 8080</code>
-            瀏覽器開啟 <a href="http://localhost:8080" target="_blank" style="color:var(--blue)">http://localhost:8080/ficc_pro_v3.html</a><br><br>
+            瀏覽器開啟 <a href="http://localhost:8080" target="_blank" style="color:var(--blue)">http://localhost:8080/ficc_pro_v4.html</a><br><br>
             點擊左側快速分析按鈕，或直接輸入問題開始。
           </div>
         </div>
@@ -1315,6 +1316,45 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
       <input type="password" id="geminiKey" placeholder="AIzaSy..." oninput="saveSettings()" style="flex:1;font-size:10px">
       <button class="btn btn-g btn-sm" onclick="toggleKeyVis('geminiKey')">👁</button>
     </div>
+    <div class="settings-row" style="margin-top:6px">
+      <div class="settings-label">Gemini Proxy URL<br><span style="font-size:9px;color:var(--lo);font-weight:400">Cloudflare Worker URL，解決 CORS 問題</span></div>
+      <input type="text" id="geminiProxyUrl" placeholder="https://your-worker.workers.dev" oninput="saveSettings()" style="flex:1;font-size:11px">
+    </div>
+    <details style="margin:8px 0 4px;font-family:var(--mono);font-size:10px;color:var(--lo)">
+      <summary style="cursor:pointer;color:var(--blue)">▶ 如何設定 Cloudflare Worker（免費，5分鐘）</summary>
+      <div style="padding:10px 0 4px;line-height:1.9;color:var(--mid)">
+        1. 前往 <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--blue)">workers.cloudflare.com</a> 免費註冊<br>
+        2. 建立新 Worker，貼上下方程式碼<br>
+        3. 部署後把 Worker URL 填入上方欄位<br><br>
+        <code style="display:block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px 12px;white-space:pre;font-size:9px;line-height:1.7;overflow-x:auto">export default {
+  async fetch(request) {
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders() });
+    }
+    const body = await request.json();
+    const { model, contents, generationConfig } = body;
+    const apiKey = body.apiKey;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents, generationConfig }),
+    });
+    const data = await res.json();
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+    });
+  }
+};
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}</code>
+      </div>
+    </details>
     <div style="padding:8px 12px;background:rgba(66,133,244,.08);border:1px solid rgba(66,133,244,.2);border-radius:var(--r);font-family:var(--mono);font-size:10px;color:var(--mid);line-height:1.7">
       取得免費 Key：<a href="https://aistudio.google.com/app/apikey" target="_blank" class="notion-link">aistudio.google.com/app/apikey</a><br>
       Gemini 1.5 Flash 每日免費 1500 次請求，足夠每日使用。
@@ -2600,6 +2640,7 @@ function load(){
   if(settings.notionToken) document.getElementById('notionToken').value=settings.notionToken;
   if(settings.notionProxyUrl) document.getElementById('notionProxyUrl').value=settings.notionProxyUrl;
   if(settings.geminiKey) document.getElementById('geminiKey').value=settings.geminiKey;
+  if(settings.geminiProxyUrl){const gpe=document.getElementById('geminiProxyUrl');if(gpe)gpe.value=settings.geminiProxyUrl;}
   if(settings.pplxKey){const el=document.getElementById('pplxKey');if(el)el.value=settings.pplxKey;}
   if(settings.ghToken){const el=document.getElementById('ghToken');if(el)el.value=settings.ghToken;}
   if(settings.imgbbKey){const el=document.getElementById('imgbbKey');if(el)el.value=settings.imgbbKey;}
@@ -2657,6 +2698,7 @@ function saveSettings(){
   settings.notionToken=document.getElementById('notionToken').value;
   settings.notionProxyUrl=document.getElementById('notionProxyUrl')?.value||'';
   settings.geminiKey=document.getElementById('geminiKey').value;
+  settings.geminiProxyUrl=document.getElementById('geminiProxyUrl')?.value||'';
   const pk=document.getElementById('pplxKey');if(pk)settings.pplxKey=pk.value;
   const pid=document.getElementById('notionParentId');
   if(pid)settings.notionParentId=pid.value;
@@ -5705,11 +5747,20 @@ ${tradeText||'（無交易記錄）'}
   });
 
   const BASE=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-  const ENDPOINTS=[
+  const proxyUrl=(settings.geminiProxyUrl||'').trim();
+
+  // Build endpoint list: proxy first if configured, then direct, then fallbacks
+  const ENDPOINTS=[];
+  if(proxyUrl){
+    // Cloudflare Worker proxy — passes apiKey in body so no CORS issue
+    const proxyBody=JSON.stringify({model, contents, generationConfig:{temperature:0.7,maxOutputTokens:8192}, apiKey:key});
+    ENDPOINTS.push(()=>fetch(proxyUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:proxyBody,signal:AbortSignal.timeout(45000)}));
+  }
+  ENDPOINTS.push(
     ()=>fetch(BASE,{method:'POST',headers:{'Content-Type':'application/json'},body,signal:AbortSignal.timeout(45000)}),
     ()=>fetch(`https://corsproxy.io/?url=${encodeURIComponent(BASE)}`,{method:'POST',headers:{'Content-Type':'application/json','x-requested-with':'XMLHttpRequest'},body,signal:AbortSignal.timeout(45000)}),
     ()=>fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(BASE)}`,{method:'POST',headers:{'Content-Type':'application/json'},body,signal:AbortSignal.timeout(45000)}),
-  ];
+  );
 
   let data=null,lastErr='';
   for(const makeReq of ENDPOINTS){
@@ -5721,11 +5772,11 @@ ${tradeText||'（無交易記錄）'}
 
   removeTyping();
   if(!data){
-    appendMsg(`⚠ 所有連線方式均失敗（${lastErr}）<br><br>
-<b>最快解法：用本機 HTTP Server 開啟</b><br>
-在終端機執行：<br>
-<code style="display:block;background:var(--bg);padding:6px 10px;border-radius:3px;margin:6px 0;font-size:10px;border:1px solid var(--border)">cd ~/Downloads && python3 -m http.server 8080</code>
-然後在瀏覽器開啟 <a href="http://localhost:8080" target="_blank" style="color:var(--blue)">http://localhost:8080/ficc_pro_v3.html</a>`,'ai');
+    appendMsg(`⚠ 連線失敗：CORS 限制（${lastErr||'Failed to fetch'}）<br><br>
+<b>解法：設定 Cloudflare Worker Proxy（免費）</b><br>
+前往 Settings → AI Coach → <b>Gemini Proxy URL</b>，<br>
+按照說明建立 Cloudflare Worker 並填入 URL，即可從 GitHub Pages 正常使用。<br><br>
+<a href="#" onclick="showPage('settings',null);return false;" style="color:var(--blue)">→ 前往 Settings 設定</a>`,'ai');
     return;
   }
   if(data.error){
