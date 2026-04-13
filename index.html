@@ -1068,10 +1068,16 @@ select option{background:var(--paper2)}
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:8px;letter-spacing:.04em">GEMINI MODEL</div>
         <select id="geminiModel" style="width:100%;font-size:10px">
-          <option value="gemini-2.0-flash">Gemini 2.0 Flash ⚡（穩定推薦）</option>
-          <option value="gemini-2.5-flash-preview-04-17">Gemini 2.5 Flash 🔥（最新）</option>
-          <option value="gemini-2.5-pro-preview-03-25">Gemini 2.5 Pro 🧠（最強推理）</option>
-          <option value="gemini-1.5-flash">Gemini 1.5 Flash（備用）</option>
+          <optgroup label="── Groq（推薦·免費·快速）──">
+          <option value="groq:llama-3.3-70b-versatile">Llama 3.3 70B ⚡ 推薦</option>
+          <option value="groq:llama-3.1-8b-instant">Llama 3.1 8B 🚀 超快</option>
+          <option value="groq:llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B 🦅</option>
+          </optgroup>
+          <optgroup label="── Gemini（若 quota 有餘）──">
+          <option value="gemini-2.5-flash-preview-04-17">Gemini 2.5 Flash</option>
+          <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+          <option value="gemini-2.5-pro-preview-03-25">Gemini 2.5 Pro</option>
+          </optgroup>
         </select>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:10px;line-height:1.6">API Key 在 Settings 頁設定<br>資料：最近14天日誌 + 所有交易記錄</div>
       </div>
@@ -1312,7 +1318,12 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
   <div class="card mb16" style="max-width:680px">
     <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">🤖 Gemini API Key</div>
     <div class="settings-row">
-      <div class="settings-label">Gemini API Key</div>
+      <div class="settings-label">Groq API Key<br><span style="font-size:9px;color:var(--lo);font-weight:400"><a href="https://console.groq.com/keys" target="_blank" class="notion-link">免費取得 →</a> 不需信用卡</span></div>
+      <input type="password" id="groqKey" placeholder="gsk_..." oninput="saveSettings()" style="flex:1;font-size:10px">
+      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('groqKey')">👁</button>
+    </div>
+    <div class="settings-row" style="margin-top:6px">
+      <div class="settings-label">Gemini API Key<br><span style="font-size:9px;color:var(--lo);font-weight:400">（備用，目前免費 quota 不穩定）</span></div>
       <input type="password" id="geminiKey" placeholder="AIzaSy..." oninput="saveSettings()" style="flex:1;font-size:10px">
       <button class="btn btn-g btn-sm" onclick="toggleKeyVis('geminiKey')">👁</button>
     </div>
@@ -2639,6 +2650,7 @@ function load(){
   // (sbPullSilent is called after auth in SIGNED_IN handler)
   if(settings.notionToken) document.getElementById('notionToken').value=settings.notionToken;
   if(settings.notionProxyUrl) document.getElementById('notionProxyUrl').value=settings.notionProxyUrl;
+  if(settings.groqKey){const ge=document.getElementById('groqKey');if(ge)ge.value=settings.groqKey;}
   if(settings.geminiKey) document.getElementById('geminiKey').value=settings.geminiKey;
   if(settings.geminiProxyUrl){const gpe=document.getElementById('geminiProxyUrl');if(gpe)gpe.value=settings.geminiProxyUrl;}
   if(settings.pplxKey){const el=document.getElementById('pplxKey');if(el)el.value=settings.pplxKey;}
@@ -2697,6 +2709,7 @@ function saveAll(){
 function saveSettings(){
   settings.notionToken=document.getElementById('notionToken').value;
   settings.notionProxyUrl=document.getElementById('notionProxyUrl')?.value||'';
+  settings.groqKey=document.getElementById('groqKey')?.value||'';
   settings.geminiKey=document.getElementById('geminiKey').value;
   settings.geminiProxyUrl=document.getElementById('geminiProxyUrl')?.value||'';
   const pk=document.getElementById('pplxKey');if(pk)settings.pplxKey=pk.value;
@@ -5644,6 +5657,99 @@ async function repushTrade(tradeId){
 // ════════════════════════════════════
 // AI COACH — GEMINI
 // ════════════════════════════════════
+
+async function callGroq(userPrompt, isContinue, model, key){
+  if(!isContinue){
+    const {journalText, tradeText} = buildContext();
+    const systemMsg = `你是一個專業的 FICC 大類資產交易教練，專精於 Bond/FX/Gold/Oil/BTC 的 SMT（Smart Money Theory）交易方法。你有以下資料：
+
+=== 最近14天交易日誌 ===
+${journalText||'（無日誌記錄）'}
+
+=== 所有交易記錄 ===
+${tradeText||'（無交易記錄）'}
+
+=== FICC 交易規則 ===
+- 交易順序：Bond → FX → Gold → Oil → BTC
+- Risk上限：Bond/FX 2-4%，Gold/Oil 2%，BTC 2-6%，單日總風險<6%
+- SMT確認流程：月線→週線→日線→H4結構`;
+
+    coachHistory.push({role:'user', content: systemMsg + '\n\n用戶問題：' + userPrompt});
+  } else {
+    coachHistory.push({role:'user', content:'請繼續上面的回覆，從截斷處接著輸出，不要重複已說過的內容。'});
+  }
+
+  const messages = coachHistory.map(m => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.content || ''
+  }));
+
+  const body = JSON.stringify({
+    model,
+    messages,
+    temperature: 0.7,
+    max_tokens: 4096,
+  });
+
+  const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+  let data = null, lastErr = '';
+
+  // Groq supports CORS natively from browsers
+  try {
+    const r = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + key,
+      },
+      body,
+      signal: AbortSignal.timeout(30000),
+    });
+    data = await r.json();
+  } catch(e) {
+    lastErr = e.message;
+    // Try via Cloudflare Worker proxy if direct fails
+    const proxyUrl = (settings.geminiProxyUrl||'').trim();
+    if (proxyUrl) {
+      try {
+        const r2 = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({groq:true, model, messages, temperature:0.7, max_tokens:4096, apiKey:key}),
+          signal: AbortSignal.timeout(30000),
+        });
+        data = await r2.json();
+      } catch(e2) { lastErr = e2.message; }
+    }
+  }
+
+  removeTyping();
+  if(!data){
+    appendMsg(`⚠ Groq 連線失敗（${lastErr}）<br>請確認 API Key 是否正確。`, 'ai');
+    return;
+  }
+  if(data.error){
+    appendMsg('⚠ Groq 錯誤：' + (data.error.message||JSON.stringify(data.error)), 'ai');
+    return;
+  }
+
+  const reply = data.choices?.[0]?.message?.content || '（無回應）';
+  const finishReason = data.choices?.[0]?.finish_reason || '';
+  coachHistory.push({role:'assistant', content:reply});
+
+  if(finishReason === 'length'){
+    appendMsg(reply + '<br><br><span style="color:var(--lo);font-size:10px">⚠ 回覆因長度截斷</span>', 'ai');
+    const msgs = document.getElementById('coachMessages');
+    const btn = document.createElement('div');
+    btn.className = 'msg ai';
+    btn.innerHTML = `<div class="msg-avatar">AI</div><div class="msg-bubble" style="padding:6px 10px"><button class="btn btn-g btn-sm" onclick="coachContinue()" style="font-size:10px">▶ 繼續輸出</button></div>`;
+    msgs.appendChild(btn);
+    msgs.scrollTop = msgs.scrollHeight;
+  } else {
+    appendMsg(reply, 'ai');
+  }
+}
+
 function buildContext(){
   const recentDates=Object.keys(journals).sort().reverse().slice(0,14);
   const journalText=recentDates.map(d=>{
@@ -5703,13 +5809,26 @@ function formatAIText(text){
 let coachHistory=[];
 
 async function callGemini(userPrompt, isContinue=false){
+  const model = document.getElementById('geminiModel').value || 'groq:llama-3.3-70b-versatile';
+  const isGroq = model.startsWith('groq:');
+
+  if(isGroq){
+    const groqKey = document.getElementById('groqKey')?.value.trim()||settings.groqKey||'';
+    if(!groqKey){
+      appendMsg('⚠ 請先在 Settings 填入 <b>Groq API Key</b><br><br>免費取得（不需信用卡）：<a href="https://console.groq.com/keys" target="_blank" style="color:var(--blue)">console.groq.com/keys</a>','ai');
+      return;
+    }
+    appendTyping();
+    await callGroq(userPrompt, isContinue, model.replace('groq:',''), groqKey);
+    return;
+  }
+
   const key=document.getElementById('geminiKey').value.trim()||settings.geminiKey||'';
   if(!key){
-    appendMsg('⚠ 請先在 Settings 頁填入 Gemini API Key<br><br>免費取得：<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--blue)">aistudio.google.com/app/apikey</a>','ai');
+    appendMsg('⚠ 請先在 Settings 頁填入 Gemini API Key<br><br>或改用 <b>Groq</b>（免費·不需信用卡）：<a href="https://console.groq.com/keys" target="_blank" style="color:var(--blue)">console.groq.com/keys</a>','ai');
     return;
   }
   appendTyping();
-  const model=document.getElementById('geminiModel').value;
 
   if(!isContinue){
     // Build new turn — system context + user question
