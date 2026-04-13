@@ -1070,8 +1070,8 @@ select option{background:var(--paper2)}
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:8px;letter-spacing:.04em">GEMINI MODEL</div>
         <select id="geminiModel" style="width:100%;font-size:10px">
           <optgroup label="── Groq（推薦·免費·快速）──">
-          <option value="groq:llama-3.3-70b-versatile">Llama 3.3 70B ⚡ 推薦</option>
-          <option value="groq:llama-3.1-8b-instant">Llama 3.1 8B 🚀 超快</option>
+          <option value="groq:llama-3.1-8b-instant">Llama 3.1 8B 🚀 快速（免費 TPM 較高）</option>
+          <option value="groq:llama-3.3-70b-versatile">Llama 3.3 70B ⚡ 高品質（TPM 較低）</option>
           <option value="groq:llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B 🦅</option>
           </optgroup>
           <optgroup label="── Gemini（若 quota 有餘）──">
@@ -5661,21 +5661,17 @@ async function repushTrade(tradeId){
 
 async function callGroq(userPrompt, isContinue, model, key){
   if(!isContinue){
-    const {journalText, tradeText} = buildContext();
-    const systemMsg = `你是一個專業的 FICC 大類資產交易教練，專精於 Bond/FX/Gold/Oil/BTC 的 SMT（Smart Money Theory）交易方法。你有以下資料：
+    // Free tier limits: 70b=12000 TPM, 8b=6000 TPM — keep context tight
+    const {journalText, tradeText} = buildContext(5);
+    const systemMsg = `你是 FICC 交易教練，專精 SMT 方法（Bond/FX/Gold/Oil/BTC）。
 
-=== 最近14天交易日誌 ===
-${journalText||'（無日誌記錄）'}
+日誌：
+${journalText||'無'}
 
-=== 所有交易記錄 ===
-${tradeText||'（無交易記錄）'}
+最近 ${maxT} 筆交易：
+${tradeText||'無'}`;
 
-=== FICC 交易規則 ===
-- 交易順序：Bond → FX → Gold → Oil → BTC
-- Risk上限：Bond/FX 2-4%，Gold/Oil 2%，BTC 2-6%，單日總風險<6%
-- SMT確認流程：月線→週線→日線→H4結構`;
-
-    coachHistory.push({role:'user', content: systemMsg + '\n\n用戶問題：' + userPrompt});
+    coachHistory.push({role:'user', content: systemMsg + '\n\n問題：' + userPrompt});
   } else {
     coachHistory.push({role:'user', content:'請繼續上面的回覆，從截斷處接著輸出，不要重複已說過的內容。'});
   }
@@ -5685,11 +5681,13 @@ ${tradeText||'（無交易記錄）'}
     content: m.content || ''
   }));
 
+  // Auto-use 8b if 70b selected (8b has higher free TPM limit)
+  const effectiveModel = (model === 'llama-3.3-70b-versatile') ? 'llama-3.3-70b-versatile' : model;
   const body = JSON.stringify({
-    model,
+    model: effectiveModel,
     messages,
     temperature: 0.7,
-    max_tokens: 4096,
+    max_tokens: 3000,
   });
 
   const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -5751,83 +5749,71 @@ ${tradeText||'（無交易記錄）'}
   }
 }
 
-function buildContext(maxTrades=30){
-  // Journals: last 7 days, notes trimmed to 200 chars each
-  const recentDates=Object.keys(journals).sort().reverse().slice(0,7);
+function buildContext(maxTrades=5){
+  // Journals: last 3 days, very compact
+  const recentDates=Object.keys(journals).sort().reverse().slice(0,3);
   const journalText=recentDates.map(d=>{
-    const j=journals[d];
-    const notes=j.notes||{};
-    const sigs=j.signals||{};
-    const macro=j.macro||{};
-    return`[${d}] ${macro.regime||''} DXY:${macro.dxy||'—'} Bond:${sigs.bond||'—'} FX:${sigs.fx||'—'} Gold:${sigs.gold||'—'} BTC:${sigs.btc||'—'}\n${(notes.pre||'').slice(0,200)}`;
+    const j=journals[d]; const n=j.notes||{}; const s=j.signals||{};
+    return`[${d}] Bond:${s.bond||'—'} FX:${s.fx||'—'} Gold:${s.gold||'—'} ${(n.pre||'').slice(0,100)}`;
   }).join('\n');
-
-  // Trades: most recent N, compact format
+  // Trades: most recent N, compact
   const recent=trades.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,maxTrades);
-  const tradeText=recent.map(t=>`${t.date} ${t.asset} ${t.dir} ${t.status} R:${t.pnl!=null?t.pnl.toFixed(2):'?'} G:${t.grade||'—'} | ${(t.reason||'').slice(0,120)}`).join('\n');
-
+  const tradeText=recent.map(t=>`${t.date} ${t.asset} ${t.dir} ${t.status} R:${t.pnl!=null?t.pnl.toFixed(2):'?'} G:${t.grade||'—'} ${(t.reason||'').slice(0,80)}`).join('\n');
   return{journalText,tradeText};
 }
 
 async function coachFullReview(){
-  // Send ALL trades with full detail using a higher-capacity model
-  const model = document.getElementById('geminiModel').value || 'groq:llama-3.3-70b-versatile';
-  const isGroq = model.startsWith('groq:');
-
-  // Pick fastest/highest-limit model
-  const reviewModel = isGroq ? 'llama-3.1-8b-instant' : model.replace('groq:','');
   const groqKey = document.getElementById('groqKey')?.value.trim()||settings.groqKey||'';
-  const geminiKey = document.getElementById('geminiKey')?.value.trim()||settings.geminiKey||'';
+  if(!groqKey){ appendMsg('⚠ 請先填入 Groq API Key','ai'); return; }
 
-  if(isGroq && !groqKey){
-    appendMsg('⚠ 請先填入 Groq API Key','ai'); return;
+  const sorted = trades.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(!sorted.length){ appendMsg('⚠ 無交易記錄','ai'); return; }
+
+  appendMsg('📋 開始分析全部 '+sorted.length+' 筆交易，分批處理中...', 'user');
+  coachHistory = [];
+
+  // Chunk trades into groups of 8 (safe for 6000 TPM limit)
+  const CHUNK = 8;
+  const chunks = [];
+  for(let i=0; i<sorted.length; i+=CHUNK) chunks.push(sorted.slice(i,i+CHUNK));
+
+  const chunkSummaries = [];
+
+  for(let ci=0; ci<chunks.length; ci++){
+    const chunk = chunks[ci];
+    const tradeBlock = chunk.map((t,i)=>`#${ci*CHUNK+i+1} ${t.date} ${t.asset} ${t.dir} ${t.status} R:${t.pnl!=null?t.pnl.toFixed(2):'open'} G:${t.grade||'—'}\nReason: ${(t.reason||'').slice(0,200)}`).join('\n');
+
+    const chunkPrompt = `分析這 ${chunk.length} 筆交易（共 ${sorted.length} 筆中的第 ${ci*CHUNK+1}-${ci*CHUNK+chunk.length} 筆），簡短摘要：勝率、平均R、執行問題。限 150字。\n${tradeBlock}`;
+
+    appendTyping();
+    const div = document.getElementById('coachMessages')?.lastElementChild;
+
+    try {
+      const body = JSON.stringify({ model:'llama-3.3-70b-versatile', messages:[{role:'user',content:chunkPrompt}], temperature:0.5, max_tokens:400 });
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},body,signal:AbortSignal.timeout(20000)});
+      const d = await r.json();
+      if(d.error){ removeTyping(); appendMsg('⚠ 分批失敗: '+d.error.message,'ai'); return; }
+      const summary = d.choices?.[0]?.message?.content||'';
+      chunkSummaries.push(`【第${ci*CHUNK+1}-${ci*CHUNK+chunk.length}筆】${summary}`);
+      removeTyping();
+      // Small delay to avoid TPM burst
+      if(ci < chunks.length-1) await new Promise(r=>setTimeout(r,4000));
+    } catch(e) { removeTyping(); appendMsg('⚠ 連線失敗: '+e.message,'ai'); return; }
   }
-  if(!isGroq && !geminiKey){
-    appendMsg('⚠ 請先填入 API Key','ai'); return;
-  }
 
-  // Build full context — all trades, no truncation
-  const allTradeText = trades
-    .slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-    .map((t,i)=>`#${i+1} ${t.date} ${t.asset} ${t.dir} ${t.status}
-  R:${t.pnl!=null?t.pnl.toFixed(2)+'R':'open'} | Risk:${t.risk}% | Grade:${t.grade||'—'} | Session:${t.session||'—'} | Style:${t.trade_type||'—'}
-  Entry Reason: ${t.reason||'—'}
-  Exit Reason: ${t.exitr||'—'}`)
-    .join('\n\n');
-
-  const recentJournals = Object.keys(journals).sort().reverse().slice(0,14)
-    .map(d=>{
-      const j=journals[d]; const n=j.notes||{};
-      return `[${d}] ${(n.pre||'').slice(0,300)}`;
-    }).join('\n');
-
-  const prompt = `請對我的全部交易記錄做一次深度 Review，給出具體且有建設性的分析。
-
-=== 全部 ${trades.length} 筆交易 ===
-${allTradeText}
-
-=== 最近 14 天日誌摘要 ===
-${recentJournals}
-
-請分析：
-1. **整體績效**：勝率、平均R、最大DD、最好/最差的月份
-2. **資產別表現**：哪個資產最強？哪個需要改進？
-3. **交易風格分析**（如有 Style 標記）
-4. **執行品質**：Grade 分佈，A+/A vs B/C 的勝率差異
-5. **交易理由品質**：Entry Reason 有沒有共同的強弱模式？
-6. **具體建議**：3-5 個最值得改進的地方
-
-請以中文回答，盡量具體有數字。`;
-
-  appendMsg('📋 請分析我的全部 '+trades.length+' 筆交易記錄，做完整 Review', 'user');
+  // Final synthesis
   appendTyping();
-  coachHistory = []; // Fresh context for full review
-
-  if(isGroq){
-    await callGroq(prompt, false, reviewModel, groqKey);
-  } else {
-    await callGemini(prompt);
-  }
+  const synthPrompt = `根據以下分批分析結果，給出完整的交易 Review，包含：整體績效、最強/最弱資產、執行品質問題、3-5個具體改進建議。請用中文，結構清晰。\n\n${chunkSummaries.join('\n\n')}`;
+  try {
+    const body2 = JSON.stringify({ model:'llama-3.3-70b-versatile', messages:[{role:'user',content:synthPrompt}], temperature:0.7, max_tokens:2000 });
+    const r2 = await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},body:body2,signal:AbortSignal.timeout(30000)});
+    const d2 = await r2.json();
+    removeTyping();
+    if(d2.error){ appendMsg('⚠ 合成失敗: '+d2.error.message,'ai'); return; }
+    const reply = d2.choices?.[0]?.message?.content||'';
+    appendMsg(reply,'ai');
+    coachHistory.push({role:'assistant',content:reply});
+  } catch(e){ removeTyping(); appendMsg('⚠ '+e.message,'ai'); }
 }
 
 const QUICK_PROMPTS={
