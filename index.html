@@ -1058,6 +1058,7 @@ select option{background:var(--paper2)}
     <div class="coach-sidebar">
       <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--lo);margin-bottom:10px">快速分析</div>
       <div class="coach-quick-btns">
+        <button class="qbtn" onclick="coachFullReview()" style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.06)">📋 全部交易 Deep Review<br><span style="font-size:9px;opacity:.6">送出全部紀錄做完整分析</span></button>
         <button class="qbtn" onclick="coachQuick('weekly_review')">📊 本週整體回顧<br><span style="font-size:9px;opacity:.6">分析本週日誌與交易記錄</span></button>
         <button class="qbtn" onclick="coachQuick('trade_patterns')">🔍 交易模式分析<br><span style="font-size:9px;opacity:.6">找出你的強項與弱點</span></button>
         <button class="qbtn" onclick="coachQuick('risk_review')">⚖️ 風險管理評估<br><span style="font-size:9px;opacity:.6">R倍數、月度執行率分析</span></button>
@@ -5750,18 +5751,85 @@ ${tradeText||'（無交易記錄）'}
   }
 }
 
-function buildContext(){
-  const recentDates=Object.keys(journals).sort().reverse().slice(0,14);
+function buildContext(maxTrades=30){
+  // Journals: last 7 days, notes trimmed to 200 chars each
+  const recentDates=Object.keys(journals).sort().reverse().slice(0,7);
   const journalText=recentDates.map(d=>{
     const j=journals[d];
     const notes=j.notes||{};
     const sigs=j.signals||{};
     const macro=j.macro||{};
-    return`[${d}] Checklist:${j.score||0}/${j.total||0} | Regime:${macro.regime||'—'} | DXY:${macro.dxy||'—'} | Signals: Bond ${sigs.bond} FX ${sigs.fx} Gold ${sigs.gold} Oil ${sigs.oil} BTC ${sigs.btc}\nNotes: ${(notes.pre||'').slice(0,500)}\nIdeas: ${(notes.ideas||'').slice(0,500)}\nEOD: ${(notes.eod||'').slice(0,500)}`;
-  }).join('\n\n');
-  const tradeText=trades.map(t=>`[${t.date}] ${t.asset} ${t.dir} | Entry:${t.entry} Exit:${t.exit||'open'} | Risk:${t.risk}% R:${t.r}x | PnL:${t.pnl!=null?t.pnl.toFixed(2)+'R':'open'} | Grade:${t.grade||'—'} | Session:${t.session||'—'} | Status:${t.status} | Reason: ${(t.reason||'')} | Confluence: ${(t.confluenceNote||t.notes||'')}`).join('\n');
+    return`[${d}] ${macro.regime||''} DXY:${macro.dxy||'—'} Bond:${sigs.bond||'—'} FX:${sigs.fx||'—'} Gold:${sigs.gold||'—'} BTC:${sigs.btc||'—'}\n${(notes.pre||'').slice(0,200)}`;
+  }).join('\n');
+
+  // Trades: most recent N, compact format
+  const recent=trades.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,maxTrades);
+  const tradeText=recent.map(t=>`${t.date} ${t.asset} ${t.dir} ${t.status} R:${t.pnl!=null?t.pnl.toFixed(2):'?'} G:${t.grade||'—'} | ${(t.reason||'').slice(0,120)}`).join('\n');
+
   return{journalText,tradeText};
 }
+
+async function coachFullReview(){
+  // Send ALL trades with full detail using a higher-capacity model
+  const model = document.getElementById('geminiModel').value || 'groq:llama-3.3-70b-versatile';
+  const isGroq = model.startsWith('groq:');
+
+  // Pick fastest/highest-limit model
+  const reviewModel = isGroq ? 'llama-3.1-8b-instant' : model.replace('groq:','');
+  const groqKey = document.getElementById('groqKey')?.value.trim()||settings.groqKey||'';
+  const geminiKey = document.getElementById('geminiKey')?.value.trim()||settings.geminiKey||'';
+
+  if(isGroq && !groqKey){
+    appendMsg('⚠ 請先填入 Groq API Key','ai'); return;
+  }
+  if(!isGroq && !geminiKey){
+    appendMsg('⚠ 請先填入 API Key','ai'); return;
+  }
+
+  // Build full context — all trades, no truncation
+  const allTradeText = trades
+    .slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+    .map((t,i)=>`#${i+1} ${t.date} ${t.asset} ${t.dir} ${t.status}
+  R:${t.pnl!=null?t.pnl.toFixed(2)+'R':'open'} | Risk:${t.risk}% | Grade:${t.grade||'—'} | Session:${t.session||'—'} | Style:${t.trade_type||'—'}
+  Entry Reason: ${t.reason||'—'}
+  Exit Reason: ${t.exitr||'—'}`)
+    .join('\n\n');
+
+  const recentJournals = Object.keys(journals).sort().reverse().slice(0,14)
+    .map(d=>{
+      const j=journals[d]; const n=j.notes||{};
+      return `[${d}] ${(n.pre||'').slice(0,300)}`;
+    }).join('\n');
+
+  const prompt = `請對我的全部交易記錄做一次深度 Review，給出具體且有建設性的分析。
+
+=== 全部 ${trades.length} 筆交易 ===
+${allTradeText}
+
+=== 最近 14 天日誌摘要 ===
+${recentJournals}
+
+請分析：
+1. **整體績效**：勝率、平均R、最大DD、最好/最差的月份
+2. **資產別表現**：哪個資產最強？哪個需要改進？
+3. **交易風格分析**（如有 Style 標記）
+4. **執行品質**：Grade 分佈，A+/A vs B/C 的勝率差異
+5. **交易理由品質**：Entry Reason 有沒有共同的強弱模式？
+6. **具體建議**：3-5 個最值得改進的地方
+
+請以中文回答，盡量具體有數字。`;
+
+  appendMsg('📋 請分析我的全部 '+trades.length+' 筆交易記錄，做完整 Review', 'user');
+  appendTyping();
+  coachHistory = []; // Fresh context for full review
+
+  if(isGroq){
+    await callGroq(prompt, false, reviewModel, groqKey);
+  } else {
+    await callGemini(prompt);
+  }
+}
+
 const QUICK_PROMPTS={
   weekly_review:'請分析我最近的交易日誌與交易記錄，給出本週整體回顧。包括：1) 執行紀律分析（Checklist完成率、交易規則遵守情況）；2) 宏觀判斷準確度；3) 交易心理觀察；4) 本週最值得注意的優點與改進點。請以中文回答，結構清晰。',
   trade_patterns:'請分析我所有的交易記錄，找出我的交易模式。包括：1) 哪個資產的勝率最高？2) 哪個方向（LONG/SHORT）執行較好？3) R倍數分佈分析；4) 我的強項和需要改進的地方。請用具體數字說話。',
