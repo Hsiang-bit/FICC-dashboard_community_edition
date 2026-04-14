@@ -1074,10 +1074,8 @@ select option{background:var(--paper2)}
           <option value="groq:llama-3.3-70b-versatile">Llama 3.3 70B ⚡ 高品質（TPM 較低）</option>
           <option value="groq:llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B 🦅</option>
           </optgroup>
-          <optgroup label="── Gemini（若 quota 有餘）──">
-          <option value="gemini-2.5-flash-preview-04-17">Gemini 2.5 Flash</option>
-          <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-          <option value="gemini-2.5-pro-preview-03-25">Gemini 2.5 Pro</option>
+          <optgroup label="── Gemini（20次/天 免費）──">
+          <option value="gemini-2.5-flash-preview-04-17">Gemini 2.5 Flash ✓ 免費</option>
           </optgroup>
         </select>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:10px;line-height:1.6">API Key 在 Settings 頁設定<br>資料：最近14天日誌 + 所有交易記錄</div>
@@ -5661,7 +5659,7 @@ async function repushTrade(tradeId){
 
 async function callGroq(userPrompt, isContinue, model, key){
   if(!isContinue){
-    // Free tier limits: 70b=12000 TPM, 8b=6000 TPM — keep context tight
+    // Groq free: tight TPM limit — keep context small
     const {journalText, tradeText} = buildContext(5);
     const systemMsg = `你是 FICC 交易教練，專精 SMT 方法（Bond/FX/Gold/Oil/BTC）。
 日誌：${journalText||'無'}
@@ -5732,16 +5730,16 @@ async function callGroq(userPrompt, isContinue, model, key){
   }
 }
 
-function buildContext(maxTrades=5){
-  // Journals: last 3 days, very compact
-  const recentDates=Object.keys(journals).sort().reverse().slice(0,3);
+function buildContext(maxTrades=50){
+  // Journals: last 14 days
+  const recentDates=Object.keys(journals).sort().reverse().slice(0,14);
   const journalText=recentDates.map(d=>{
-    const j=journals[d]; const n=j.notes||{}; const s=j.signals||{};
-    return`[${d}] Bond:${s.bond||'—'} FX:${s.fx||'—'} Gold:${s.gold||'—'} ${(n.pre||'').slice(0,100)}`;
-  }).join('\n');
-  // Trades: most recent N, compact
+    const j=journals[d]; const n=j.notes||{}; const s=j.signals||{}; const macro=j.macro||{};
+    return`[${d}] Checklist:${j.score||0}/${j.total||0} | Regime:${macro.regime||'—'} | Bond:${s.bond||'—'} FX:${s.fx||'—'} Gold:${s.gold||'—'} BTC:${s.btc||'—'}\nNotes: ${(n.pre||'').slice(0,300)}\nEOD: ${(n.eod||'').slice(0,200)}`;
+  }).join('\n\n');
+  // Trades: full detail, Gemini 2.5 Flash has 250K TPM
   const recent=trades.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,maxTrades);
-  const tradeText=recent.map(t=>`${t.date} ${t.asset} ${t.dir} ${t.status} R:${t.pnl!=null?t.pnl.toFixed(2):'?'} G:${t.grade||'—'} ${(t.reason||'').slice(0,80)}`).join('\n');
+  const tradeText=recent.map(t=>`[${t.date}] ${t.asset} ${t.dir} | Entry:${t.entry} Exit:${t.exit||'open'} | Risk:${t.risk}% R:${t.r}x | PnL:${t.pnl!=null?t.pnl.toFixed(2)+'R':'open'} | Grade:${t.grade||'—'} | Session:${t.session||'—'} | Style:${t.trade_type||'—'} | Status:${t.status}\nReason: ${(t.reason||'')}\nExit Reason: ${(t.exitr||'')}`).join('\n');
   return{journalText,tradeText};
 }
 
@@ -5886,6 +5884,18 @@ async function callGemini(userPrompt, isContinue=false){
   if(!key){
     appendMsg('⚠ 請先在 Settings 頁填入 Gemini API Key<br><br>或改用 <b>Groq</b>（免費·不需信用卡）：<a href="https://console.groq.com/keys" target="_blank" style="color:var(--blue)">console.groq.com/keys</a>','ai');
     return;
+  }
+  // RPD counter — Gemini 2.5 Flash free tier: 20 requests/day
+  const _today = new Date().toISOString().slice(0,10);
+  const _rpdKey = 'gemini_rpd_' + _today;
+  const _rpdCount = parseInt(localStorage.getItem(_rpdKey)||'0') + 1;
+  localStorage.setItem(_rpdKey, String(_rpdCount));
+  if(_rpdCount > 20){
+    appendMsg(`⚠ 今日 Gemini 免費額度已用完（${_rpdCount-1}/20次）。改用 Groq 或明天再試。`,'ai');
+    return;
+  }
+  if(_rpdCount >= 17){
+    appendMsg(`⚠ 注意：今日 Gemini 已用 ${_rpdCount}/20 次。`,'ai');
   }
   appendTyping();
 
