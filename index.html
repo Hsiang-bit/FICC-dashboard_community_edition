@@ -5664,12 +5664,8 @@ async function callGroq(userPrompt, isContinue, model, key){
     // Free tier limits: 70b=12000 TPM, 8b=6000 TPM — keep context tight
     const {journalText, tradeText} = buildContext(5);
     const systemMsg = `你是 FICC 交易教練，專精 SMT 方法（Bond/FX/Gold/Oil/BTC）。
-
-日誌：
-${journalText||'無'}
-
-最近 ${maxT} 筆交易：
-${tradeText||'無'}`;
+日誌：${journalText||'無'}
+最近交易：${tradeText||'無'}`;
 
     coachHistory.push({role:'user', content: systemMsg + '\n\n問題：' + userPrompt});
   } else {
@@ -5707,22 +5703,9 @@ ${tradeText||'無'}`;
     data = await r.json();
   } catch(e) {
     lastErr = e.message;
-    // Try via Cloudflare Worker proxy if direct fails
-    const proxyUrl = (settings.geminiProxyUrl||'').trim();
-    if (proxyUrl) {
-      try {
-        const r2 = await fetch(proxyUrl, {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({groq:true, model, messages, temperature:0.7, max_tokens:4096, apiKey:key}),
-          signal: AbortSignal.timeout(30000),
-        });
-        data = await r2.json();
-      } catch(e2) { lastErr = e2.message; }
-    }
+  } finally {
+    removeTyping(); // always remove typing indicator
   }
-
-  removeTyping();
   if(!data){
     appendMsg(`⚠ Groq 連線失敗（${lastErr}）<br>請確認 API Key 是否正確。`, 'ai');
     return;
@@ -5765,56 +5748,78 @@ function buildContext(maxTrades=5){
 async function coachFullReview(){
   const groqKey = document.getElementById('groqKey')?.value.trim()||settings.groqKey||'';
   if(!groqKey){ appendMsg('⚠ 請先填入 Groq API Key','ai'); return; }
+  if(!trades.length){ appendMsg('⚠ 無交易記錄','ai'); return; }
 
-  const sorted = trades.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  if(!sorted.length){ appendMsg('⚠ 無交易記錄','ai'); return; }
+  // Calculate stats locally (no API needed)
+  const closed = trades.filter(t=>t.status!=='OPEN'&&t.pnl!=null);
+  const wins = closed.filter(t=>t.pnl>0);
+  const wr = closed.length ? (wins.length/closed.length*100).toFixed(1) : 0;
+  const avgR = closed.length ? (closed.reduce((s,t)=>s+t.pnl,0)/closed.length).toFixed(2) : 0;
+  const cumR = closed.reduce((s,t)=>s+(t.pnl||0),0).toFixed(2);
 
-  appendMsg('📋 開始分析全部 '+sorted.length+' 筆交易，分批處理中...', 'user');
+  // Build asset breakdown locally
+  const byAsset = {};
+  closed.forEach(t=>{ if(!byAsset[t.asset]) byAsset[t.asset]={n:0,w:0,r:0}; byAsset[t.asset].n++; if(t.pnl>0)byAsset[t.asset].w++; byAsset[t.asset].r+=t.pnl; });
+  const assetSummary = Object.entries(byAsset).map(([a,d])=>`${a}: ${d.n}筆 WR${(d.w/d.n*100).toFixed(0)}% AvgR${(d.r/d.n).toFixed(2)}`).join(', ');
+
+  // Grade breakdown locally
+  const byGrade = {};
+  closed.forEach(t=>{ const g=t.grade||'無'; if(!byGrade[g]) byGrade[g]={n:0,w:0}; byGrade[g].n++; if(t.pnl>0)byGrade[g].w++; });
+  const gradeSummary = Object.entries(byGrade).map(([g,d])=>`${g}(${d.n}筆 WR${(d.w/d.n*100).toFixed(0)}%)`).join(' ');
+
+  // Only send REASONS to Groq (text, not numbers) — keeps tokens low
+  const sorted = trades.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const reasonsText = sorted.slice(0,20).map((t,i)=>
+    `#${i+1}[${t.date}][${t.asset}${t.dir==='LONG'?'↑':'↓'}][${t.grade||'?'}] ${(t.reason||'無').slice(0,150)}`
+  ).join('\n');
+
+  const statsBlock = `整體: ${trades.length}筆 | 完結${closed.length}筆 | WR${wr}% | AvgR${avgR} | CumR${cumR}R
+資產: ${assetSummary}
+Grade: ${gradeSummary}`;
+
+  const prompt = `以下是我的交易績效統計和最近20筆的入場理由，請給出深度 Review：
+
+【統計數據（已計算好）】
+${statsBlock}
+
+【入場理由分析（最近20筆）】
+${reasonsText}
+
+請分析：
+1. 入場理由的品質模式（A+/A grade的理由vs B/C的有何不同？）
+2. 哪些表述顯示執行紀律強？哪些顯示猶豫或FOMO？
+3. 3-5個具體改進建議
+請用中文，300字內。`;
+
+  appendMsg('📋 分析 '+trades.length+' 筆交易（統計本地計算，理由送 AI 分析）', 'user');
+  appendTyping();
   coachHistory = [];
 
-  // Chunk trades into groups of 8 (safe for 6000 TPM limit)
-  const CHUNK = 8;
-  const chunks = [];
-  for(let i=0; i<sorted.length; i+=CHUNK) chunks.push(sorted.slice(i,i+CHUNK));
-
-  const chunkSummaries = [];
-
-  for(let ci=0; ci<chunks.length; ci++){
-    const chunk = chunks[ci];
-    const tradeBlock = chunk.map((t,i)=>`#${ci*CHUNK+i+1} ${t.date} ${t.asset} ${t.dir} ${t.status} R:${t.pnl!=null?t.pnl.toFixed(2):'open'} G:${t.grade||'—'}\nReason: ${(t.reason||'').slice(0,200)}`).join('\n');
-
-    const chunkPrompt = `分析這 ${chunk.length} 筆交易（共 ${sorted.length} 筆中的第 ${ci*CHUNK+1}-${ci*CHUNK+chunk.length} 筆），簡短摘要：勝率、平均R、執行問題。限 150字。\n${tradeBlock}`;
-
-    appendTyping();
-    const div = document.getElementById('coachMessages')?.lastElementChild;
-
-    try {
-      const body = JSON.stringify({ model:'llama-3.3-70b-versatile', messages:[{role:'user',content:chunkPrompt}], temperature:0.5, max_tokens:400 });
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},body,signal:AbortSignal.timeout(20000)});
-      const d = await r.json();
-      if(d.error){ removeTyping(); appendMsg('⚠ 分批失敗: '+d.error.message,'ai'); return; }
-      const summary = d.choices?.[0]?.message?.content||'';
-      chunkSummaries.push(`【第${ci*CHUNK+1}-${ci*CHUNK+chunk.length}筆】${summary}`);
-      removeTyping();
-      // Small delay to avoid TPM burst
-      if(ci < chunks.length-1) await new Promise(r=>setTimeout(r,4000));
-    } catch(e) { removeTyping(); appendMsg('⚠ 連線失敗: '+e.message,'ai'); return; }
-  }
-
-  // Final synthesis
-  appendTyping();
-  const synthPrompt = `根據以下分批分析結果，給出完整的交易 Review，包含：整體績效、最強/最弱資產、執行品質問題、3-5個具體改進建議。請用中文，結構清晰。\n\n${chunkSummaries.join('\n\n')}`;
   try {
-    const body2 = JSON.stringify({ model:'llama-3.3-70b-versatile', messages:[{role:'user',content:synthPrompt}], temperature:0.7, max_tokens:2000 });
-    const r2 = await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},body:body2,signal:AbortSignal.timeout(30000)});
-    const d2 = await r2.json();
+    const msgs = [{role:'user', content:prompt}];
+    const body = JSON.stringify({ model:'llama-3.3-70b-versatile', messages:msgs, temperature:0.7, max_tokens:1500 });
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+      body,
+      signal:AbortSignal.timeout(30000)
+    });
+    const d = await r.json();
     removeTyping();
-    if(d2.error){ appendMsg('⚠ 合成失敗: '+d2.error.message,'ai'); return; }
-    const reply = d2.choices?.[0]?.message?.content||'';
-    appendMsg(reply,'ai');
-    coachHistory.push({role:'assistant',content:reply});
-  } catch(e){ removeTyping(); appendMsg('⚠ '+e.message,'ai'); }
+    if(d.error){ appendMsg('⚠ Groq 錯誤：'+d.error.message,'ai'); return; }
+    const reply = d.choices?.[0]?.message?.content||'（無回應）';
+    appendMsg(`【績效統計】\n${statsBlock}\n\n【AI 分析】\n${reply}`,'ai');
+    coachHistory.push({role:'assistant', content:reply});
+  } catch(e){
+    removeTyping();
+    appendMsg('⚠ 連線失敗：'+e.message,'ai');
+  }
 }
+
+
+
+
+
 
 const QUICK_PROMPTS={
   weekly_review:'請分析我最近的交易日誌與交易記錄，給出本週整體回顧。包括：1) 執行紀律分析（Checklist完成率、交易規則遵守情況）；2) 宏觀判斷準確度；3) 交易心理觀察；4) 本週最值得注意的優點與改進點。請以中文回答，結構清晰。',
