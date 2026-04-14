@@ -1074,8 +1074,11 @@ select option{background:var(--paper2)}
           <option value="groq:llama-3.3-70b-versatile">Llama 3.3 70B ⚡ 高品質（TPM 較低）</option>
           <option value="groq:llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B 🦅</option>
           </optgroup>
-          <optgroup label="── Gemini（20次/天 免費）──">
-          <option value="gemini-2.5-flash">Gemini 2.5 Flash ✓ 免費</option>
+          <optgroup label="── Gemini（免費）──">
+          <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite ⭐ 500次/天</option>
+          <option value="gemini-3-flash-preview">Gemini 3 Flash 20次/天</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash 20次/天</option>
+          <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite 20次/天</option>
           </optgroup>
         </select>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:10px;line-height:1.6">API Key 在 Settings 頁設定<br>資料：最近14天日誌 + 所有交易記錄</div>
@@ -5885,17 +5888,18 @@ async function callGemini(userPrompt, isContinue=false){
     appendMsg('⚠ 請先在 Settings 頁填入 Gemini API Key<br><br>或改用 <b>Groq</b>（免費·不需信用卡）：<a href="https://console.groq.com/keys" target="_blank" style="color:var(--blue)">console.groq.com/keys</a>','ai');
     return;
   }
-  // RPD counter — Gemini 2.5 Flash free tier: 20 requests/day
+  // RPD counter — model-aware daily limits
+  const _rpdLimit = model.includes('3.1-flash-lite') ? 500 : 20;
   const _today = new Date().toISOString().slice(0,10);
-  const _rpdKey = 'gemini_rpd_' + _today;
+  const _rpdKey = 'gemini_rpd_' + model.split('-').slice(0,3).join('_') + '_' + _today;
   const _rpdCount = parseInt(localStorage.getItem(_rpdKey)||'0') + 1;
   localStorage.setItem(_rpdKey, String(_rpdCount));
-  if(_rpdCount > 20){
-    appendMsg(`⚠ 今日 Gemini 免費額度已用完（${_rpdCount-1}/20次）。改用 Groq 或明天再試。`,'ai');
+  if(_rpdCount > _rpdLimit){
+    appendMsg(`⚠ 今日 ${model} 免費額度已用完（${_rpdCount-1}/${_rpdLimit}次）。改用 Groq 或明天再試。`,'ai');
     return;
   }
-  if(_rpdCount >= 17){
-    appendMsg(`⚠ 注意：今日 Gemini 已用 ${_rpdCount}/20 次。`,'ai');
+  if(_rpdCount >= Math.floor(_rpdLimit * 0.85)){
+    appendMsg(`⚠ 注意：今日已用 ${_rpdCount}/${_rpdLimit} 次。`,'ai');
   }
   appendTyping();
 
