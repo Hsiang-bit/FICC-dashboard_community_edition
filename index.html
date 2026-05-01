@@ -654,6 +654,13 @@ select option{background:var(--paper2)}
       <button class="btn btn-a btn-sm" onclick="openAddModal()">+ 新增交易</button>
       <button class="btn btn-g btn-sm" onclick="pushAllTrades()" id="btnPushAll">◩ 推送新增</button>
       <button class="btn btn-g btn-sm" onclick="syncAllTrades()" title="新建+更新全部交易到 Notion">↺ 全部同步</button>
+      <div style="position:relative;display:inline-block">
+        <button class="btn btn-g btn-sm" onclick="toggleExportMenu()" id="btnExport">⬇ 匯出 ▾</button>
+        <div id="exportMenu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--paper);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;min-width:140px;overflow:hidden">
+          <button onclick="exportTrades('csv');closeExportMenu()" style="display:block;width:100%;text-align:left;padding:8px 14px;font-family:var(--mono);font-size:11px;background:none;border:none;cursor:pointer;color:var(--hi)" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background='none'">📄 CSV（Excel 用）</button>
+          <button onclick="exportTrades('json');closeExportMenu()" style="display:block;width:100%;text-align:left;padding:8px 14px;font-family:var(--mono);font-size:11px;background:none;border:none;cursor:pointer;color:var(--hi)" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background='none'">📋 JSON（完整資料）</button>
+        </div>
+      </div>
     </div>
   </div>
   <!-- Filter bar -->
@@ -4417,6 +4424,86 @@ document.addEventListener('click',e=>{
 // TRADES
 // ════════════════════════════════════
 const AC={BOND:'bond',FX:'fx',GOLD:'gold',OIL:'oil',BTC:'btc',ETH:'btc'};
+
+
+// ── Trade Log Export ──
+function toggleExportMenu(){
+  const m = document.getElementById('exportMenu');
+  if (!m) return;
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+  // Close on outside click
+  if (m.style.display === 'block') {
+    setTimeout(() => document.addEventListener('click', closeExportMenu, {once:true}), 10);
+  }
+}
+
+function closeExportMenu(){
+  const m = document.getElementById('exportMenu');
+  if (m) m.style.display = 'none';
+}
+
+function exportTrades(format) {
+  const source = (_filteredTrades !== null) ? _filteredTrades : trades;
+  if (!source.length) { toast('⚠ 無交易資料可匯出', 'e'); return; }
+
+  const sorted = source.slice().sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  const filename = `FICC_PRO_trades_${new Date().toISOString().slice(0,10)}`;
+
+  if (format === 'json') {
+    const blob = new Blob([JSON.stringify(sorted, null, 2)], {type:'application/json'});
+    _downloadBlob(blob, filename + '.json');
+    toast(`✓ 已匯出 ${sorted.length} 筆交易（JSON）`);
+    return;
+  }
+
+  // CSV
+  const COLS = [
+    {key:'date',       label:'日期'},
+    {key:'asset',      label:'資產'},
+    {key:'dir',        label:'方向'},
+    {key:'status',     label:'狀態'},
+    {key:'grade',      label:'Grade'},
+    {key:'session',    label:'Session'},
+    {key:'trade_type', label:'Style'},
+    {key:'entry',      label:'Entry'},
+    {key:'exit',       label:'Exit'},
+    {key:'risk',       label:'Risk%'},
+    {key:'r',          label:'R倍數'},
+    {key:'pnl',        label:'PnL(R)'},
+    {key:'outcome_type',label:'Outcome Type'},
+    {key:'reason',     label:'Entry Reason'},
+    {key:'exitr',      label:'Exit Reason'},
+    {key:'confluenceNote', label:'Confluence Note'},
+    {key:'notionPageId', label:'Notion Page ID'},
+  ];
+
+  const escape = v => {
+    if (v == null) return '';
+    const s = String(v);
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? '"' + s.replace(/"/g, '""') + '"'
+      : s;
+  };
+
+  const header = COLS.map(c => c.label).join(',');
+  const rows = sorted.map(t =>
+    COLS.map(col => escape(t[col.key])).join(',')
+  );
+
+  const csv = '\uFEFF' + [header, ...rows].join('\n'); // BOM for Excel UTF-8
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  _downloadBlob(blob, filename + '.csv');
+  toast(`✓ 已匯出 ${sorted.length} 筆交易（CSV）`);
+}
+
+function _downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 // ── Trade Log Filter ──
 let _tlFilter = {asset:'', dir:'', status:'', grade:'', type:'', session:'', month:''};
