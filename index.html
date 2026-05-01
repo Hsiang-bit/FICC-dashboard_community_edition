@@ -672,6 +672,7 @@ select option{background:var(--paper2)}
         <option value="">所有狀態</option>
         <option value="WIN">Win</option>
         <option value="LOSS">Loss</option>
+        <option value="BREAK EVEN">Break Even</option>
         <option value="OPEN">Open</option>
       </select>
       <select id="tf-grade" onchange="applyTradeFilter()" style="font-size:10px;padding:3px 8px">
@@ -1764,7 +1765,7 @@ create policy "own all" on ficc_sync for all using (key like '%'||auth.uid()::te
         <div class="fg"><span class="fl">日期</span><input type="date" id="m-date" style="width:100%"></div>
         <div class="fg"><span class="fl">資產</span><select id="m-asset" style="width:100%"></select></div>
         <div class="fg"><span class="fl">方向</span><select id="m-dir" style="width:100%" onchange="refreshAllLegR();calcSummaryOnly()"><option>LONG</option><option>SHORT</option></select></div>
-        <div class="fg"><span class="fl">狀態</span><select id="m-status" style="width:100%"><option>OPEN</option><option>CLOSED</option><option>TP HIT</option><option>SL HIT</option></select></div>
+        <div class="fg"><span class="fl">狀態</span><select id="m-status" style="width:100%"><option>OPEN</option><option>WIN</option><option>LOSS</option><option>BREAK EVEN</option><option>TP HIT</option><option>SL HIT</option><option>CLOSED</option></select></div>
       </div>
 
       <!-- Row 2: Session / Grade / Trend / Protocol / Disq -->
@@ -4533,7 +4534,7 @@ function renderTrades(){
       <td>${t.risk}%</td><td>${t.r?t.r+'R':'—'}</td>
       <td>${pd}</td>
       <td style="font-family:var(--mono);font-size:11px">${pnlAmt}</td>
-      <td style="color:${t.status==='OPEN'?'var(--amber)':t.status==='TP HIT'?'var(--green)':t.status==='SL HIT'?'var(--red)':'var(--lo)'}">${t.status}</td>
+      <td style="color:${t.status==='WIN'?'var(--green)':t.status==='TP HIT'?'var(--green)':t.status==='LOSS'?'var(--red)':t.status==='SL HIT'?'var(--red)':t.status==='BREAK EVEN'?'var(--amber)':t.status==='OPEN'?'var(--amber)':'var(--lo)'};font-weight:${t.status==='WIN'||t.status==='LOSS'||t.status==='BREAK EVEN'?'700':'400'}">${t.status==='BREAK EVEN'?'BE':t.status}</td>
       <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.reason||'—'}</td>
       <td style="text-align:center"><span style="font-family:var(--mono);font-size:10px;color:${cc?'var(--cyan)':'var(--lo)'}">${entryCount?'📥'+entryCount:''}${exitCount?'📤'+exitCount:''}${!cc?'—':''}</span></td>
       <td><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();currentTradeId=${t.id};if(confirm('刪除？')){trades=trades.filter(x=>x.id!==${t.id});saveAll();renderTrades();}">✕</button></td>
