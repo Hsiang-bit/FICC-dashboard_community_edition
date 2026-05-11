@@ -2113,7 +2113,12 @@ async function initAuth(){
       showAuthGate();
       document.getElementById('userBar').style.display='none';
     }
-    // TOKEN_REFRESHED / USER_UPDATED with null session = ignore (transient)
+    // TOKEN_REFRESHED — update currentUser with fresh session
+    if(event==='TOKEN_REFRESHED' && session?.user){
+      currentUser = session.user;
+      console.log('[Auth] Token refreshed, currentUser updated');
+    }
+    // USER_UPDATED with null session = ignore (transient)
   });
   // Check existing session
   const { data: { session } } = await sb.auth.getSession();
@@ -2823,6 +2828,8 @@ function sbBuildSnapshot(){
 }
 
 // ── Push all data to Supabase ──
+let _sbFailCount = 0; // consecutive silent failure counter
+
 async function sbPush(silent=false){
   if(!sbReady()){
     if(!silent) toast('⚠ 請先填入 Supabase URL 與 Key','e');
@@ -2831,19 +2838,31 @@ async function sbPush(silent=false){
   if(!silent) sbSetStatus('☁️ 上傳中...','var(--lo)');
   const snapshot=sbBuildSnapshot();
   const pushKey='ficc_v3_'+(currentUser?.id||settings.userId||'anon');
-  // Write trades+journals as separate columns AND inside value (backward compat)
   const payload={
-    trades:   snapshot.trades,           // dedicated column (queryable, no size limit)
-    journals: snapshot.journals,         // dedicated column
-    value:    snapshot,                  // full blob for backward compat + other fields
+    trades:   snapshot.trades,
+    journals: snapshot.journals,
+    value:    snapshot,
   };
   const {ok,status,err}=await sbFetch('POST',pushKey,payload);
   if(!ok){
+    _sbFailCount++;
     const msg=err||'HTTP '+status;
-    if(!silent) toast('⚠ Supabase 上傳失敗：'+msg,'e');
-    sbSetStatus('✗ 上傳失敗','var(--red)');
+    // Show warning after 3 consecutive silent failures
+    if(silent && _sbFailCount >= 3){
+      const hint = status===0 ? '網路問題或 Supabase 專案已暫停'
+                 : status===401||status===403 ? '登入已過期，請重新整理頁面'
+                 : status===503||status===521 ? 'Supabase 專案已暫停（7天無活動），請到 supabase.com 手動恢復'
+                 : 'HTTP '+status;
+      toast(`⚠ 雲端同步失敗（${_sbFailCount}次）：${hint}`,'e');
+      sbSetStatus('✗ 同步失敗','var(--red)');
+      _sbFailCount = 0; // reset after warning
+    } else if(!silent){
+      toast('⚠ Supabase 上傳失敗：'+msg,'e');
+      sbSetStatus('✗ 上傳失敗','var(--red)');
+    }
     return false;
   }
+  _sbFailCount = 0; // reset on success
   settings.sbLastPush=new Date().toISOString();
   localStorage.setItem('ficc_settings',JSON.stringify(settings));
   sbUpdateLastSync();
@@ -5698,7 +5717,7 @@ async function pushAllTrades(){
   }
 
   // Restore auto-sync, then do ONE final save+cloud push
-  settings.sbAutoSync = wasAutoSync;
+  settings.sbAutoSync = wasAutoSync !== false; // default true if was undefined
   saveAll();
   // Force immediate Supabase push (not debounced) so cloud has latest notionPageIds
   if(sbReady() && currentUser) {
