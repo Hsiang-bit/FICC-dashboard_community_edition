@@ -566,20 +566,41 @@ select option{background:var(--paper2)}
 
   <!-- Macro -->
   <div class="jpanel" id="jp-macro">
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px">
-      <div class="card"><span class="fl">Macro Regime</span><select data-macro="regime" onchange="jDirty()" style="width:100%"><option>—</option><option>Risk-On</option><option>Risk-Off</option><option>Inflation</option><option>Deflation</option><option>Recovery</option></select></div>
-      <div class="card"><span class="fl">Yield Curve</span><select data-macro="yield" onchange="jDirty()" style="width:100%"><option>—</option><option>Steepening</option><option>Flattening</option><option>Inverted</option><option>Bear Steepen</option><option>Bull Steepen</option></select></div>
-      <div class="card"><span class="fl">DXY Direction</span><select data-macro="dxy" onchange="jDirty()" style="width:100%"><option>—</option><option>Bullish</option><option>Bearish</option><option>Ranging</option></select></div>
-      <div class="card"><span class="fl">Fed Stance</span><select data-macro="fed" onchange="jDirty()" style="width:100%"><option>—</option><option>Hawkish</option><option>Pivot Watch</option><option>Cutting</option><option>QE</option></select></div>
-      <div class="card"><span class="fl">Inflation Exp.</span><select data-macro="inflation" onchange="jDirty()" style="width:100%"><option>—</option><option>Rising</option><option>Falling</option><option>Stable</option><option>Stagflation</option></select></div>
+    <!-- Weekly Outlook header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--border)">
+      <div>
+        <div style="font-family:Georgia,serif;font-size:15px;font-weight:700;color:var(--ink)">Weekly Outlook</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:2px" id="wo-week-label">—</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-g btn-sm" onclick="woPrevWeek()">‹ 上週</button>
+        <button class="btn btn-g btn-sm" onclick="woThisWeek()">本週</button>
+        <button class="btn btn-g btn-sm" onclick="woNextWeek()">下週 ›</button>
+        <button class="btn btn-a btn-sm" onclick="saveWeeklyOutlook()">✓ 儲存</button>
+      </div>
     </div>
-    <div style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:8px">Asset Signal Direction</div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
-      <div class="card"><span class="fl" style="color:var(--blue)">🏛 Bond</span><select data-sig="bond" onchange="jDirty()" style="width:100%"><option>NEUTRAL</option><option>LONG</option><option>SHORT</option><option>NO TRADE</option></select></div>
-      <div class="card"><span class="fl" style="color:var(--cyan)">💱 FX</span><select data-sig="fx" onchange="jDirty()" style="width:100%"><option>NEUTRAL</option><option>LONG</option><option>SHORT</option><option>NO TRADE</option></select></div>
-      <div class="card"><span class="fl" style="color:var(--amber)">🥇 Gold</span><select data-sig="gold" onchange="jDirty()" style="width:100%"><option>NEUTRAL</option><option>LONG</option><option>SHORT</option><option>NO TRADE</option></select></div>
-      <div class="card"><span class="fl" style="color:var(--red)">🛢 Oil</span><select data-sig="oil" onchange="jDirty()" style="width:100%"><option>NEUTRAL</option><option>LONG</option><option>SHORT</option><option>NO TRADE</option></select></div>
-      <div class="card"><span class="fl" style="color:var(--pur)">₿ BTC</span><select data-sig="btc" onchange="jDirty()" style="width:100%"><option>NEUTRAL</option><option>LONG</option><option>SHORT</option><option>NO TRADE</option></select></div>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--lo)">
+      <span><span style="color:var(--red);font-weight:700">＼</span> Down / Bearish</span>
+      <span><span style="color:var(--green);font-weight:700">／</span> Up / Bullish</span>
+      <span><span style="color:var(--amber);font-weight:700">✕</span> No Bias / Neutral</span>
+    </div>
+
+    <!-- Table -->
+    <div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <div style="display:grid;grid-template-columns:120px 80px 1fr;background:var(--paper2);border-bottom:1px solid var(--border)">
+        <div style="padding:8px 12px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.08em">Asset</div>
+        <div style="padding:8px 12px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.08em;border-left:1px solid var(--border)">Bias</div>
+        <div style="padding:8px 12px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.08em;border-left:1px solid var(--border)">Description</div>
+      </div>
+      <div id="wo-rows"></div>
+    </div>
+
+    <!-- Add asset row -->
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <input type="text" id="wo-new-asset" placeholder="新增 Asset（例如 USDJPY）" style="flex:1;font-size:11px;padding:5px 10px;font-family:var(--mono)" onkeydown="if(event.key==='Enter')woAddRow()">
+      <button class="btn btn-g btn-sm" onclick="woAddRow()">+ 新增</button>
     </div>
   </div>
 
@@ -2610,7 +2631,8 @@ async function sbPullSilent(){
 
     // Cloud is newer → merge cloud into local
     if(cloudUpdated > localUpdated || !trades.length){
-      if(snap.trades){
+      if(snap.weeklyOutlook){ weeklyOutlook=snap.weeklyOutlook; localStorage.setItem('ficc_weekly_outlook',JSON.stringify(weeklyOutlook)); }
+    if(snap.trades){
         // Preserve local base64 charts (not stored in cloud)
         const localCharts={};
         trades.forEach(t=>{if(t.id&&t.charts)localCharts[t.id]=t.charts;});
@@ -2656,6 +2678,7 @@ let currentTradeId=null;
 function load(){
   setTimeout(updateKpiStrip, 300);
   setTimeout(loadTickerNews, 1500);
+  loadWeeklyOutlook();
   // Load from localStorage cache first (instant)
   try{trades=JSON.parse(localStorage.getItem('ficc_trades')||'[]');}catch(e){trades=[];}
   try{journals=JSON.parse(localStorage.getItem('ficc_journals')||'{}');}catch(e){journals={};}
@@ -2814,16 +2837,17 @@ async function sbFetch(method, key, payload){
 // ── Build full snapshot (no base64 charts) ──
 function sbBuildSnapshot(){
   return {
-    trades:    sbStripCharts(trades),
-    journals:  journals,
-    settings:  settings,
-    gantt:     ganttData,
-    checklist: JSON.parse(localStorage.getItem('ficc_checklist')||'null'),
-    macro_md:  localStorage.getItem('ficc_macro_md')||'',
-    macro_inputs: JSON.parse(localStorage.getItem('ficc_macro_inputs')||'null'),
-    rs_config: JSON.parse(localStorage.getItem('ficc_rs_config')||'null'),
-    version:   3,
-    pushed_at: new Date().toISOString(),
+    trades:         sbStripCharts(trades),
+    journals:       journals,
+    weeklyOutlook:  weeklyOutlook,
+    settings:       settings,
+    gantt:          ganttData,
+    checklist:      JSON.parse(localStorage.getItem('ficc_checklist')||'null'),
+    macro_md:       localStorage.getItem('ficc_macro_md')||'',
+    macro_inputs:   JSON.parse(localStorage.getItem('ficc_macro_inputs')||'null'),
+    rs_config:      JSON.parse(localStorage.getItem('ficc_rs_config')||'null'),
+    version:        3,
+    pushed_at:      new Date().toISOString(),
   };
 }
 
@@ -3727,6 +3751,10 @@ function showPage(id,btn){
   if(id==='page-community'||id==='community'){_activeCTab=null;switchCTab('ideas');}
 }
 function showJTab(id,btn){
+  if(id==='macro'){
+    setTimeout(()=>{ _woWeekOffset=0; renderWeeklyOutlook(); }, 50);
+  }
+  if(!btn) return;
   document.querySelectorAll('.jpanel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.jtab').forEach(t=>t.classList.remove('active'));
   document.getElementById('jp-'+id).classList.add('active');
@@ -8329,6 +8357,144 @@ function updateKpiStrip() {
   }, 100);
 }
 
+
+
+// ════════════════════════════════════
+// WEEKLY OUTLOOK
+// ════════════════════════════════════
+const WO_DEFAULT_ASSETS = ['Gold','Bond','OIL','TIPS','ZF1!-TIP','DXY','EUR','ETH','US100','DAX'];
+
+// weeklyOutlook[weekKey] = { assets:[{name, bias, desc}], updatedAt }
+let weeklyOutlook = {};
+let _woWeekOffset = 0; // 0 = current week, -1 = last week, etc.
+
+function woGetWeekKey(offset=0){
+  const d = new Date();
+  d.setDate(d.getDate() + offset*7);
+  // Get Monday of the week
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day===0?-6:1);
+  d.setDate(diff);
+  const y = d.getFullYear();
+  // ISO week number
+  const startOfYear = new Date(y, 0, 1);
+  const weekNo = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+  return `${y}-W${String(weekNo).padStart(2,'0')}`;
+}
+
+function woGetWeekLabel(offset=0){
+  const d = new Date();
+  d.setDate(d.getDate() + offset*7);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day===0?-6:1);
+  d.setDate(diff);
+  const mon = new Date(d);
+  const fri = new Date(d);
+  fri.setDate(fri.getDate()+4);
+  const fmt = dt => `${dt.getMonth()+1}/${dt.getDate()}`;
+  return `Week of ${fmt(mon)} – ${fmt(fri)}, ${mon.getFullYear()}`;
+}
+
+function woPrevWeek(){ _woWeekOffset--; renderWeeklyOutlook(); }
+function woNextWeek(){ _woWeekOffset++; renderWeeklyOutlook(); }
+function woThisWeek(){ _woWeekOffset=0; renderWeeklyOutlook(); }
+
+function renderWeeklyOutlook(){
+  const weekKey = woGetWeekKey(_woWeekOffset);
+  const label = document.getElementById('wo-week-label');
+  if(label) label.textContent = `${woGetWeekLabel(_woWeekOffset)}  ·  ${weekKey}`;
+
+  // Get or init week data
+  if(!weeklyOutlook[weekKey]){
+    weeklyOutlook[weekKey] = {
+      assets: WO_DEFAULT_ASSETS.map(name=>({name, bias:'x', desc:''})),
+      updatedAt: null
+    };
+  }
+  const week = weeklyOutlook[weekKey];
+
+  const container = document.getElementById('wo-rows');
+  if(!container) return;
+
+  container.innerHTML = week.assets.map((row, i) => {
+    const biasColor = row.bias==='/' ? 'var(--green)' : row.bias==='\\' ? 'var(--red)' : 'var(--amber)';
+    const biasSymbol = row.bias==='/' ? '／' : row.bias==='\\' ? '＼' : '✕';
+    return `<div style="display:grid;grid-template-columns:120px 80px 1fr;border-bottom:1px solid var(--border);min-height:44px" class="wo-row">
+      <div style="padding:8px 12px;display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--hi)">${row.name}</span>
+        <button onclick="woRemoveRow(${i})" style="background:none;border:none;cursor:pointer;color:var(--lo);font-size:10px;padding:1px 4px;opacity:.5;line-height:1" title="移除">✕</button>
+      </div>
+      <div style="border-left:1px solid var(--border);padding:6px 8px;display:flex;align-items:center">
+        <select onchange="woSetBias(${i},this.value)" style="width:100%;font-size:13px;font-weight:700;text-align:center;color:${biasColor};background:transparent;border:1px solid var(--border);border-radius:4px;padding:3px">
+          <option value="/" ${row.bias==='/'?'selected':''}>／ Up</option>
+          <option value="\\" ${row.bias==='\\'?'selected':''}>＼ Down</option>
+          <option value="x" ${row.bias==='x'?'selected':''}>✕ Neutral</option>
+        </select>
+      </div>
+      <div style="border-left:1px solid var(--border);padding:6px 10px;display:flex;align-items:stretch">
+        <textarea onchange="woSetDesc(${i},this.value)" oninput="woSetDesc(${i},this.value)" placeholder="描述、理由、SMT訊號..." style="flex:1;resize:none;border:none;background:transparent;font-family:var(--mono);font-size:11px;color:var(--mid);line-height:1.5;min-height:36px">${row.desc||''}</textarea>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function woSetBias(i, val){
+  const weekKey = woGetWeekKey(_woWeekOffset);
+  if(weeklyOutlook[weekKey]?.assets[i]){
+    weeklyOutlook[weekKey].assets[i].bias = val;
+    // Update bias color live
+    const rows = document.querySelectorAll('.wo-row');
+    if(rows[i]){
+      const sel = rows[i].querySelector('select');
+      const col = val==='/'?'var(--green)':val==='\\'?'var(--red)':'var(--amber)';
+      if(sel) sel.style.color = col;
+    }
+  }
+}
+
+function woSetDesc(i, val){
+  const weekKey = woGetWeekKey(_woWeekOffset);
+  if(weeklyOutlook[weekKey]?.assets[i]){
+    weeklyOutlook[weekKey].assets[i].desc = val;
+  }
+}
+
+function woAddRow(){
+  const input = document.getElementById('wo-new-asset');
+  const name = (input?.value||'').trim();
+  if(!name) return;
+  const weekKey = woGetWeekKey(_woWeekOffset);
+  if(!weeklyOutlook[weekKey]) weeklyOutlook[weekKey] = {assets:[], updatedAt:null};
+  weeklyOutlook[weekKey].assets.push({name, bias:'x', desc:''});
+  input.value = '';
+  renderWeeklyOutlook();
+}
+
+function woRemoveRow(i){
+  const weekKey = woGetWeekKey(_woWeekOffset);
+  if(!weeklyOutlook[weekKey]) return;
+  weeklyOutlook[weekKey].assets.splice(i, 1);
+  renderWeeklyOutlook();
+}
+
+function saveWeeklyOutlook(){
+  const weekKey = woGetWeekKey(_woWeekOffset);
+  if(!weeklyOutlook[weekKey]) return;
+  weeklyOutlook[weekKey].updatedAt = new Date().toISOString();
+  try {
+    localStorage.setItem('ficc_weekly_outlook', JSON.stringify(weeklyOutlook));
+  } catch(e) { console.warn('WO save error:', e); }
+  // Also push to Supabase via saveAll (weeklyOutlook included in snapshot)
+  saveAll();
+  toast('✓ Weekly Outlook 已儲存 · ' + weekKey);
+}
+
+function loadWeeklyOutlook(){
+  try {
+    const raw = localStorage.getItem('ficc_weekly_outlook');
+    if(raw) weeklyOutlook = JSON.parse(raw);
+  } catch(e) { weeklyOutlook = {}; }
+}
 
 // ════════════════════════════════════
 // NEWS TICKER — Multi-source financial headlines
