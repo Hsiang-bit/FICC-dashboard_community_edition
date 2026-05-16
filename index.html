@@ -383,6 +383,9 @@ select option{background:var(--paper2)}
       </div>
       <button onclick="authLogin()" style="width:100%;padding:10px;background:var(--amber);color:var(--bg);border:none;border-radius:var(--r);font-family:var(--cond);font-size:13px;font-weight:800;letter-spacing:.08em;cursor:pointer;margin-bottom:10px">登入</button>
       <button onclick="authMagicLink()" style="width:100%;padding:10px;background:transparent;color:var(--lo);border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:10px;cursor:pointer">✉ 無密碼登入（Magic Link）</button>
+      <div style="text-align:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <button onclick="enterLocalMode()" style="font-family:var(--mono);font-size:10px;color:var(--lo);background:none;border:none;cursor:pointer;text-decoration:underline">不使用帳號，直接在本機使用 →</button>
+      </div>
     </div>
 
     <!-- Register form -->
@@ -2155,6 +2158,14 @@ async function authRegister(){
   document.getElementById('authEmail').value = email;
 }
 
+async function enterLocalMode(){
+  localStorage.setItem('ficc_local_mode','1');
+  hideAuthGate();
+  currentUser = null;
+  load(); renderTrades(); loadJournal(currentJDate);
+  toast('✓ 本機模式：資料只存在此瀏覽器，不同步雲端');
+}
+
 async function authMagicLink(){
   const sb = sbClient();
   if(!sb){ setAuthMsg('未設定 Supabase 連線', true); return; }
@@ -2226,6 +2237,17 @@ async function initAuth(){
     }
     return;
   }
+  // If Supabase project is paused or unreachable, fall back gracefully
+  try { await sb.auth.getSession(); } catch(e) {
+    console.warn('[Auth] Supabase unreachable:', e.message);
+    if(localStorage.getItem('ficc_local_mode')==='1'){
+      load(); renderTrades(); loadJournal(currentJDate);
+    } else {
+      showAuthGate();
+    }
+    return;
+  }
+
   // Listen for auth changes
   let _authInitDone = false;
   sb.auth.onAuthStateChange(async (event, session) => {
@@ -8149,7 +8171,7 @@ async function loadLiquidity(force=false){
 }
 
 function renderLiquidity(){
-  const {sofr,effr,iorb,obfr,rrp,srf,s30,s90,s180,sofrPct,sofrPct30,sofrPct90} = _liqData;
+  const {sofr,effr,iorb,obfr,rrp,srf,s30,s90,s180,ois=[],sofrPct,sofrPct30,sofrPct90} = _liqData;
   if(!sofr?.length) return;
 
   const last  = arr => arr?.length ? arr[arr.length-1] : null;
@@ -8173,7 +8195,7 @@ function renderLiquidity(){
       <div style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:${color};line-height:1">${value}</div>
       ${sub?`<div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:2px">${sub}</div>`:''}
     </div>`;
-  const lOis = last(ois)?.val;
+  const lOis = ois?.length ? last(ois)?.val : null;
   // EFFR typically trades 3-5bp below IORB (structural: GSEs can't earn IORB)
   // EFFR < IORB by 0-10bp is NORMAL; only flag if gap > 10bp
   const effrIorbGap = lEffr!=null&&lIorb!=null ? (lIorb-lEffr)*100 : null;
