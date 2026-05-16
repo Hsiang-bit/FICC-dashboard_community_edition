@@ -8020,12 +8020,20 @@ async function loadLiquidity(force=false){
 
   const proxyUrl = (settings.geminiProxyUrl||'').trim();
 
+  // Public CORS proxies as fallback (no Worker needed)
+  const PUBLIC_PROXIES = [
+    u => proxyUrl
+      ? null  // handled separately
+      : `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  ];
+
   const fetchSeries = async (id, limit) => {
     const directUrl = FRED_URL(id, limit);
 
-    // Try proxy first if available (FRED blocks browser CORS)
+    // 1. Try Cloudflare Worker proxy (user's own, most reliable)
     if (proxyUrl) {
-      console.log('[FRED] Trying proxy for', id, 'via', proxyUrl);
       try {
         const r = await fetch(proxyUrl, {
           method: 'POST',
@@ -8033,39 +8041,40 @@ async function loadLiquidity(force=false){
           body: JSON.stringify({ fred:true, series_id:id, apiKey:fredKey, sort_order:'desc', limit }),
           signal: AbortSignal.timeout(12000),
         });
-        console.log('[FRED] Proxy response:', id, r.status, r.ok);
         const text = await r.text();
-        console.log('[FRED] Response text length:', text.length, 'preview:', text.slice(0,80));
-        if (!text || text.trim()==='') {
-          console.warn('[FRED] Empty response from proxy for', id);
-        } else {
+        if (text?.trim()) {
           try {
             const d = JSON.parse(text);
-            if (d.error_code) { console.warn('[FRED] API error:', id, d.error_message||d.error_code); }
-            else if (d.error) { console.warn('[FRED] Worker error:', d.message); }
-            else if (d.observations) {
-              console.log('[FRED] Success:', id, d.observations.length, 'observations');
-              return d.observations.filter(o=>o.value!=='.');
-            }
-          } catch(pe) { console.warn('[FRED] Non-JSON from proxy:', id, text.slice(0,100)); }
+            if (!d.error_code && d.observations) return d.observations.filter(o=>o.value!=='.');
+          } catch(e) {}
         }
-      } catch(e) { console.warn('[FRED] Proxy fetch failed:', id, e.message); }
-    } else {
-      console.warn('[FRED] No proxy URL set! Set Worker URL in Liquidity page.');
+      } catch(e) { console.warn('[FRED] Worker proxy failed:', id, e.message); }
     }
 
-    // Fallback: direct fetch (CORS blocked from GitHub Pages but works from localhost)
-    try {
-      const r = await fetch(directUrl, {signal:AbortSignal.timeout(12000)});
-      if (!r.ok) return null;
-      const text = await r.text();
-      const d = JSON.parse(text);
-      if (d.error_code) { console.warn('FRED error:', id, d.error_message); return null; }
-      return d.observations?.filter(o=>o.value!=='.') || null;
-    } catch(e) {
-      console.warn('Direct FRED failed:', id, e.message);
-      return null;
+    // 2. Try public CORS proxies (no Worker needed)
+    for (const makeProxy of PUBLIC_PROXIES) {
+      const proxyUrl2 = makeProxy(directUrl);
+      if (!proxyUrl2) continue;
+      try {
+        const r = await fetch(proxyUrl2, {signal: AbortSignal.timeout(10000)});
+        if (!r.ok) continue;
+        const text = await r.text();
+        if (!text?.trim()) continue;
+        try {
+          const d = JSON.parse(text);
+          if (!d.error_code && d.observations) return d.observations.filter(o=>o.value!=='.');
+        } catch(e) { continue; }
+      } catch(e) { continue; }
     }
+
+    // 3. Direct (works on localhost, blocked on GitHub Pages)
+    try {
+      const r = await fetch(directUrl, {signal: AbortSignal.timeout(10000)});
+      const d = await r.json();
+      if (d.observations) return d.observations.filter(o=>o.value!=='.');
+    } catch(e) {}
+
+    return null;
   };
 
   // Fetch all in parallel — historical series for charts
@@ -8373,16 +8382,29 @@ async function liqTestWorker(){
   if(!fredKey)  { toast('⚠ 請填入 FRED Key','e'); return; }
   toast('⏳ 測試 Worker 連線...');
   try {
-    const r = await fetch(workerUrl, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ fred:true, series_id:'SOFR', apiKey:fredKey, sort_order:'desc', limit:1 }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const text = await r.text();
-    console.log('[TEST] Worker response status:', r.status);
-    console.log('[TEST] Worker response body:', text.slice(0,200));
-    if(!r.ok){ toast('⚠ Worker 回傳 HTTP '+r.status+' — 請確認 Worker 已部署最新程式碼','e'); return; }
+    // If no Worker URL, test public proxy instead
+    let testResult = null;
+    if(workerUrl){
+      const r = await fetch(workerUrl, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ fred:true, series_id:'SOFR', apiKey:fredKey, sort_order:'desc', limit:1 }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const text = await r.text();
+      console.log('[TEST] Worker response status:', r.status, text.slice(0,200));
+      if(!r.ok){ toast('⚠ Worker 回傳 HTTP '+r.status+' — 請確認 Worker 已部署最新程式碼','e'); return; }
+      testResult = text;
+    } else {
+      // Test public proxy
+      const testUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=SOFR&api_key=${fredKey}&sort_order=desc&limit=1&file_type=json`;
+      const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(testUrl)}`, {signal:AbortSignal.timeout(10000)});
+      const text = await r.text();
+      console.log('[TEST] Public proxy response:', r.status, text.slice(0,200));
+      if(!r.ok){ toast('⚠ 公共 Proxy 也失敗了，請設定 Worker URL','e'); return; }
+      testResult = text;
+    }
+    const text = testResult;
     try {
       const d = JSON.parse(text);
       if(d.observations?.length){
