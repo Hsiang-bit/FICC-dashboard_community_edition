@@ -8365,6 +8365,43 @@ function drawLiqChart(canvasId, data, color){
 }
 
 
+
+async function liqTestWorker(){
+  const workerUrl = (document.getElementById('liq-worker-url')?.value||'').trim() || (settings.geminiProxyUrl||'').trim();
+  const fredKey   = (document.getElementById('liq-fred-key')?.value||'').trim()   || (settings.fredKey||'').trim();
+  if(!workerUrl){ toast('⚠ 請填入 Worker URL','e'); return; }
+  if(!fredKey)  { toast('⚠ 請填入 FRED Key','e'); return; }
+  toast('⏳ 測試 Worker 連線...');
+  try {
+    const r = await fetch(workerUrl, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ fred:true, series_id:'SOFR', apiKey:fredKey, sort_order:'desc', limit:1 }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const text = await r.text();
+    console.log('[TEST] Worker response status:', r.status);
+    console.log('[TEST] Worker response body:', text.slice(0,200));
+    if(!r.ok){ toast('⚠ Worker 回傳 HTTP '+r.status+' — 請確認 Worker 已部署最新程式碼','e'); return; }
+    try {
+      const d = JSON.parse(text);
+      if(d.observations?.length){
+        toast('✅ Worker 正常！SOFR 最新值：'+d.observations[0].value+'%');
+      } else if(d.error_code){
+        toast('⚠ FRED API 錯誤：'+d.error_message,'e');
+      } else {
+        toast('⚠ 回傳格式異常，請看 Console','e');
+        console.log('[TEST] Unexpected response:', d);
+      }
+    } catch(pe){
+      toast('⚠ 回傳非 JSON：'+text.slice(0,80),'e');
+    }
+  } catch(e){
+    toast('⚠ Worker 連線失敗：'+e.message,'e');
+    console.error('[TEST] Error:', e);
+  }
+}
+
 // ── New: Drawdown chart ──
 function drawDrawdown(canvas, ddSeries) {
   if (!canvas || !ddSeries.length) return;
