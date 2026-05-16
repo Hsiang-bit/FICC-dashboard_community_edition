@@ -459,6 +459,7 @@ select option{background:var(--paper2)}
   <button class="ntab" onclick="showPage('coach',this)"><span class="dot" style="background:linear-gradient(to right,#4285f4,#0f9d58)"></span>AI Coach</button>
   <button class="ntab" onclick="showPage('macro',this)"><span class="dot" style="background:linear-gradient(to right,#7c3aed,#db2777)"></span>Macro</button>
   <button class="ntab" onclick="showPage('news',this);loadNews()"><span class="dot" style="background:var(--blue)"></span>News</button>
+  <button class="ntab" onclick="showPage('liquidity',this);loadLiquidity()"><span class="dot" style="background:var(--cyan)"></span>Liquidity</button>
   <button class="ntab" onclick="showPage('stat',this);renderStat()"><span class="dot" style="background:var(--amber)"></span>STAT</button>
 <button class="ntab" onclick="showPage('setup',this);renderSetup()"><span class="dot" style="background:var(--blue)"></span>Setup</button>
 <button class="ntab" onclick="showPage('risk',this)"><span class="dot"></span>Risk</button>
@@ -862,6 +863,73 @@ select option{background:var(--paper2)}
     </div>
   </div>
 </div><!-- /page-stat -->
+
+
+<!-- ═══════ LIQUIDITY PAGE ═══════ -->
+<div class="page" id="page-liquidity">
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:10px;border-bottom:3px double #000">
+    <div>
+      <div style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:var(--ink);letter-spacing:-.02em">Liquidity Monitor</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:2px" id="liq-update-time">— 點擊更新載入資料 —</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--lo)">FRED Key</span>
+      <input type="password" id="liq-fred-key" placeholder="your FRED API key" style="font-size:10px;padding:4px 10px;width:180px;font-family:var(--mono)" oninput="settings.fredKey=this.value;saveAll()">
+      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('liq-fred-key')">👁</button>
+      <button class="btn btn-a btn-sm" onclick="loadLiquidity(true)" id="liq-refresh-btn">↻ 更新</button>
+    </div>
+  </div>
+
+  <div id="liq-no-key" style="display:none;text-align:center;padding:40px;color:var(--lo);font-family:var(--mono);font-size:12px">
+    請先填入 <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" style="color:var(--blue)">FRED API Key</a>（免費申請）
+  </div>
+
+  <!-- Primary Rates Grid -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px" id="liq-primary-grid"></div>
+
+  <!-- Spreads Grid -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px" id="liq-spread-grid"></div>
+
+  <!-- SOFR Averages + Percentile -->
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:12px">SOFR Averages</div>
+      <div id="liq-sofr-avgs" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:12px">SOFR Percentile</div>
+      <div id="liq-sofr-pct"></div>
+    </div>
+  </div>
+
+  <!-- RRP + SRF -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Overnight RRP (RRPONTSYD)</div>
+      <div id="liq-rrp"></div>
+      <canvas id="liq-rrp-chart" style="width:100%;height:80px;margin-top:8px"></canvas>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Standing Repo (RPONTSYD)</div>
+      <div id="liq-srf"></div>
+      <canvas id="liq-srf-chart" style="width:100%;height:80px;margin-top:8px"></canvas>
+    </div>
+  </div>
+
+  <!-- Context Notes -->
+  <div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">解讀框架</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--mid);line-height:1.8;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><strong>SOFR &gt; IORB</strong>：準備金偏緊，短端壓力↑</div>
+      <div><strong>SOFR &lt; IORB</strong>：準備金充裕，短端寬鬆</div>
+      <div><strong>RRP ↓ 快速</strong>：流動性從 Fed 流回市場</div>
+      <div><strong>RRP ↑</strong>：市場將資金存回 Fed，避險</div>
+      <div><strong>SRF 使用量↑</strong>：市場出現準備金壓力</div>
+      <div><strong>SOFR 百分位 &gt; 80%</strong>：月底/季底流動性緊張</div>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════ SETUP PAGE ═══════ -->
 <div class="page" id="page-setup">
@@ -2689,6 +2757,7 @@ function load(){
   if(settings.notionToken) document.getElementById('notionToken').value=settings.notionToken;
   if(settings.notionProxyUrl) document.getElementById('notionProxyUrl').value=settings.notionProxyUrl;
   if(settings.groqKey){const ge=document.getElementById('groqKey');if(ge)ge.value=settings.groqKey;}
+  if(settings.fredKey){const fe=document.getElementById('liq-fred-key');if(fe)fe.value=settings.fredKey;}
   if(settings.geminiKey) document.getElementById('geminiKey').value=settings.geminiKey;
   if(settings.geminiProxyUrl){const gpe=document.getElementById('geminiProxyUrl');if(gpe)gpe.value=settings.geminiProxyUrl;}
   if(settings.pplxKey){const el=document.getElementById('pplxKey');if(el)el.value=settings.pplxKey;}
@@ -2748,6 +2817,7 @@ function saveSettings(){
   settings.notionToken=document.getElementById('notionToken').value;
   settings.notionProxyUrl=document.getElementById('notionProxyUrl')?.value||'';
   settings.groqKey=document.getElementById('groqKey')?.value||'';
+  settings.fredKey=document.getElementById('liq-fred-key')?.value||'';
   settings.geminiKey=document.getElementById('geminiKey').value;
   settings.geminiProxyUrl=document.getElementById('geminiProxyUrl')?.value||'';
   const pk=document.getElementById('pplxKey');if(pk)settings.pplxKey=pk.value;
@@ -3749,6 +3819,7 @@ function showPage(id,btn){
   if(id==='stat'){setTimeout(renderStat,200);}
   if(id==='setup'){setTimeout(renderSetup,200);}
   if(id==='page-community'||id==='community'){_activeCTab=null;switchCTab('ideas');}
+  if(id==='liquidity'){ if(settings.fredKey){const fi=document.getElementById('liq-fred-key');if(fi)fi.value=settings.fredKey;} }
 }
 function showJTab(id,btn){
   if(id==='macro'){
@@ -7832,6 +7903,217 @@ function calShowDay(dateStr) {
   const totalR = dayTrades.reduce((s,t)=>s+t.pnl,0);
   const detail = dayTrades.map(t=>`${t.asset} ${t.dir}${t.grade?` [${t.grade}]`:''} ${t.pnl>=0?'+':''}${t.pnl.toFixed(2)}R`).join('  ·  ');
   box.innerHTML = `<span style="color:var(--lo)">${dateStr}</span>  <strong style="color:${totalR>=0?'var(--green)':'var(--red)'}">${totalR>=0?'+':''}${totalR.toFixed(2)}R</strong>  <span style="color:var(--mid)">${detail}</span>`;
+}
+
+
+// ════════════════════════════════════
+// LIQUIDITY MONITOR
+// ════════════════════════════════════
+let _liqData = {};
+let _liqLoaded = false;
+
+async function loadLiquidity(force=false){
+  if(_liqLoaded && !force) { renderLiquidity(); return; }
+
+  const fredKey = document.getElementById('liq-fred-key')?.value.trim() || settings.fredKey || '';
+  const noKeyEl = document.getElementById('liq-no-key');
+
+  if(!fredKey){
+    if(noKeyEl) noKeyEl.style.display='block';
+    document.getElementById('liq-primary-grid').innerHTML='';
+    return;
+  }
+  if(noKeyEl) noKeyEl.style.display='none';
+
+  const btn = document.getElementById('liq-refresh-btn');
+  if(btn){ btn.textContent='⏳ 載入中...'; btn.disabled=true; }
+
+  const FRED = (id, limit=2) =>
+    `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${fredKey}&sort_order=desc&limit=${limit}&file_type=json`;
+  const FRED_HIST = (id, limit=252) =>
+    `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${fredKey}&sort_order=desc&limit=${limit}&file_type=json`;
+
+  const fetchFRED = async (id, limit=2) => {
+    try {
+      const r = await fetch(FRED(id, limit), {signal:AbortSignal.timeout(10000)});
+      if(!r.ok) return null;
+      const d = await r.json();
+      return d.observations?.filter(o=>o.value!=='.')?.slice(0,limit) || null;
+    } catch(e){ return null; }
+  };
+
+  // Fetch all series in parallel
+  const [effr, iorb, sofr, rrp, srf, sofr30, sofr90, sofr180, obfr, sofrHist, rrpHist] = await Promise.all([
+    fetchFRED('EFFR'),
+    fetchFRED('IORB'),
+    fetchFRED('SOFR'),
+    fetchFRED('RRPONTSYD'),
+    fetchFRED('RPONTSYD'),
+    fetchFRED('SOFR30DAYAVG'),
+    fetchFRED('SOFR90DAYAVG'),
+    fetchFRED('SOFR180DAYAVG'),
+    fetchFRED('OBFR'),
+    fetchFRED('SOFR', 252),
+    fetchFRED('RRPONTSYD', 90),
+  ]);
+
+  const val  = obs => obs ? parseFloat(obs[0]?.value) : null;
+  const prev = obs => obs && obs[1] ? parseFloat(obs[1]?.value) : null;
+  const date = obs => obs ? obs[0]?.date : '—';
+
+  // Calculate SOFR percentile (where today sits in 252-day history)
+  let sofrPct = null, sofrPct30 = null, sofrPct90 = null;
+  if(sofrHist?.length){
+    const vals = sofrHist.map(o=>parseFloat(o.value)).filter(v=>!isNaN(v));
+    const cur = vals[0];
+    const below = vals.filter(v=>v<=cur).length;
+    sofrPct = Math.round(below/vals.length*100);
+    const v30 = vals.slice(0,30); const c30=v30[0];
+    sofrPct30 = Math.round(v30.filter(v=>v<=c30).length/v30.length*100);
+    const v90 = vals.slice(0,90); const c90=v90[0];
+    sofrPct90 = Math.round(v90.filter(v=>v<=c90).length/v90.length*100);
+  }
+
+  _liqData = {
+    effr: { val:val(effr), prev:prev(effr), date:date(effr) },
+    iorb: { val:val(iorb), prev:prev(iorb), date:date(iorb) },
+    sofr: { val:val(sofr), prev:prev(sofr), date:date(sofr) },
+    rrp:  { val:val(rrp),  prev:prev(rrp),  date:date(rrp)  },
+    srf:  { val:val(srf),  prev:prev(srf),  date:date(srf)  },
+    sofr30:  { val:val(sofr30) },
+    sofr90:  { val:val(sofr90) },
+    sofr180: { val:val(sofr180) },
+    obfr:    { val:val(obfr), prev:prev(obfr) },
+    sofrPct, sofrPct30, sofrPct90,
+    rrpHist: rrpHist?.map(o=>({date:o.date, val:parseFloat(o.value)})).reverse() || [],
+    srfHist: [], // RPONTSYD history if needed
+    fetchedAt: new Date().toISOString(),
+  };
+
+  _liqLoaded = true;
+  renderLiquidity();
+
+  if(btn){ btn.textContent='↻ 更新'; btn.disabled=false; }
+  const upd = document.getElementById('liq-update-time');
+  if(upd) upd.textContent='更新時間：' + new Date().toLocaleString('zh-TW', {timeZone:'Asia/Taipei'});
+}
+
+function renderLiquidity(){
+  const d = _liqData;
+  if(!d.effr) return;
+
+  const fmt  = v => v!=null ? v.toFixed(2)+'%' : '—';
+  const chg  = (v,p) => v!=null&&p!=null ? (v-p).toFixed(2) : null;
+  const chgColor = c => c!=null ? (c>0?'var(--red)':c<0?'var(--green)':'var(--lo)') : 'var(--lo)';
+  const chgStr = (v,p) => { const c=chg(v,p); return c!=null ? (c>0?'+':'')+c+'bp' : ''; };
+
+  // KPI cell helper
+  const kpi = (label, value, sub, col='var(--ink)', subCol='var(--lo)') =>
+    `<div style="background:var(--paper);padding:12px 14px">
+      <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:var(--lo);margin-bottom:4px">${label}</div>
+      <div style="font-family:Georgia,serif;font-size:22px;font-weight:700;color:${col};line-height:1;letter-spacing:-.02em">${value}</div>
+      ${sub?`<div style="font-family:var(--mono);font-size:9px;color:${subCol};margin-top:3px">${sub}</div>`:''}
+    </div>`;
+
+  // Primary rates
+  const pg = document.getElementById('liq-primary-grid');
+  if(pg){
+    const effrChg = chg(d.effr.val, d.effr.prev);
+    const iorbChg = chg(d.iorb.val, d.iorb.prev);
+    const sofrChg = chg(d.sofr.val, d.sofr.prev);
+    const rrpChg  = d.rrp.val!=null&&d.rrp.prev!=null ? (d.rrp.val-d.rrp.prev).toFixed(0) : null;
+    pg.innerHTML = [
+      kpi('EFFR', fmt(d.effr.val), effrChg!=null?(effrChg>0?'▲':'▼')+Math.abs(effrChg).toFixed(2)+'bp ('+d.effr.date+')':'as of '+d.effr.date, 'var(--ink)'),
+      kpi('IORB', fmt(d.iorb.val), iorbChg!=null?(iorbChg>0?'▲':'▼')+Math.abs(iorbChg).toFixed(2)+'bp':'as of '+d.iorb.date, 'var(--ink)'),
+      kpi('SOFR', fmt(d.sofr.val), sofrChg!=null?(sofrChg>0?'▲':'▼')+Math.abs(sofrChg).toFixed(2)+'bp':'as of '+d.sofr.date, d.sofr.val>d.iorb.val?'var(--red)':'var(--green)'),
+      kpi('O/N RRP', d.rrp.val!=null?'$'+d.rrp.val.toFixed(1)+'B':'—', rrpChg!=null?'vs prev $'+rrpChg+'B':d.rrp.date, d.rrp.val<100?'var(--green)':d.rrp.val>400?'var(--red)':'var(--amber)'),
+    ].join('');
+  }
+
+  // Spread grid
+  const sg = document.getElementById('liq-spread-grid');
+  if(sg){
+    const sofrIorb = d.sofr.val!=null&&d.iorb.val!=null ? (d.sofr.val-d.iorb.val).toFixed(2) : null;
+    const effrIorb = d.effr.val!=null&&d.iorb.val!=null ? (d.effr.val-d.iorb.val).toFixed(2) : null;
+    const sofrEffr = d.sofr.val!=null&&d.effr.val!=null ? (d.sofr.val-d.effr.val).toFixed(2) : null;
+    const obfrSofr = d.obfr.val!=null&&d.sofr.val!=null ? (d.obfr.val-d.sofr.val).toFixed(2) : null;
+    const spreadCol = v => v==null?'var(--lo)':parseFloat(v)>0.05?'var(--red)':parseFloat(v)<-0.05?'var(--green)':'var(--amber)';
+    sg.innerHTML = [
+      kpi('SOFR − IORB', sofrIorb!=null?sofrIorb+'bp':'—', 'Tight>0 / Easy<0', spreadCol(sofrIorb)),
+      kpi('EFFR − IORB', effrIorb!=null?effrIorb+'bp':'—', 'Should near 0', spreadCol(effrIorb)),
+      kpi('SOFR − EFFR', sofrEffr!=null?sofrEffr+'bp':'—', 'Collateral premium', spreadCol(sofrEffr)),
+      kpi('OBFR − SOFR', obfrSofr!=null?obfrSofr+'bp':'—', 'Unsecured premium', spreadCol(obfrSofr)),
+    ].join('');
+  }
+
+  // SOFR Averages
+  const sa = document.getElementById('liq-sofr-avgs');
+  if(sa){
+    const avgCell = (label, v) => `<div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;text-align:center">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:4px">${label}</div>
+      <div style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:var(--ink)">${v!=null?v.toFixed(2)+'%':'—'}</div>
+    </div>`;
+    sa.innerHTML = avgCell('30-Day Avg', d.sofr30.val) + avgCell('90-Day Avg', d.sofr90.val) + avgCell('180-Day Avg', d.sofr180.val);
+  }
+
+  // SOFR Percentile
+  const sp = document.getElementById('liq-sofr-pct');
+  if(sp && d.sofrPct!=null){
+    const pctColor = d.sofrPct>80?'var(--red)':d.sofrPct>60?'var(--amber)':'var(--green)';
+    sp.innerHTML = `<div style="font-family:Georgia,serif;font-size:36px;font-weight:700;color:${pctColor};line-height:1">${d.sofrPct}<span style="font-size:18px">%</span></div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">252-day percentile</div>
+      <div style="margin-top:10px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;background:${pctColor};width:${d.sofrPct}%;transition:width .4s;border-radius:3px"></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--lo)">
+        <span>30d: <strong>${d.sofrPct30??'—'}%</strong></span>
+        <span>90d: <strong>${d.sofrPct90??'—'}%</strong></span>
+      </div>`;
+  } else if(sp){ sp.innerHTML='<span style="font-family:var(--mono);font-size:10px;color:var(--lo)">計算中...</span>'; }
+
+  // RRP detail
+  const rrpEl = document.getElementById('liq-rrp');
+  if(rrpEl){
+    rrpEl.innerHTML = `<div style="font-family:Georgia,serif;font-size:28px;font-weight:700;color:${d.rrp.val<100?'var(--green)':d.rrp.val>400?'var(--red)':'var(--ink)'};line-height:1">$${d.rrp.val!=null?d.rrp.val.toFixed(1):'—'}<span style="font-size:14px">B</span></div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:4px">as of ${d.rrp.date}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:2px">Rate: ${fmt(d.effr.val)} | ${d.rrp.val<100?'✅ 流動性充裕':d.rrp.val>400?'⚠ 資金停泊偏多':'🟡 正常水位'}</div>`;
+    // Draw RRP chart
+    if(d.rrpHist.length) setTimeout(()=>drawLiqChart('liq-rrp-chart', d.rrpHist, 'var(--red)'), 50);
+  }
+
+  // SRF detail
+  const srfEl = document.getElementById('liq-srf');
+  if(srfEl){
+    srfEl.innerHTML = `<div style="font-family:Georgia,serif;font-size:28px;font-weight:700;color:${d.srf.val>50?'var(--red)':'var(--ink)'};line-height:1">$${d.srf.val!=null?d.srf.val.toFixed(1):'—'}<span style="font-size:14px">B</span></div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:4px">as of ${d.srf.date}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:2px">${d.srf.val<1?'✅ SRF 未啟動（正常）':d.srf.val>10?'🔴 準備金壓力升溫':'🟡 小量使用'}</div>`;
+  }
+}
+
+function drawLiqChart(canvasId, data, color='var(--blue)'){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas||!data.length) return;
+  const dpr = window.devicePixelRatio||1;
+  const W = (canvas.offsetWidth||400)*dpr;
+  const H = 80*dpr;
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const vals = data.map(d=>d.val).filter(v=>!isNaN(v));
+  if(!vals.length) return;
+  const mn=Math.min(...vals), mx=Math.max(...vals), rng=mx-mn||0.01;
+  const pad={t:4,b:4,l:0,r:0};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const pts=vals.map((v,i)=>[pad.l+(i/(vals.length-1||1))*cW, pad.t+((mx-v)/rng)*cH]);
+  // fill
+  const gr=ctx.createLinearGradient(0,0,0,H);
+  gr.addColorStop(0,'rgba(220,38,38,.15)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.lineTo(pts[pts.length-1][0],H);ctx.lineTo(pts[0][0],H);ctx.closePath();
+  ctx.fillStyle=gr;ctx.fill();
+  // line
+  ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.strokeStyle=color;ctx.lineWidth=1.5*dpr;ctx.stroke();
 }
 
 // ── New: Drawdown chart ──
