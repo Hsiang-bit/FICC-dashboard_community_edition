@@ -883,6 +883,7 @@ select option{background:var(--paper2)}
       <span style="font-family:var(--mono);font-size:9px;color:var(--lo)">FRED Key</span>
       <input type="password" id="liq-fred-key" placeholder="your FRED API key" style="font-size:10px;padding:4px 10px;width:170px;font-family:var(--mono)" oninput="settings.fredKey=this.value;saveAll()">
       <button class="btn btn-g btn-sm" onclick="toggleKeyVis('liq-fred-key')">👁</button>
+      <input type="text" id="liq-worker-url" placeholder="Worker URL (https://xxx.workers.dev)" style="font-size:10px;padding:4px 10px;width:220px;font-family:var(--mono)" oninput="settings.geminiProxyUrl=this.value;saveAll()">
       <button class="btn btn-a btn-sm" onclick="loadLiquidity(true)" id="liq-refresh-btn">↻ 更新</button>
     </div>
   </div>
@@ -3875,7 +3876,10 @@ function showPage(id,btn){
   if(id==='stat'){setTimeout(renderStat,200);}
   if(id==='setup'){setTimeout(renderSetup,200);}
   if(id==='page-community'||id==='community'){_activeCTab=null;switchCTab('ideas');}
-  if(id==='liquidity'){ if(settings.fredKey){const fi=document.getElementById('liq-fred-key');if(fi)fi.value=settings.fredKey;} }
+  if(id==='liquidity'){
+    if(settings.fredKey){const fi=document.getElementById('liq-fred-key');if(fi)fi.value=settings.fredKey;}
+    if(settings.geminiProxyUrl){const wi=document.getElementById('liq-worker-url');if(wi)wi.value=settings.geminiProxyUrl;}
+  }
 }
 function showJTab(id,btn){
   if(id==='macro'){
@@ -7973,6 +7977,11 @@ async function loadLiquidity(force=false){
   const noKeyEl  = document.getElementById('liq-no-key');
   const contentEl= document.getElementById('liq-content');
 
+  // Sync Worker URL field → settings
+  const workerInput = document.getElementById('liq-worker-url');
+  if(workerInput?.value.trim()) settings.geminiProxyUrl = workerInput.value.trim();
+  else if(settings.geminiProxyUrl && workerInput) workerInput.value = settings.geminiProxyUrl;
+
   if(!fredKey){
     if(noKeyEl)  noKeyEl.style.display  = 'block';
     if(contentEl)contentEl.style.display= 'none';
@@ -7980,6 +7989,16 @@ async function loadLiquidity(force=false){
   }
   if(noKeyEl)  noKeyEl.style.display  = 'none';
   if(contentEl)contentEl.style.display = 'block';
+
+  const proxyUrl2 = (settings.geminiProxyUrl||'').trim();
+  if(!proxyUrl2){
+    toast('⚠ 請填入 Worker URL（頁面右上角）才能載入 FRED 資料', 'e');
+    // Show helpful message in content area
+    document.getElementById('liq-vals-strip').innerHTML = `<div style="padding:20px;font-family:var(--mono);font-size:11px;color:var(--lo);grid-column:1/-1">⚠ 請在上方填入你的 Cloudflare Worker URL，FRED API 需要透過 Worker 中繼才能在瀏覽器使用。</div>`;
+    document.getElementById('liq-content').style.display = 'block';
+    document.getElementById('liq-no-key').style.display = 'none';
+    return;
+  }
 
   if(_liqLoaded && !force){ renderLiquidity(); return; }
 
