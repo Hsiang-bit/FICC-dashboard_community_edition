@@ -1473,8 +1473,33 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
       return new Response(null, { headers: corsHeaders() });
     }
     const body = await request.json();
-    const { model, contents, generationConfig } = body;
-    const apiKey = body.apiKey;
+
+    // ── FRED API proxy ──
+    if (body.fred) {
+      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${body.series_id}&api_key=${body.apiKey}&sort_order=${body.sort_order||'desc'}&limit=${body.limit||120}&file_type=json`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+      });
+    }
+
+    // ── Groq API proxy ──
+    if (body.groq) {
+      const { model, messages, temperature, max_tokens, apiKey } = body;
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ model, messages, temperature, max_tokens }),
+      });
+      const data = await res.json();
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+      });
+    }
+
+    // ── Gemini API proxy (default) ──
+    const { model, contents, generationConfig, apiKey } = body;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
@@ -7966,14 +7991,41 @@ async function loadLiquidity(force=false){
   const FRED_URL = (id, limit) =>
     `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${fredKey}&sort_order=desc&limit=${limit}&file_type=json`;
 
+  const proxyUrl = (settings.geminiProxyUrl||'').trim();
+
   const fetchSeries = async (id, limit) => {
+    const directUrl = FRED_URL(id, limit);
+
+    // Try proxy first if available (FRED blocks browser CORS)
+    if (proxyUrl) {
+      try {
+        const r = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ fred:true, series_id:id, apiKey:fredKey, sort_order:'desc', limit }),
+          signal: AbortSignal.timeout(12000),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (!d.error_code && d.observations) return d.observations.filter(o=>o.value!=='.');
+        }
+      } catch(e) { console.warn('Proxy FRED failed:', id, e.message); }
+    }
+
+    // Fallback: direct (works from localhost, fails from GitHub Pages due to CORS)
     try {
-      const r = await fetch(FRED_URL(id, limit), {signal:AbortSignal.timeout(12000)});
-      if(!r.ok) return null;
+      const r = await fetch(directUrl, {signal:AbortSignal.timeout(12000)});
+      if (!r.ok) return null;
       const d = await r.json();
-      if(d.error_code) { console.warn('FRED error:', id, d.error_message); return null; }
+      if (d.error_code) { console.warn('FRED error:', id, d.error_message); return null; }
       return d.observations?.filter(o=>o.value!=='.') || null;
-    } catch(e){ console.warn('FRED fetch failed:', id, e.message); return null; }
+    } catch(e) {
+      if (!proxyUrl) {
+        toast('⚠ FRED API 需要 Cloudflare Worker Proxy（Settings → Gemini Proxy URL）', 'e');
+      }
+      console.warn('Direct FRED failed:', id, e.message);
+      return null;
+    }
   };
 
   // Fetch all in parallel — historical series for charts
