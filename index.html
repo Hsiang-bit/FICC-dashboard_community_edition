@@ -8025,6 +8025,7 @@ async function loadLiquidity(force=false){
 
     // Try proxy first if available (FRED blocks browser CORS)
     if (proxyUrl) {
+      console.log('[FRED] Trying proxy for', id, 'via', proxyUrl);
       try {
         const r = await fetch(proxyUrl, {
           method: 'POST',
@@ -8032,21 +8033,25 @@ async function loadLiquidity(force=false){
           body: JSON.stringify({ fred:true, series_id:id, apiKey:fredKey, sort_order:'desc', limit }),
           signal: AbortSignal.timeout(12000),
         });
-        if (r.ok) {
-          const text = await r.text();
-          if (!text || text.trim()==='') { console.warn('Empty response from proxy for', id); }
-          else {
-            try {
-              const d = JSON.parse(text);
-              if (d.error_code) { console.warn('FRED error:', id, d.error_message||d.error_code); }
-              else if (d.observations) return d.observations.filter(o=>o.value!=='.');
-            } catch(pe) { console.warn('Non-JSON from proxy:', id, text.slice(0,100)); }
-          }
+        console.log('[FRED] Proxy response:', id, r.status, r.ok);
+        const text = await r.text();
+        console.log('[FRED] Response text length:', text.length, 'preview:', text.slice(0,80));
+        if (!text || text.trim()==='') {
+          console.warn('[FRED] Empty response from proxy for', id);
         } else {
-          const errText = await r.text().catch(()=>'');
-          console.warn('Proxy HTTP error', r.status, id, errText.slice(0,100));
+          try {
+            const d = JSON.parse(text);
+            if (d.error_code) { console.warn('[FRED] API error:', id, d.error_message||d.error_code); }
+            else if (d.error) { console.warn('[FRED] Worker error:', d.message); }
+            else if (d.observations) {
+              console.log('[FRED] Success:', id, d.observations.length, 'observations');
+              return d.observations.filter(o=>o.value!=='.');
+            }
+          } catch(pe) { console.warn('[FRED] Non-JSON from proxy:', id, text.slice(0,100)); }
         }
-      } catch(e) { console.warn('Proxy FRED failed:', id, e.message); }
+      } catch(e) { console.warn('[FRED] Proxy fetch failed:', id, e.message); }
+    } else {
+      console.warn('[FRED] No proxy URL set! Set Worker URL in Liquidity page.');
     }
 
     // Fallback: direct fetch (CORS blocked from GitHub Pages but works from localhost)
