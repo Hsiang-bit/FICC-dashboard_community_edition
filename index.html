@@ -909,6 +909,7 @@ select option{background:var(--paper2)}
         </div>
       </div>
       <canvas id="liq-rates-chart" style="width:100%;height:180px;display:block"></canvas>
+      <div id="liq-rates-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0;color:var(--mid);min-height:18px"></div>
     </div>
 
     <!-- SOFR-IORB Spread 走勢圖 -->
@@ -918,6 +919,7 @@ select option{background:var(--paper2)}
         <div id="liq-spread-val" style="font-family:var(--mono);font-size:11px;font-weight:700"></div>
       </div>
       <canvas id="liq-spread-chart" style="width:100%;height:100px;display:block"></canvas>
+      <div id="liq-spread-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0;color:var(--mid)"></div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:6px">Spread &gt; 0bp → 準備金偏緊 / Spread &lt; 0bp → 充裕</div>
     </div>
 
@@ -929,6 +931,7 @@ select option{background:var(--paper2)}
           <div id="liq-rrp-val" style="font-family:var(--mono);font-size:11px;font-weight:700"></div>
         </div>
         <canvas id="liq-rrp-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-rrp-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0;color:var(--mid)"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">RRP ↓ → 流動性回流市場 ✅</div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
@@ -937,6 +940,7 @@ select option{background:var(--paper2)}
           <div id="liq-srf-val" style="font-family:var(--mono);font-size:11px;font-weight:700"></div>
         </div>
         <canvas id="liq-srf-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-srf-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0;color:var(--mid)"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">SRF 使用↑ → 市場準備金壓力</div>
       </div>
     </div>
@@ -953,6 +957,7 @@ select option{background:var(--paper2)}
         </div>
       </div>
       <canvas id="liq-sofravg-chart" style="width:100%;height:130px;display:block"></canvas>
+      <div id="liq-sofravg-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0;color:var(--mid)"></div>
     </div>
 
     <!-- SOFR Percentile bar -->
@@ -8078,16 +8083,17 @@ async function loadLiquidity(force=false){
   };
 
   // Fetch all in parallel — historical series for charts
-  const [sofrH, effrH, iorbH, obfrH, rrpH, srfH, s30H, s90H, s180H] = await Promise.all([
-    fetchSeries('SOFR',        Math.max(range, 252)),
-    fetchSeries('EFFR',        range),
-    fetchSeries('IORB',        range),
-    fetchSeries('OBFR',        range),
-    fetchSeries('RRPONTSYD',   range),
-    fetchSeries('RPONTSYD',    range),
-    fetchSeries('SOFR30DAYAVG',range),
-    fetchSeries('SOFR90DAYAVG',range),
-    fetchSeries('SOFR180DAYAVG',range),
+  const [sofrH, effrH, iorbH, obfrH, rrpH, srfH, s30H, s90H, s180H, oisH] = await Promise.all([
+    fetchSeries('SOFR',          Math.max(range, 252)),
+    fetchSeries('EFFR',          range),
+    fetchSeries('IORB',          range),
+    fetchSeries('OBFR',          range),
+    fetchSeries('RRPONTSYD',     range),
+    fetchSeries('RPONTSYD',      range),
+    fetchSeries('SOFR30DAYAVG',  range),
+    fetchSeries('SOFR90DAYAVG',  range),
+    fetchSeries('SOFR180DAYAVG', range),
+    fetchSeries('SOFR1',         range),  // SOFR compounded index → OIS proxy
   ]);
 
   // Convert to {date, val} arrays (chronological order)
@@ -8116,7 +8122,8 @@ async function loadLiquidity(force=false){
     const v90  = vals.slice(-90); sofrPct90=Math.round(v90.filter(v=>v<=cur).length/v90.length*100);
   }
 
-  _liqData = { sofr, sofrFull, effr, iorb, obfr, rrp, srf, s30, s90, s180, sofrPct, sofrPct30, sofrPct90 };
+  const ois = toSeries(oisH);
+  _liqData = { sofr, sofrFull, effr, iorb, obfr, rrp, srf, s30, s90, s180, ois, sofrPct, sofrPct30, sofrPct90 };
 
   // Check if anything loaded
   const loadedCount = [sofr,effr,iorb,rrp].filter(s=>s?.length>0).length;
@@ -8166,13 +8173,17 @@ function renderLiquidity(){
       <div style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:${color};line-height:1">${value}</div>
       ${sub?`<div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:2px">${sub}</div>`:''}
     </div>`;
+  const lOis = last(ois)?.val;
+  // EFFR typically trades 3-5bp below IORB (structural: GSEs can't earn IORB)
+  // EFFR < IORB by 0-10bp is NORMAL; only flag if gap > 10bp
+  const effrIorbGap = lEffr!=null&&lIorb!=null ? (lIorb-lEffr)*100 : null;
   if(strip) strip.innerHTML = [
-    stripCell('SOFR',   fmt(lSofr), 'chg: '+(chgBp(sofr)||'—')+'bp', lSofr>lIorb?'var(--red)':'var(--blue)'),
-    stripCell('EFFR',   fmt(lEffr), last(effr)?.date||'', 'var(--amber)'),
-    stripCell('IORB',   fmt(lIorb), 'policy floor', 'var(--green)'),
-    stripCell('OBFR',   fmt(lObfr), 'unsecured', 'var(--pur)'),
-    stripCell('O/N RRP',fmtB(lRrp), (lRrp<100?'✅ 充裕':lRrp>400?'⚠ 偏多':'🟡 正常'), lRrp<100?'var(--green)':lRrp>400?'var(--red)':'var(--amber)'),
-    stripCell('SOFR−IORB', spread!=null?spread+'bp':'—', spread>0?'準備金偏緊↑':spread<0?'充裕↓':'中性', spread>2?'var(--red)':spread<-2?'var(--green)':'var(--amber)'),
+    stripCell('SOFR', fmt(lSofr), 'chg: '+(chgBp(sofr)||'—')+'bp', lSofr>lIorb?'var(--red)':'var(--blue)'),
+    stripCell('EFFR', fmt(lEffr), effrIorbGap!=null?`IORB gap: −${effrIorbGap.toFixed(1)}bp (正常<10bp)`:'', effrIorbGap>10?'var(--red)':'var(--amber)'),
+    stripCell('IORB', fmt(lIorb), 'policy floor', 'var(--green)'),
+    stripCell('OBFR', fmt(lObfr), '含歐元美元，unsecured', 'var(--pur)'),
+    stripCell('O/N RRP', fmtB(lRrp), lRrp<5?'⚡ 幾乎歸零（流動性極充裕）':lRrp<100?'✅ 充裕':lRrp>400?'⚠ 偏多':'🟡 正常', lRrp<100?'var(--green)':lRrp>400?'var(--red)':'var(--amber)'),
+    stripCell('SOFR OIS', lOis!=null?lOis.toFixed(4):'—', 'SOFR Compounded Index', 'var(--ink)'),
   ].join('');
 
   // Update spread label
@@ -8203,29 +8214,45 @@ function renderLiquidity(){
   // Draw charts after layout
   setTimeout(()=>{
     // Multi-line rates chart
-    drawMultiLineChart('liq-rates-chart', [
+    const ratesSeries = [
       {data:sofr,  color:'#3b82f6', width:2},
       {data:effr,  color:'#f59e0b', width:1.5},
       {data:iorb,  color:'#22c55e', width:1.5, dash:[4,3]},
       {data:obfr,  color:'#8b5cf6', width:1, dash:[2,2]},
-    ], 180);
+    ];
+    const ratesCanvas = document.getElementById('liq-rates-chart');
+    if(ratesCanvas){ ratesCanvas._redrawFn = ()=>drawMultiLineChart('liq-rates-chart',ratesSeries,180); ratesCanvas._redrawFn(); }
+    _addChartHover('liq-rates-chart', ratesSeries, true);
+
     // Spread chart
     const spreadSeries = sofr.map(s=>{
       const i = iorb.find(o=>o.date===s.date);
       return i ? {date:s.date, val:(s.val-i.val)*100} : null;
     }).filter(Boolean);
-    drawBarChart('liq-spread-chart', spreadSeries, 100);
+    const spreadCanvas = document.getElementById('liq-spread-chart');
+    if(spreadCanvas){ spreadCanvas._redrawFn = ()=>drawBarChart('liq-spread-chart',spreadSeries,100); spreadCanvas._redrawFn(); }
+    _addChartHover('liq-spread-chart', spreadSeries, false);
+
     // RRP chart
-    drawAreaChart('liq-rrp-chart', rrp, '#ef4444', 120);
+    const rrpCanvas = document.getElementById('liq-rrp-chart');
+    if(rrpCanvas){ rrpCanvas._redrawFn = ()=>drawAreaChart('liq-rrp-chart',rrp,'#ef4444',120); rrpCanvas._redrawFn(); }
+    _addChartHover('liq-rrp-chart', rrp, false);
+
     // SRF chart
-    drawAreaChart('liq-srf-chart', srf, '#f59e0b', 120);
+    const srfCanvas = document.getElementById('liq-srf-chart');
+    if(srfCanvas){ srfCanvas._redrawFn = ()=>drawAreaChart('liq-srf-chart',srf,'#f59e0b',120); srfCanvas._redrawFn(); }
+    _addChartHover('liq-srf-chart', srf, false);
+
     // SOFR averages chart
-    drawMultiLineChart('liq-sofravg-chart', [
+    const avgSeries = [
       {data:sofr, color:'#3b82f6', width:2},
       {data:s30,  color:'#f59e0b', width:1.5},
       {data:s90,  color:'#ef4444', width:1.5},
       {data:s180, color:'#8b5cf6', width:1.5},
-    ], 130);
+    ];
+    const avgCanvas = document.getElementById('liq-sofravg-chart');
+    if(avgCanvas){ avgCanvas._redrawFn = ()=>drawMultiLineChart('liq-sofravg-chart',avgSeries,130); avgCanvas._redrawFn(); }
+    _addChartHover('liq-sofravg-chart', avgSeries, true);
   }, 60);
 }
 
@@ -8422,6 +8449,102 @@ async function liqTestWorker(){
     toast('⚠ Worker 連線失敗：'+e.message,'e');
     console.error('[TEST] Error:', e);
   }
+}
+
+
+// ── Chart hover state ──
+const _chartHover = {};  // canvasId → {data, series}
+
+function _addChartHover(canvasId, data, isMulti=false){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  _chartHover[canvasId] = {data, isMulti};
+  canvas.style.cursor = 'crosshair';
+  if(!canvas._hoverBound){
+    canvas._hoverBound = true;
+    canvas.addEventListener('mousemove', e => _onChartHover(e, canvasId));
+    canvas.addEventListener('mouseleave', e => _onChartLeave(e, canvasId));
+  }
+}
+
+function _onChartHover(e, canvasId){
+  const canvas = e.currentTarget;
+  const {data, isMulti} = _chartHover[canvasId]||{};
+  if(!data) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const mouseX = (e.clientX - rect.left) * scaleX;
+  const dpr = window.devicePixelRatio||1;
+  const pad = {t:8, b:18, l:40, r:8};
+  const cW = canvas.width - (pad.l+pad.r)*dpr;
+
+  // Find nearest data point
+  const refData = isMulti ? data[0].data : data;
+  if(!refData?.length) return;
+  const n = refData.length;
+  const idx = Math.min(Math.max(Math.round((mouseX - pad.l*dpr) / cW * (n-1)), 0), n-1);
+  const pt = refData[idx];
+  if(!pt) return;
+
+  // Show tooltip
+  const tooltip = document.getElementById(canvasId + '-tooltip');
+  if(tooltip){
+    if(isMulti){
+      const vals = data.map(s => s.data?.[idx]?.val).filter(v=>v!=null);
+      const labels = data.map((s,i) => ['SOFR','EFFR','IORB','OBFR','30D','90D','180D'][i]||('S'+(i+1)));
+      tooltip.innerHTML = `<span style="color:var(--lo)">${pt.date}</span>  ` +
+        data.map((s,i)=>{
+          const v = s.data?.[idx]?.val;
+          return v!=null?`<span style="color:${s.color};font-weight:700">${labels[i]}: ${v.toFixed(3)}%</span>`:'';
+        }).filter(Boolean).join('  ');
+    } else {
+      const unit = canvasId.includes('rrp')||canvasId.includes('srf') ? 'B' : '%';
+      const v = pt.val;
+      const disp = unit==='B' ? '$'+v.toFixed(1)+'B' : v.toFixed(3)+'%';
+      tooltip.innerHTML = `<span style="color:var(--lo)">${pt.date}</span>  <strong>${disp}</strong>`;
+    }
+    tooltip.style.display = 'block';
+  }
+
+  // Draw crosshair
+  const ctx = canvas.getContext('2d');
+  // Re-draw the chart (trigger re-render)
+  const chartFn = canvas._redrawFn;
+  if(chartFn) chartFn();
+
+  // Draw crosshair overlay
+  const x = pad.l*dpr + idx/(n-1||1)*cW;
+  const H = canvas.height;
+  ctx.setLineDash([3,4]);
+  ctx.strokeStyle = 'rgba(128,128,128,0.4)';
+  ctx.lineWidth = 1*dpr;
+  ctx.beginPath(); ctx.moveTo(x, pad.t*dpr); ctx.lineTo(x, H-pad.b*dpr); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Dot on each series
+  if(isMulti){
+    data.forEach(s => {
+      const v = s.data?.[idx]?.val;
+      if(v==null) return;
+      const allVals = s.data.map(d=>d.val).filter(v=>!isNaN(v));
+      const mn=Math.min(...allVals), mx=Math.max(...allVals), r=mx-mn||0.01;
+      const pad_r = r*0.1;
+      const hi=mx+pad_r, lo=mn-pad_r, rng=hi-lo;
+      const y = pad.t*dpr + ((hi-v)/rng)*(H-(pad.t+pad.b)*dpr);
+      ctx.beginPath(); ctx.arc(x, y, 3.5*dpr, 0, Math.PI*2);
+      ctx.fillStyle = s.color; ctx.fill();
+    });
+  }
+}
+
+function _onChartLeave(e, canvasId){
+  const tooltip = document.getElementById(canvasId + '-tooltip');
+  if(tooltip) tooltip.style.display = 'none';
+  // Redraw without crosshair
+  const canvas = e.currentTarget;
+  const fn = canvas._redrawFn;
+  if(fn) fn();
 }
 
 // ── New: Drawdown chart ──
