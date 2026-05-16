@@ -1477,12 +1477,20 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
 
     // ── FRED API proxy ──
     if (body.fred) {
-      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${body.series_id}&api_key=${body.apiKey}&sort_order=${body.sort_order||'desc'}&limit=${body.limit||120}&file_type=json`;
-      const res = await fetch(url);
-      const data = await res.json();
-      return new Response(JSON.stringify(data), {
-        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-      });
+      try {
+        const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${body.series_id}&api_key=${body.apiKey}&sort_order=${body.sort_order||'desc'}&limit=${body.limit||120}&file_type=json`;
+        const res = await fetch(url);
+        const text = await res.text();
+        return new Response(text, {
+          status: res.status,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+        });
+      } catch(e) {
+        return new Response(JSON.stringify({error:true, message:e.message}), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+        });
+      }
     }
 
     // ── Groq API proxy ──
@@ -8025,23 +8033,31 @@ async function loadLiquidity(force=false){
           signal: AbortSignal.timeout(12000),
         });
         if (r.ok) {
-          const d = await r.json();
-          if (!d.error_code && d.observations) return d.observations.filter(o=>o.value!=='.');
+          const text = await r.text();
+          if (!text || text.trim()==='') { console.warn('Empty response from proxy for', id); }
+          else {
+            try {
+              const d = JSON.parse(text);
+              if (d.error_code) { console.warn('FRED error:', id, d.error_message||d.error_code); }
+              else if (d.observations) return d.observations.filter(o=>o.value!=='.');
+            } catch(pe) { console.warn('Non-JSON from proxy:', id, text.slice(0,100)); }
+          }
+        } else {
+          const errText = await r.text().catch(()=>'');
+          console.warn('Proxy HTTP error', r.status, id, errText.slice(0,100));
         }
       } catch(e) { console.warn('Proxy FRED failed:', id, e.message); }
     }
 
-    // Fallback: direct (works from localhost, fails from GitHub Pages due to CORS)
+    // Fallback: direct fetch (CORS blocked from GitHub Pages but works from localhost)
     try {
       const r = await fetch(directUrl, {signal:AbortSignal.timeout(12000)});
       if (!r.ok) return null;
-      const d = await r.json();
+      const text = await r.text();
+      const d = JSON.parse(text);
       if (d.error_code) { console.warn('FRED error:', id, d.error_message); return null; }
       return d.observations?.filter(o=>o.value!=='.') || null;
     } catch(e) {
-      if (!proxyUrl) {
-        toast('⚠ FRED API 需要 Cloudflare Worker Proxy（Settings → Gemini Proxy URL）', 'e');
-      }
       console.warn('Direct FRED failed:', id, e.message);
       return null;
     }
@@ -8087,6 +8103,22 @@ async function loadLiquidity(force=false){
   }
 
   _liqData = { sofr, sofrFull, effr, iorb, obfr, rrp, srf, s30, s90, s180, sofrPct, sofrPct30, sofrPct90 };
+
+  // Check if anything loaded
+  const loadedCount = [sofr,effr,iorb,rrp].filter(s=>s?.length>0).length;
+  if(loadedCount===0){
+    toast('⚠ FRED 資料載入失敗 — 請確認 FRED Key 正確、Worker 已部署', 'e');
+    document.getElementById('liq-vals-strip').innerHTML =
+      `<div style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--red);grid-column:1/-1">
+        ⚠ 無法取得資料。請確認：<br>
+        1. FRED API Key 正確<br>
+        2. Worker URL 正確（例如 https://xxx.workers.dev）<br>
+        3. Cloudflare Worker 已部署最新版程式碼<br>
+        打開瀏覽器 Console（F12）查看詳細錯誤
+      </div>`;
+    return;
+  }
+
   _liqLoaded = true;
   renderLiquidity();
 
