@@ -3010,7 +3010,6 @@ function sbBuildSnapshot(){
 }
 
 // ── Push all data to Supabase ──
-let _sbFailCount = 0; // consecutive silent failure counter
 
 async function sbPush(silent=false){
   if(!sbReady()){
@@ -7393,6 +7392,31 @@ function loadUISettings(){
   if(settings.accent)setAccent(settings.accent);
 }
 
+
+// ── Global state declarations (must be before load()) ──
+let weeklyOutlook = {};
+let _woWeekOffset = 0;
+let _tickerNews = [];
+let _tickerLoaded = false;
+let _eqData = {eq:[], pts:[], pad:{}, dpr:1, W:0, H:0, mn:0, mx:0, rng:1, col:'#22c55e', rValues:[]};
+let _eqRafId = null;
+let _liqData = {};
+let _liqLoaded = false;
+const _chartHover = {};
+let _sbFailCount = 0;
+const SETUP_CF = [
+  {id:'s_htf', l:'HTF 方向偏差確認 (D1/4H PD Array)', pts:20, tier:'必要'},
+  {id:'s_kz',  l:'Kill Zone 時間窗口 (NYAM 9:30–11am)', pts:15, tier:'必要'},
+  {id:'s_mss', l:'MSS 市場結構轉換已確認 (LTF)', pts:15, tier:'高'},
+  {id:'s_liq', l:'流動性已被掃除 (SSL / BSL 已觸及)', pts:15, tier:'高'},
+  {id:'s_fvg', l:'進場在 FVG 或 OB 精確位置', pts:12, tier:'高'},
+  {id:'s_mtf', l:'多時間框架同向 PD Array 堆疊', pts:10, tier:'中'},
+  {id:'s_tgt', l:'目標明確 (Buyside/Sellside/等高低)', pts:8,  tier:'中'},
+  {id:'s_spd', l:'Spread 正常、流動性充足', pts:5,  tier:'低'},
+];
+
+
+
 load();
 populateAssetSelects();
 initAuth();          // Supabase auth gate — shows login if not signed in
@@ -7409,8 +7433,6 @@ initGistSync();
 // STAT PAGE
 // ═══════════════════════════════════════════════════
 
-// Store equity data globally for crosshair
-let _eqData = {eq:[], pts:[], pad:{}, dpr:1, W:0, H:0, mn:0, mx:0, rng:1, col:'#22c55e', rValues:[]};
 
 function drawStatEquity(canvas, rValues, h) {
   if (!canvas || !rValues.length) return;
@@ -7467,7 +7489,6 @@ function drawStatEquity(canvas, rValues, h) {
   return last;
 }
 
-let _eqRafId = null;
 function eqCrosshair(e) {
   if (_eqRafId) return; // throttle to one frame
   _eqRafId = requestAnimationFrame(() => { _eqRafId = null; });
@@ -8018,8 +8039,6 @@ function calShowDay(dateStr) {
 // ════════════════════════════════════
 // LIQUIDITY MONITOR
 // ════════════════════════════════════
-let _liqData = {};
-let _liqLoaded = false;
 
 async function loadLiquidity(force=false){
   const fredKey = document.getElementById('liq-fred-key')?.value.trim() || settings.fredKey || '';
@@ -8488,8 +8507,6 @@ async function liqTestWorker(){
 }
 
 
-// ── Chart hover state ──
-const _chartHover = {};  // canvasId → {data, series}
 
 function _addChartHover(canvasId, data, isMulti=false){
   const canvas = document.getElementById(canvasId);
@@ -8664,16 +8681,7 @@ function drawRDistribution(canvas, rVals) {
 // SETUP PAGE (Kelly / Confluence Grader)
 // ═══════════════════════════════════════════════════
 
-const SETUP_CF = [
-  {id:'s_htf', l:'HTF 方向偏差確認 (D1/4H PD Array)', pts:20, tier:'必要'},
-  {id:'s_kz',  l:'Kill Zone 時間窗口 (NYAM 9:30–11am)', pts:15, tier:'必要'},
-  {id:'s_mss', l:'MSS 市場結構轉換已確認 (LTF)', pts:15, tier:'高'},
-  {id:'s_liq', l:'流動性已被掃除 (SSL / BSL 已觸及)', pts:15, tier:'高'},
-  {id:'s_fvg', l:'進場在 FVG 或 OB 精確位置', pts:12, tier:'高'},
-  {id:'s_mtf', l:'多時間框架同向 PD Array 堆疊', pts:10, tier:'中'},
-  {id:'s_tgt', l:'目標明確 (Buyside/Sellside/等高低)', pts:8,  tier:'中'},
-  {id:'s_spd', l:'Spread 正常、流動性充足', pts:5,  tier:'低'},
-];
+// SETUP_CF declared at top of script
 const SETUP_CF_MAX = SETUP_CF.reduce((a,f)=>a+f.pts,0);
 let _setupChecked = new Set(['s_htf','s_kz','s_mss']);
 let _setupSim = {flat:[], kelly:[]};
@@ -9114,8 +9122,7 @@ function updateKpiStrip() {
 const WO_DEFAULT_ASSETS = ['Gold','Bond','OIL','TIPS','ZF1!-TIP','DXY','EUR','ETH','US100','DAX'];
 
 // weeklyOutlook[weekKey] = { assets:[{name, bias, desc}], updatedAt }
-let weeklyOutlook = {};
-let _woWeekOffset = 0; // 0 = current week, -1 = last week, etc.
+// weeklyOutlook and _woWeekOffset declared at top of script
 
 function woGetWeekKey(offset=0){
   const d = new Date();
@@ -9248,8 +9255,6 @@ function loadWeeklyOutlook(){
 // ════════════════════════════════════
 // NEWS TICKER — Multi-source financial headlines
 // ════════════════════════════════════
-let _tickerNews = [];   // [{title, source, url, time}]
-let _tickerLoaded = false;
 
 async function loadTickerNews(force=false) {
   if (_tickerLoaded && !force) { renderNewsTicker(); return; }
