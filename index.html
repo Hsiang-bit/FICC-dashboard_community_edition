@@ -2876,33 +2876,29 @@ function load(){
 }
 function saveAll(){
   try {
-    // Strip base64 chart images before saving to localStorage (they can be huge)
-    // Charts are kept in memory and synced to Notion/Supabase separately
     const tradesForStorage = trades.map(t => {
       if (!t.charts) return t;
       const charts = {};
       Object.entries(t.charts).forEach(([k, v]) => {
-        // Keep Notion URLs (short strings), strip base64 data URIs (long)
         if (v && typeof v === 'string' && !v.startsWith('data:')) charts[k] = v;
       });
       return Object.keys(charts).length ? {...t, charts} : {...t, charts: undefined};
     });
-    localStorage.setItem('ficc_trades', JSON.stringify(tradesForStorage));
-    localStorage.setItem('ficc_journals', JSON.stringify(journals));
-    localStorage.setItem('ficc_settings', JSON.stringify(settings));
-    localStorage.setItem('ficc_gantt', JSON.stringify(ganttData));
-  } catch(e) {
-    if (e.name === 'QuotaExceededError') {
-      toast('⚠ 本地儲存空間已滿！請推送到 Notion/Supabase 後清理圖表快取', 'e');
-      console.error('[saveAll] localStorage quota exceeded:', e.message);
-    } else {
-      toast('⚠ 儲存失敗：' + e.message, 'e');
-      console.error('[saveAll] error:', e);
+    // Save each key independently so one failure doesn't block others
+    try { localStorage.setItem('ficc_trades', JSON.stringify(tradesForStorage)); } catch(e) { console.warn('[saveAll] trades failed:', e.message); }
+    try { localStorage.setItem('ficc_journals', JSON.stringify(journals)); } catch(e) { console.warn('[saveAll] journals failed:', e.message); }
+    try { localStorage.setItem('ficc_settings', JSON.stringify(settings)); } catch(e) { console.warn('[saveAll] settings failed:', e.message); }
+    try { localStorage.setItem('ficc_gantt', JSON.stringify(ganttData)); } catch(e) {}
+    // Backup copy for recovery (stripped, minimal)
+    if(trades.length > 0){
+      try {
+        const backup = tradesForStorage.map(t=>({id:t.id,date:t.date,asset:t.asset,dir:t.dir,status:t.status,pnl:t.pnl,r:t.r,grade:t.grade}));
+        localStorage.setItem('ficc_trades_backup', JSON.stringify(backup));
+      } catch(e) {}
     }
-    return; // don't trigger cloud sync if local save failed
+  } catch(e) {
+    console.error('[saveAll] unexpected error:', e);
   }
-  // Always sync to Supabase when logged in (primary storage)
-  // Debounced 2s to batch rapid saves
   if (sbReady() && currentUser) sbDebouncedPush();
 }
 function saveSettings(){
