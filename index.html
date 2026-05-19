@@ -3062,11 +3062,28 @@ async function sbPush(silent=false){
 async function sbPull(){
   if(!sbReady()){toast('⚠ 請先填入 Supabase URL 與 Key','e');return;}
   sbSetStatus('⬇️ 下載中...','var(--lo)');
-  const key='ficc_v3_'+(currentUser?.id||'anon');
+  // Try to get fresh session if currentUser is null
+  let userId = currentUser?.id;
+  if(!userId){
+    try {
+      const sb = sbClient();
+      const { data: { session } } = await sb.auth.getSession();
+      userId = session?.user?.id;
+    } catch(e) {}
+  }
+  if(!userId){
+    toast('⚠ 請先登入 Supabase 才能還原雲端資料','e');
+    sbSetStatus('✗ 未登入','var(--red)');
+    return;
+  }
+  const key='ficc_v3_'+userId;
   const {ok,data,status}=await sbFetch('GET',key);
   if(!ok||!data||!data.length){
-    toast('⚠ 找不到雲端資料 ('+status+')','e');
-    sbSetStatus('✗ 無雲端資料','var(--red)');
+    const hint = status===401||status===403 ? '請重新登入'
+                : status===0 ? 'Supabase 連線失敗（專案可能已暫停）'
+                : 'HTTP '+status;
+    toast('⚠ 找不到雲端資料：'+hint,'e');
+    sbSetStatus('✗ 無法還原','var(--red)');
     return;
   }
   const row = data[0];
