@@ -5813,9 +5813,16 @@ async function appendChartBlocks(pageId,charts,token,trade){
   if(blocks.length){
     // Notion allows max 100 blocks per request — chunk if needed
     for(let i=0;i<blocks.length;i+=95){
-      await notionFetch('PATCH','/blocks/'+pageId+'/children',{children:blocks.slice(i,i+95)},token);
+      const {ok,data} = await notionFetch('PATCH','/blocks/'+pageId+'/children',{children:blocks.slice(i,i+95)},token);
+      if(!ok){
+        const msg = data?.message||data?.code||'未知錯誤';
+        console.error('[Notion blocks] Failed:', msg, JSON.stringify(blocks.slice(i,i+95)).slice(0,200));
+        toast('⚠ Notion 內文寫入失敗：'+msg, 'e');
+        return false;
+      }
     }
   }
+  return true;
 }
 
 // ── Delete all children of a Notion block (for chart refresh) ──
@@ -5854,7 +5861,8 @@ async function upsertTradeNotion(t, token, tDbId){
     const{ok,data}=await notionFetch('POST','/pages',buildTradeProps(t,tDbId),token);
     if(!ok)return{ok:false,msg:data.message||'建立失敗'};
     t.notionPageId=data.id;
-    await appendChartBlocks(data.id,t.charts,token,t);
+    const blockOk = await appendChartBlocks(data.id,t.charts,token,t);
+    if(blockOk===false) console.warn('[Notion] Page created but content append failed for', t.asset, t.date);
     const chartCount=t.charts?Object.keys(t.charts).filter(k=>t.charts[k]).length:0;
     return{ok:true,pageId:data.id,created:true,chartCount};
   }
