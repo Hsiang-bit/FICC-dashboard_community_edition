@@ -2790,7 +2790,7 @@ async function sbPullSilent(){
     const localUpdated = settings.sbLastPush ? new Date(settings.sbLastPush) : new Date(0);
 
     // Cloud is newer → merge cloud into local
-    if(cloudUpdated > localUpdated || !trades.length){
+    if(cloudUpdated > localUpdated){
       if(snap.weeklyOutlook){ weeklyOutlook=snap.weeklyOutlook; localStorage.setItem('ficc_weekly_outlook',JSON.stringify(weeklyOutlook)); }
     if(snap.trades){
         // Preserve local base64 charts (not stored in cloud)
@@ -6762,6 +6762,7 @@ function macroInit(){
 
 function macroSaveMd(){
   localStorage.setItem(MACRO_MD_KEY,document.getElementById('macroMd').value);
+  saveAll(); // sync to Supabase with current trades+journals
   toast('✓ Framework 已儲存');
 }
 
