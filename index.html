@@ -7853,11 +7853,16 @@ function renderStat() {
         const avgR2=d.r/d.n;
         const col=STYLE_COLORS[s]||'var(--lo)';
         const lbl=STYLE_LABELS[s]||s;
+        const totalR2 = d.r;
         return`<div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px">
           <div style="font-family:var(--mono);font-size:9px;font-weight:700;color:${col};letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">${lbl}</div>
-          <div style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:${avgR2>=0?'var(--green)':'var(--red)'};line-height:1">${avgR2>=0?'+':''}${avgR2.toFixed(2)}R</div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">${d.n}筆 · ${(wr2*100).toFixed(0)}% WR</div>
-          <div style="margin-top:6px;height:3px;background:var(--border);border-radius:2px">
+          <div style="display:flex;align-items:baseline;gap:8px;line-height:1;margin-bottom:2px">
+            <span style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:${avgR2>=0?'var(--green)':'var(--red)'}">${avgR2>=0?'+':''}${avgR2.toFixed(2)}R</span>
+            <span style="font-family:var(--mono);font-size:9px;color:var(--lo)">avg</span>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:${totalR2>=0?'var(--green)':'var(--red)'};margin-bottom:4px">${totalR2>=0?'+':''}${totalR2.toFixed(1)}R total</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:6px">${d.n}筆 · ${(wr2*100).toFixed(0)}% WR</div>
+          <div style="height:3px;background:var(--border);border-radius:2px">
             <div style="height:100%;border-radius:2px;background:${col};width:${(wr2*100).toFixed(0)}%;transition:width .3s"></div>
           </div>
         </div>`;
