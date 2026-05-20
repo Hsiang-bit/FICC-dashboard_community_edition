@@ -734,6 +734,8 @@ select option{background:var(--paper2)}
     <button class="btn btn-g btn-sm" onclick="clearTradeFilter()" style="font-size:9px;white-space:nowrap">✕ 清除</button>
     <span id="tf-count" style="font-family:var(--mono);font-size:9px;color:var(--lo);white-space:nowrap"></span>
   </div>
+  <!-- Filtered stats strip -->
+  <div id="tf-stats" style="display:none;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden"></div>
 
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px">
     <div class="sbox"><div class="sl">Total</div><div class="sv sm" id="ts-tot">0</div></div>
@@ -1196,6 +1198,7 @@ select option{background:var(--paper2)}
       <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--lo);margin-bottom:10px">快速分析</div>
       <div class="coach-quick-btns">
         <button class="qbtn" onclick="coachFullReview()" style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.06)">📋 全部交易 Deep Review<br><span style="font-size:9px;opacity:.6">送出全部紀錄做完整分析</span></button>
+        <button class="qbtn" onclick="coachWeeklyReport()" style="border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.06)">📆 Weekly Report<br><span style="font-size:9px;opacity:.6">本週交易總結 + 改善建議</span></button>
         <button class="qbtn" onclick="coachQuick('weekly_review')">📊 本週整體回顧<br><span style="font-size:9px;opacity:.6">分析本週日誌與交易記錄</span></button>
         <button class="qbtn" onclick="coachQuick('trade_patterns')">🔍 交易模式分析<br><span style="font-size:9px;opacity:.6">找出你的強項與弱點</span></button>
         <button class="qbtn" onclick="coachQuick('risk_review')">⚖️ 風險管理評估<br><span style="font-size:9px;opacity:.6">R倍數、月度執行率分析</span></button>
@@ -4730,6 +4733,41 @@ function _downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+
+function renderFilterStats(){
+  const statsEl = document.getElementById('tf-stats');
+  if(!statsEl) return;
+  const src = _filteredTrades !== null ? _filteredTrades : null;
+  if(!src || !src.length){ statsEl.style.display='none'; return; }
+
+  const cl = src.filter(t=>t.status!=='OPEN'&&t.pnl!=null&&(t.outcome_type||'normal')==='normal');
+  if(!cl.length){ statsEl.style.display='none'; return; }
+
+  const wins = cl.filter(t=>t.pnl>0);
+  const losses = cl.filter(t=>t.pnl<0);
+  const totalR = cl.reduce((s,t)=>s+t.pnl,0);
+  const avgR = totalR/cl.length;
+  const wr = wins.length/cl.length;
+  const avgWin = wins.length ? wins.reduce((s,t)=>s+t.pnl,0)/wins.length : 0;
+  const avgLoss = losses.length ? Math.abs(losses.reduce((s,t)=>s+t.pnl,0)/losses.length) : 1;
+  const pf = losses.length ? Math.abs(wins.reduce((s,t)=>s+t.pnl,0)) / Math.abs(losses.reduce((s,t)=>s+t.pnl,0)) : 0;
+
+  const cell = (label,val,col='var(--ink)') => `<div style="background:var(--paper);padding:8px 10px">
+    <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${label}</div>
+    <div style="font-family:Georgia,serif;font-size:16px;font-weight:700;color:${col};line-height:1">${val}</div>
+  </div>`;
+
+  statsEl.style.display = 'grid';
+  statsEl.innerHTML = [
+    cell('Trades', cl.length),
+    cell('Win Rate', (wr*100).toFixed(0)+'%', wr>=0.5?'var(--green)':'var(--red)'),
+    cell('Cum R', (totalR>=0?'+':'')+totalR.toFixed(2)+'R', totalR>=0?'var(--green)':'var(--red)'),
+    cell('Avg R', (avgR>=0?'+':'')+avgR.toFixed(2)+'R', avgR>=0?'var(--green)':'var(--red)'),
+    cell('Avg W/L', '+'+avgWin.toFixed(2)+' / −'+avgLoss.toFixed(2), 'var(--ink)'),
+    cell('Prof. Factor', pf.toFixed(2), pf>=1.5?'var(--green)':pf>=1?'var(--amber)':'var(--red)'),
+  ].join('');
+}
+
 // ── Trade Log Filter ──
 let _tlFilter = {asset:'', dir:'', status:'', grade:'', type:'', session:'', month:''};
 let _filteredTrades = null; // null = no filter (show all)
@@ -4761,7 +4799,7 @@ function applyTradeFilter(){
   const cntEl = document.getElementById('tf-count');
   if(cntEl) cntEl.textContent = _filteredTrades ? `${cnt} / ${total} 筆` : `全部 ${total} 筆`;
   renderTrades();
-  // Also update STAT if on stat page
+  renderFilterStats();
   const statPage = document.getElementById('page-stat');
   if(statPage?.classList.contains('active')) renderStat();
 }
@@ -4776,6 +4814,7 @@ function clearTradeFilter(){
   const cntEl = document.getElementById('tf-count');
   if(cntEl) cntEl.textContent = `全部 ${trades.length} 筆`;
   renderTrades();
+  renderFilterStats();
   const statPage = document.getElementById('page-stat');
   if(statPage?.classList.contains('active')) renderStat();
 }
@@ -6066,6 +6105,72 @@ function buildContext(maxTrades=50){
   const tradeText=recent.map(t=>`[${t.date}] ${t.asset} ${t.dir} | Entry:${t.entry} Exit:${t.exit||'open'} | Risk:${t.risk}% R:${t.r}x | PnL:${t.pnl!=null?t.pnl.toFixed(2)+'R':'open'} | Grade:${t.grade||'—'} | Session:${t.session||'—'} | Style:${t.trade_type||'—'} | Status:${t.status}\nReason: ${(t.reason||'')}\nExit Reason: ${(t.exitr||'')}`).join('\n');
   return{journalText,tradeText};
 }
+
+
+async function coachWeeklyReport(){
+  const model = document.getElementById('geminiModel').value || 'groq:llama-3.1-8b-instant';
+  const isGroq = model.startsWith('groq:');
+  const groqKey = document.getElementById('groqKey')?.value.trim() || settings.groqKey || '';
+  const geminiKey = document.getElementById('geminiKey')?.value.trim() || settings.geminiKey || '';
+
+  if(isGroq && !groqKey){ appendMsg('⚠ 請先填入 Groq API Key','ai'); return; }
+  if(!isGroq && !geminiKey){ appendMsg('⚠ 請先填入 Gemini API Key','ai'); return; }
+
+  const now = new Date();
+  const day = now.getDay();
+  const mon = new Date(now); mon.setDate(now.getDate() - (day===0?6:day-1));
+  const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  const fmtD = d => d.toISOString().slice(0,10);
+  const weekStart = fmtD(mon), weekEnd = fmtD(sun);
+
+  const weekTrades = trades.filter(t =>
+    t.date >= weekStart && t.date <= weekEnd &&
+    t.status !== 'OPEN' && t.pnl != null && (t.outcome_type||'normal') === 'normal'
+  );
+
+  if(!weekTrades.length){
+    appendMsg('📆 本週（'+weekStart+' ~ '+weekEnd+'）無已完成交易紀錄。', 'ai');
+    return;
+  }
+
+  const wins = weekTrades.filter(t=>t.pnl>0);
+  const totalR = weekTrades.reduce((s,t)=>s+(t.pnl||0),0);
+  const wr = weekTrades.length ? (wins.length/weekTrades.length*100).toFixed(0) : 0;
+
+  const tradeLines = weekTrades.map(t =>
+    t.date+' '+t.asset+' '+t.dir+' '+t.status+' R:'+(t.pnl!=null?t.pnl.toFixed(2):'?')+' G:'+(t.grade||'—')+' Style:'+(t.trade_type||'—')+'\nReason: '+(t.reason||'').slice(0,200)
+  ).join('\n\n');
+
+  const journalLines = Object.entries(journals)
+    .filter(([d]) => d >= weekStart && d <= weekEnd)
+    .map(([d, j]) => '['+d+'] Pre: '+(j.notes?.pre||'').slice(0,150)+' | EOD: '+(j.notes?.eod||'').slice(0,150))
+    .join('\n');
+
+  const prompt = '你是 FICC 交易教練，請為我生成本週（'+weekStart+' ~ '+weekEnd+'）的交易週報。\n\n'
+    + '=== 本週統計 ===\n'
+    + '交易筆數：'+weekTrades.length+' 筆 | 勝率：'+wr+'% | 累積 R：'+(totalR>=0?'+':'')+totalR.toFixed(2)+'R\n\n'
+    + '=== 本週交易明細 ===\n'
+    + tradeLines + '\n\n'
+    + '=== 本週日誌摘要 ===\n'
+    + (journalLines || '（無日誌記錄）') + '\n\n'
+    + '請按以下格式生成週報：\n\n'
+    + '## 📊 週報總結\n（2-3句話，概括本週整體表現）\n\n'
+    + '## ✅ 本週做得好的地方\n（2-3點，具體說明）\n\n'
+    + '## ⚠ 需要改進的地方\n（2-3點，具體說明）\n\n'
+    + '## 🎯 下週重點建議\n（3個具體、可執行的行動建議）\n\n'
+    + '請用繁體中文，語氣專業但易懂。';
+
+  appendMsg('📆 產生本週交易週報（'+weekStart+' ~ '+weekEnd+'）', 'user');
+  coachHistory = [];
+  appendTyping();
+
+  if(isGroq){
+    await callGroq(prompt, false, model.replace('groq:',''), groqKey);
+  } else {
+    await callGemini(prompt);
+  }
+}
+
 
 async function coachFullReview(){
   const groqKey = document.getElementById('groqKey')?.value.trim()||settings.groqKey||'';
