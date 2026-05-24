@@ -720,6 +720,7 @@ select option{background:var(--paper2)}
         <option value="day">Day Trade</option>
         <option value="short">Short-term</option>
         <option value="swing">Swing Trade</option>
+        <option value="position">Position Trade</option>
       </select>
       <select id="tf-session" onchange="applyTradeFilter()" style="font-size:10px;padding:3px 8px">
         <option value="">所有 Session</option>
@@ -1996,6 +1997,7 @@ create policy "own all" on ficc_sync for all using (key like '%'||auth.uid()::te
             <option value="day">Day Trade</option>
             <option value="short">Short-term</option>
             <option value="swing">Swing Trade</option>
+            <option value="position">Position Trade</option>
           </select>
         </div>
       </div>
@@ -4879,7 +4881,7 @@ function renderTrades(){
         :'<span style="color:var(--lo)">—</span>'}</td>
       <td>${gradeCell}</td>
       <td style="min-width:60px">${confCell}</td>
-      <td><span style="font-family:var(--mono);font-size:9px;color:var(--lo)">${t.trade_type?({'scalping':'SCP','day':'DAY','short':'ST','swing':'SW'}[t.trade_type]||t.trade_type):'—'}</span></td>
+      <td><span style="font-family:var(--mono);font-size:9px;color:var(--lo)">${t.trade_type?({'scalping':'SCP','day':'DAY','short':'ST','swing':'SW','position':'PT'}[t.trade_type]||t.trade_type):'—'}</span></td>
       <td style="font-family:var(--mono);font-size:11px">${t.entry?t.entry:'—'}${t.legs&&t.legs.length>1?`<span style="font-size:9px;margin-left:3px;background:rgba(37,99,235,.12);color:var(--blue);border:1px solid rgba(37,99,235,.2);border-radius:2px;padding:1px 4px">×${t.legs.length}</span>`:''}</td>
       <td>${t.exit||'—'}</td>
       <td>${t.risk}%</td><td>${t.r?t.r+'R':'—'}</td>
@@ -7941,8 +7943,8 @@ function renderStat() {
   // Style breakdown
   const styleEl = document.getElementById('stat-style-body');
   if(styleEl){
-    const STYLE_LABELS = {scalping:'Scalping', day:'Day Trade', short:'Short-term', swing:'Swing Trade', '':'未分類'};
-    const STYLE_COLORS = {scalping:'var(--blue)', day:'var(--cyan)', short:'var(--amber)', swing:'var(--pur)', '':'var(--lo)'};
+    const STYLE_LABELS = {scalping:'Scalping', day:'Day Trade', short:'Short-term', swing:'Swing Trade', position:'Position Trade', '':'未分類'};
+    const STYLE_COLORS = {scalping:'var(--blue)', day:'var(--cyan)', short:'var(--amber)', swing:'var(--pur)', position:'var(--green)', '':'var(--lo)'};
     const byStyle = {};
     cl.forEach(t=>{
       const s = t.trade_type||'';
