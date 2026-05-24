@@ -7706,6 +7706,34 @@ function eqCrosshair(e) {
     for(const[x,y] of pts){ctx.beginPath();ctx.arc(x,y,2.5*dpr,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();}
   }
 
+  // Redraw PnL line (dashed blue) if available
+  const {pnlEq, pnlPts, pnlMn:pMn, pnlMx:pMx, pnlRng:pRng} = _eqData;
+  if(pnlPts?.length > 1){
+    ctx.beginPath();
+    pnlPts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+    ctx.setLineDash([5,4]);
+    ctx.strokeStyle = 'rgba(59,130,246,0.7)';
+    ctx.lineWidth = 1.5*dpr;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Right-side axis labels
+    const fmtPnl = v => { const s=v>=0?'+':'-'; const a=Math.abs(v); return s+'$'+(a>=1000?Math.round(a/1000)+'k':a.toFixed(0)); };
+    ctx.fillStyle = 'rgba(59,130,246,0.55)';
+    ctx.font = `bold ${7.5*dpr}px monospace`;
+    ctx.textAlign = 'right';
+    [0, 0.5, 1].forEach(t => {
+      const v = pMn + t*pRng;
+      const y = pad.t + (1-t)*cH;
+      ctx.fillText(fmtPnl(v), W-2*dpr, y+3*dpr);
+    });
+    // PnL dot at cursor
+    const pnlY = pnlPts[best]?.[1];
+    if(pnlY!=null){
+      ctx.beginPath(); ctx.arc(cx, pnlY, 3.5*dpr, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(59,130,246,0.9)'; ctx.fill();
+    }
+  }
+
   // Crosshair lines
   ctx.setLineDash([3,5]);
   ctx.strokeStyle='rgba(128,128,128,0.25)'; ctx.lineWidth=0.8*dpr;
