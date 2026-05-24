@@ -7549,7 +7549,7 @@ initGistSync();
 // ═══════════════════════════════════════════════════
 
 
-function drawStatEquity(canvas, rValues, h) {
+function drawStatEquity(canvas, rValues, h, pnlValues=[]) {
   if (!canvas || !rValues.length) return;
   const dpr = window.devicePixelRatio || 1;
   const W = (canvas.offsetWidth || canvas.parentElement?.clientWidth || 800) * dpr;
@@ -7592,6 +7592,46 @@ function drawStatEquity(canvas, rValues, h) {
       ctx.beginPath(); ctx.arc(x, y, 2.5 * dpr, 0, Math.PI*2);
       ctx.fillStyle = col; ctx.fill();
     }
+  }
+
+  // Draw PnL$ secondary axis line (dashed blue)
+  if(pnlValues && pnlValues.length > 1){
+    let pnlEq = [0];
+    for(const p of pnlValues){ pnlEq.push((pnlEq[pnlEq.length-1]||0)+p); }
+    const pnlMn = Math.min(...pnlEq), pnlMx = Math.max(...pnlEq);
+    const pnlRng = pnlMx - pnlMn || 1;
+
+    // Map PnL onto same canvas height
+    const pnlPts = pnlEq.map((v,i)=>[
+      pad.l + (i/Math.max(pnlEq.length-1,1))*cW,
+      pad.t + ((pnlMx - v)/pnlRng)*cH
+    ]);
+
+    // Draw dashed blue PnL line
+    ctx.beginPath();
+    pnlPts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+    ctx.setLineDash([5,4]);
+    ctx.strokeStyle = 'rgba(59,130,246,0.7)';
+    ctx.lineWidth = 1.5*dpr;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Secondary Y-axis labels (right side)
+    ctx.fillStyle = 'rgba(59,130,246,0.5)';
+    ctx.font = `${7*dpr}px monospace`;
+    ctx.textAlign = 'right';
+    const pnlLast = pnlEq[pnlEq.length-1];
+    const fmtPnl = v => v>=1000 ? '$'+Math.round(v/1000)+'k' : v<=-1000 ? '-$'+Math.round(-v/1000)+'k' : '$'+v.toFixed(0);
+    [0, 0.5, 1].forEach(t => {
+      const v = pnlMn + t*pnlRng;
+      const y = pad.t + (1-t)*cH;
+      ctx.fillText(fmtPnl(v), W-2*dpr, y+3*dpr);
+    });
+
+    // Store pnl data for crosshair
+    _eqData.pnlEq = pnlEq;
+    _eqData.pnlPts = pnlPts;
+    _eqData.pnlMn = pnlMn; _eqData.pnlMx = pnlMx; _eqData.pnlRng = pnlRng;
   }
 
   // Attach crosshair listener (once)
@@ -7664,9 +7704,11 @@ function eqCrosshair(e) {
   ctx.beginPath(); ctx.arc(cx,cy,4*dpr,0,Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1.5*dpr; ctx.stroke();
 
-  // Tooltip label
+  // Tooltip label - show R + PnL$ if available
   const sign = val>=0?'+':'';
-  const label = `${sign}${val.toFixed(2)}R${tradeIdx>0?' #'+tradeIdx:''}`;
+  const pnlAtIdx = _eqData.pnlEq?.[best];
+  const pnlStr = pnlAtIdx!=null ? ` | ${pnlAtIdx>=0?'+':''}$${pnlAtIdx.toFixed(0)}` : '';
+  const label = `${sign}${val.toFixed(2)}R${pnlStr}${tradeIdx>0?' #'+tradeIdx:''}`;
   const fs = 10*dpr;
   ctx.font = `${fs}px monospace`;
   const tw = ctx.measureText(label).width + 10*dpr;
@@ -7689,10 +7731,11 @@ function eqCrosshair(e) {
 }
 
 function eqCrosshairClear(e) {
-  const {eq, rValues} = _eqData;
+  const {eq, rValues, pnlEq} = _eqData;
   const canvas = e.currentTarget;
-  // Redraw without crosshair
-  drawStatEquity(canvas, rValues, canvas.height / (window.devicePixelRatio||1));
+  // Rebuild pnlValues from pnlEq (diffs)
+  const pnlVals = pnlEq ? pnlEq.slice(1).map((v,i)=>v-(pnlEq[i]||0)) : [];
+  drawStatEquity(canvas, rValues, canvas.height / (window.devicePixelRatio||1), pnlVals);
   // Restore header
   const last = eq[eq.length-1]||0;
   const eqEndEl = document.getElementById('stat-eq-end');
@@ -7869,7 +7912,17 @@ function renderStat() {
   // ③ Equity + Drawdown charts
   setTimeout(()=>{
     const cv=document.getElementById('statEqCanvas');
-    if(cv){drawStatEquity(cv,cl.map(t=>t.pnl),150);}
+    if(cv){
+      const pnlSeries = cl.map(t=>t.totalPnl??null).some(v=>v!=null) ? cl.map(t=>t.totalPnl||0) : [];
+      drawStatEquity(cv, cl.map(t=>t.pnl), 150, pnlSeries);
+      // Update PnL label
+      const pnlEl = document.getElementById('stat-eq-pnl');
+      if(pnlEl && pnlSeries.length){
+        const cumPnl = pnlSeries.reduce((s,v)=>s+v,0);
+        pnlEl.textContent = (cumPnl>=0?'+':'')+'$'+cumPnl.toFixed(0);
+        pnlEl.style.color = cumPnl>=0?'var(--blue)':'var(--red)';
+      } else if(pnlEl){ pnlEl.textContent='（無 $ 資料）'; }
+    }
     const ddCv=document.getElementById('statDDCanvas');
     if(ddCv){drawDrawdown(ddCv,ddSeries);}
     const eqEnd=document.getElementById('stat-eq-end');
