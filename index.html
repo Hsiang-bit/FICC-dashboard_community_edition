@@ -7617,17 +7617,31 @@ function drawStatEquity(canvas, rValues, h, pnlValues=[]) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Secondary Y-axis labels (right side)
-    ctx.fillStyle = 'rgba(59,130,246,0.5)';
-    ctx.font = `${7*dpr}px monospace`;
+    // Secondary Y-axis labels (right side) — clear sign and $ label
+    const fmtPnl = v => {
+      const sign = v>=0?'+':'-';
+      const abs = Math.abs(v);
+      return sign+'$'+(abs>=1000?Math.round(abs/1000)+'k':abs.toFixed(0));
+    };
+    ctx.fillStyle = 'rgba(59,130,246,0.55)';
+    ctx.font = `bold ${7.5*dpr}px monospace`;
     ctx.textAlign = 'right';
-    const pnlLast = pnlEq[pnlEq.length-1];
-    const fmtPnl = v => v>=1000 ? '$'+Math.round(v/1000)+'k' : v<=-1000 ? '-$'+Math.round(-v/1000)+'k' : '$'+v.toFixed(0);
     [0, 0.5, 1].forEach(t => {
       const v = pnlMn + t*pnlRng;
       const y = pad.t + (1-t)*cH;
       ctx.fillText(fmtPnl(v), W-2*dpr, y+3*dpr);
     });
+    // Zero line for PnL if it crosses zero
+    if(pnlMn < 0 && pnlMx > 0){
+      const zy = pad.t + (pnlMx/(pnlMx-pnlMn))*cH;
+      ctx.setLineDash([2,3]);
+      ctx.strokeStyle = 'rgba(59,130,246,0.2)';
+      ctx.lineWidth = 0.8*dpr;
+      ctx.beginPath(); ctx.moveTo(pad.l, zy); ctx.lineTo(W-pad.r, zy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(59,130,246,0.4)';
+      ctx.fillText('$0', W-2*dpr, zy+3*dpr);
+    }
 
     // Store pnl data for crosshair
     _eqData.pnlEq = pnlEq;
@@ -7719,7 +7733,15 @@ function eqCrosshair(e) {
   const tipEl = document.getElementById('statEqTooltip');
   if(tipEl){
     tipEl.style.display = 'block';
-    tipEl.innerHTML = `<span style="color:${val>=0?'#22c55e':'#ef4444'};font-weight:700">${sign}${val.toFixed(2)}R</span>${pnlStr}${tradeLabel}`;
+    // Show trade date if available
+    const tradeCl = (typeof cl !== 'undefined' && cl) ? cl : null;
+    const tradeDate = tradeCl && tradeIdx>0 ? tradeCl[tradeIdx-1]?.date || '' : '';
+    const datePart = tradeDate ? `<span style="color:var(--lo);font-size:10px">${tradeDate} </span>` : '';
+    const rPart = `<span style="color:${val>=0?'#22c55e':'#ef4444'};font-weight:700">${sign}${val.toFixed(2)}R</span><span style="color:var(--lo);font-size:9px"> cum</span>`;
+    const pnlPart = pnlAtIdx!=null
+      ? ` <span style="color:var(--lo);font-size:9px;margin:0 4px">|</span><span style="color:${pnlAtIdx>=0?'#3b82f6':'#ef4444'};font-weight:700">${pnlAtIdx>=0?'+':'-'}$${Math.abs(pnlAtIdx).toFixed(0)}</span><span style="color:var(--lo);font-size:9px"> cum PnL</span>`
+      : '';
+    tipEl.innerHTML = datePart + rPart + pnlPart;
   }
   // Update header
   const eqEndEl = document.getElementById('stat-eq-end');
