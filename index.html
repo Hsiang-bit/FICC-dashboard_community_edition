@@ -801,8 +801,9 @@ select option{background:var(--paper2)}
         <span id="stat-eq-mdd" style="color:var(--red)">MDD: —</span>
       </div>
     </div>
-    <div style="padding:12px 14px 4px">
+    <div style="padding:12px 14px 4px;position:relative">
       <canvas id="statEqCanvas" style="width:100%;height:150px;display:block"></canvas>
+      <div id="statEqTooltip" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:var(--paper);border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-family:var(--mono);font-size:11px;white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.1);z-index:10"></div>
     </div>
     <div style="padding:4px 14px 12px">
       <div style="font-family:var(--mono);font-size:8px;color:var(--lo);margin-bottom:3px;letter-spacing:.06em;text-transform:uppercase">Drawdown</div>
@@ -7692,9 +7693,13 @@ function eqCrosshair(e) {
   }
 
   // Crosshair lines
-  ctx.setLineDash([3,4]);
-  ctx.strokeStyle='rgba(128,128,128,0.35)'; ctx.lineWidth=1*dpr;
+  ctx.setLineDash([3,5]);
+  ctx.strokeStyle='rgba(128,128,128,0.25)'; ctx.lineWidth=0.8*dpr;
   ctx.beginPath(); ctx.moveTo(cx, pad.t); ctx.lineTo(cx, H-pad.b); ctx.stroke();
+  ctx.setLineDash([]);
+  // Horizontal line only at data point
+  ctx.setLineDash([2,4]);
+  ctx.strokeStyle='rgba(128,128,128,0.15)'; ctx.lineWidth=0.6*dpr;
   ctx.beginPath(); ctx.moveTo(pad.l, cy); ctx.lineTo(W-pad.r, cy); ctx.stroke();
   ctx.setLineDash([]);
 
@@ -7704,28 +7709,19 @@ function eqCrosshair(e) {
   ctx.beginPath(); ctx.arc(cx,cy,4*dpr,0,Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1.5*dpr; ctx.stroke();
 
-  // Tooltip label - show R + PnL$ if available
+  // HTML tooltip (crisp, above canvas)
   const sign = val>=0?'+':'';
   const pnlAtIdx = _eqData.pnlEq?.[best];
-  const pnlStr = pnlAtIdx!=null ? ` | ${pnlAtIdx>=0?'+':''}$${pnlAtIdx.toFixed(0)}` : '';
-  const label = `${sign}${val.toFixed(2)}R${pnlStr}${tradeIdx>0?' #'+tradeIdx:''}`;
-  const fs = 10*dpr;
-  ctx.font = `${fs}px monospace`;
-  const tw = ctx.measureText(label).width + 10*dpr;
-  const th = 16*dpr;
-  let tx = cx + 8*dpr;
-  let ty = cy - th/2 - 4*dpr;
-  if (tx + tw > W - pad.r) tx = cx - tw - 8*dpr;
-  if (ty < pad.t) ty = pad.t + 2*dpr;
-
-  ctx.fillStyle = val>=0?'rgba(21,128,61,0.9)':'rgba(153,27,27,0.9)';
-  ctx.beginPath();
-  ctx.roundRect?ctx.roundRect(tx,ty,tw,th,3*dpr):ctx.rect(tx,ty,tw,th);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillText(label, tx+5*dpr, ty+th-5*dpr);
-
-  // Update header display
+  const pnlStr = pnlAtIdx!=null
+    ? `<span style="color:${pnlAtIdx>=0?'#3b82f6':'#ef4444'};margin-left:8px">${pnlAtIdx>=0?'+':''}$${Math.abs(pnlAtIdx).toFixed(0)}</span>`
+    : '';
+  const tradeLabel = tradeIdx>0 ? `<span style="color:var(--lo);margin-left:6px">#${tradeIdx}</span>` : '';
+  const tipEl = document.getElementById('statEqTooltip');
+  if(tipEl){
+    tipEl.style.display = 'block';
+    tipEl.innerHTML = `<span style="color:${val>=0?'#22c55e':'#ef4444'};font-weight:700">${sign}${val.toFixed(2)}R</span>${pnlStr}${tradeLabel}`;
+  }
+  // Update header
   const eqEndEl = document.getElementById('stat-eq-end');
   if(eqEndEl) { eqEndEl.textContent=(val>=0?'+':'')+val.toFixed(2)+'R · #'+tradeIdx; eqEndEl.style.color=val>=0?'var(--green)':'var(--red)'; }
 }
@@ -7733,6 +7729,8 @@ function eqCrosshair(e) {
 function eqCrosshairClear(e) {
   const {eq, rValues, pnlEq} = _eqData;
   const canvas = e.currentTarget;
+  const tipEl = document.getElementById('statEqTooltip');
+  if(tipEl) tipEl.style.display = 'none';
   // Rebuild pnlValues from pnlEq (diffs)
   const pnlVals = pnlEq ? pnlEq.slice(1).map((v,i)=>v-(pnlEq[i]||0)) : [];
   drawStatEquity(canvas, rValues, canvas.height / (window.devicePixelRatio||1), pnlVals);
