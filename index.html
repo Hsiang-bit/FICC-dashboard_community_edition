@@ -5346,11 +5346,21 @@ function _computeLegs(){
   // = (total $profit) / (total $risk), same as first-principles P&L/Risk
   // e.g. Leg1 50% size slDist=2 Leg2 50% size slDist=3 → weights 100:150
   //      R = (100×2R + 150×1R) / 250 = 350/250 = 1.4R  (not 1.5R)
-  // 總 R = 各腳 R 直接相加
+  // 總 R = 各腳 R × (倉位比例)，分批進場不會被多倍計算
+  // 例如：4腳各 25% 且各 -1R → weightedR = -1R（不是 -4R）
   const legsWithR = legsWithEntry.filter(l => legR(l,dir) != null);
   let weightedR = null;
   if(legsWithR.length){
-    weightedR = legsWithR.reduce((s,l) => s + legR(l,dir), 0);
+    const rSizes = legsWithR.map(l => parseFloat(l.size)||0);
+    const hasRSizes = rSizes.every(s => s > 0);
+    if(hasRSizes){
+      // Size-weighted: each leg's R contribution = legR × (size/totalSize)
+      const totalSize = rSizes.reduce((a,b) => a+b, 0);
+      weightedR = legsWithR.reduce((s,l,i) => s + legR(l,dir) * (rSizes[i]/totalSize), 0);
+    } else {
+      // No sizes: equal weight (average)
+      weightedR = legsWithR.reduce((s,l) => s + legR(l,dir), 0) / legsWithR.length;
+    }
   }
   return{avgEntry,avgExit,totalRisk,weightedR,totalPnl,hasPnl};
 }
@@ -5377,10 +5387,28 @@ function calcSummaryOnly(){
     return;
   }
   const{avgEntry,avgExit,totalRisk,weightedR,totalPnl,hasPnl}=res;
+  console.log('[Legs] weightedR:', weightedR, '| legsWithR count:', _legs.filter(l=>legR(l, document.getElementById('m-dir')?.value||'LONG')!=null).length, '/ total:', _legs.length);
   document.getElementById('sumAvgEntry').textContent = avgEntry.toFixed(4);
   document.getElementById('sumAvgExit').textContent = avgExit ? avgExit.toFixed(4) : '（部分未出場）';
   document.getElementById('sumTotalRisk').textContent = totalRisk ? totalRisk.toFixed(1)+'%' : '—';
-  document.getElementById('sumAutoR').textContent = weightedR!=null ? (weightedR>=0?'+':'')+weightedR.toFixed(2)+'R' : '—';
+  const rEl2 = document.getElementById('sumAutoR');
+  if(rEl2){
+    if(weightedR!=null){
+      rEl2.textContent = (weightedR>=0?'+':'')+weightedR.toFixed(2)+'R';
+      rEl2.style.color = weightedR>=0?'var(--green)':'var(--red)';
+    } else {
+      const hasEntries = legsWithEntry.length;
+      const hasSL = legsWithEntry.filter(l=>parseFloat(l.sl)).length;
+      const hasExit = legsWithEntry.filter(l=>parseFloat(l.exitPrice)).length;
+      if(hasEntries && hasSL && !hasExit){
+        rEl2.textContent = '請填出場價以計算 R';
+        rEl2.style.color = 'var(--amber)';
+      } else {
+        rEl2.textContent = '—';
+        rEl2.style.color = 'var(--lo)';
+      }
+    }
+  }
   const hint = document.getElementById('rHint');
   if(hint) hint.style.display = weightedR!=null ? 'none' : '';
   // PnL
@@ -5397,7 +5425,10 @@ function calcSummaryOnly(){
   document.getElementById('m-risk').value = totalRisk||2;
   // Auto-write Total R to m-r (only if not manually overridden)
   const rEl = document.getElementById('m-r');
-  if(rEl && weightedR != null && !rEl.dataset.manualR) rEl.value = weightedR.toFixed(2);
+  if(rEl && weightedR != null){
+    rEl.value = weightedR.toFixed(2);
+    rEl.dataset.manualR = ''; // legs are authoritative — clear manual override
+  }
 }
 
 // ── Full recalc + re-render (called after add/remove leg) ──
