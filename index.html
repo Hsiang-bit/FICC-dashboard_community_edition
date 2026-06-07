@@ -8815,7 +8815,8 @@ function drawMultiLineChart(canvasId, series, h=150){
   }
 }
 
-function drawAreaChart(canvasId, data, color='#3b82f6', h=120){
+function drawAreaChart(canvasId, data, color='#3b82f6', h=120, opts={}){
+  // opts: { zeroLine, thresholds:[{val,color,label}], yLabel, unit, invertColor }
   if(!data?.length) return;
   const canvas=document.getElementById(canvasId);
   if(!canvas) return;
@@ -8824,41 +8825,129 @@ function drawAreaChart(canvasId, data, color='#3b82f6', h=120){
   canvas.width=W; canvas.height=H;
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
-  const pad={t:6,b:16,l:48,r:6};
+  const pad={t:8,b:18,l:52,r:opts.r||8};
   const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
-  const vals=data.map(d=>d.val); const n=data.length;
-  const mn=Math.min(...vals), mx=Math.max(...vals,mn+0.01);
-  const r=mx-mn+mx*0.05;
+
+  const vals=data.map(d=>d.val).filter(v=>v!=null&&!isNaN(v));
+  if(!vals.length) return;
+  const mn=Math.min(...vals), mx=Math.max(...vals);
+  const rng=Math.max(mx-mn, (opts.minRng||0.01));
+  const pad_v=rng*0.12;
+  const lo=mn-pad_v, hi=mx+pad_v, r=hi-lo;
+  const n=data.length;
+
+  const xOf=i=>pad.l+(i/(n-1||1))*cW;
+  const yOf=v=>pad.t+((hi-v)/r)*cH;
 
   // Grid
-  ctx.strokeStyle='rgba(128,128,128,0.1)'; ctx.lineWidth=0.5*dpr;
-  [0,0.5,1].forEach(t=>{
-    const y=pad.t+t*cH;
-    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
-    const lv=(mx-t*(mx-mn));
-    const label = lv>=1000?'$'+lv.toFixed(0)+'B':lv.toFixed(1)+'%';
-    ctx.fillStyle='rgba(128,128,128,0.5)';ctx.font=`${7*dpr}px monospace`;ctx.textAlign='right';
-    ctx.fillText(label,pad.l-3*dpr,y+3*dpr);
-  });
+  const gridSteps=3;
+  ctx.setLineDash([2,4]); ctx.lineWidth=0.5*dpr;
+  for(let i=0;i<=gridSteps;i++){
+    const v=lo+i/gridSteps*r, y=yOf(v);
+    ctx.strokeStyle='rgba(128,128,128,0.12)';
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+    // Y-axis labels
+    const unit=opts.unit||'%';
+    const label=Math.abs(v)>=1000?(v>=0?'+':'')+Math.round(v/1000)+'k'
+              : Math.abs(v)>=100 ?(v>=0?'+':'')+v.toFixed(0)
+              :                   (v>=0?'+':'')+v.toFixed(2);
+    ctx.fillStyle='rgba(128,128,128,0.6)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='right';
+    ctx.fillText(label+unit, pad.l-3*dpr, y+3*dpr);
+  }
+  ctx.setLineDash([]);
 
-  const pts=vals.map((v,i)=>[pad.l+(i/(n-1||1))*cW, pad.t+((mx-v)/r)*cH]);
-  // Fill
-  const gr=ctx.createLinearGradient(0,pad.t,0,H);
-  gr.addColorStop(0,color+'44'); gr.addColorStop(1,color+'05');
-  ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
-  ctx.lineTo(pts[pts.length-1][0],H);ctx.lineTo(pts[0][0],H);ctx.closePath();
-  ctx.fillStyle=gr;ctx.fill();
-  // Line
-  ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
-  ctx.strokeStyle=color;ctx.lineWidth=1.5*dpr;ctx.stroke();
-  // X labels
-  ctx.fillStyle='rgba(128,128,128,0.5)';ctx.font=`${7*dpr}px monospace`;ctx.textAlign='center';
-  [0,Math.floor(n/2),n-1].forEach(i=>{
-    if(!data[i]) return;
-    const x=pad.l+(i/(n-1||1))*cW;
-    ctx.fillText(data[i].date.slice(5),x,H-2*dpr);
+  // Zero line (prominent if data crosses zero)
+  if(opts.zeroLine!==false && mn<0 && mx>0){
+    const zy=yOf(0);
+    ctx.setLineDash([4,3]); ctx.strokeStyle='rgba(128,128,128,0.4)'; ctx.lineWidth=1*dpr;
+    ctx.beginPath(); ctx.moveTo(pad.l,zy); ctx.lineTo(W-pad.r,zy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(128,128,128,0.5)'; ctx.font=`bold ${7*dpr}px monospace`; ctx.textAlign='right';
+    ctx.fillText('0'+opts.unit, pad.l-3*dpr, zy+3*dpr);
+  }
+
+  // Threshold lines (e.g. recession level, stress level)
+  if(opts.thresholds){
+    opts.thresholds.forEach(({val,color:tc,label:tl})=>{
+      if(val<lo||val>hi) return;
+      const ty=yOf(val);
+      ctx.setLineDash([6,3]); ctx.strokeStyle=tc||'rgba(239,68,68,0.5)'; ctx.lineWidth=1*dpr;
+      ctx.beginPath(); ctx.moveTo(pad.l,ty); ctx.lineTo(W-pad.r,ty); ctx.stroke();
+      ctx.setLineDash([]);
+      if(tl){ ctx.fillStyle=tc||'rgba(239,68,68,0.7)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='right'; ctx.fillText(tl,W-pad.r-2*dpr,ty-3*dpr); }
+    });
+  }
+
+  // Split fill: positive=green, negative=red (if crosses zero)
+  const splitColor = (mn<0&&mx>0);
+  if(splitColor){
+    const zy=yOf(0);
+    // Positive area
+    const grPos=ctx.createLinearGradient(0,pad.t,0,zy);
+    grPos.addColorStop(0,'rgba(34,197,94,0.18)'); grPos.addColorStop(1,'rgba(34,197,94,0)');
+    ctx.beginPath(); ctx.moveTo(xOf(0),zy);
+    data.forEach(({val},i)=>{ const y=yOf(val??lo); ctx.lineTo(xOf(i),Math.min(y,zy)); });
+    ctx.lineTo(xOf(n-1),zy); ctx.closePath(); ctx.fillStyle=grPos; ctx.fill();
+    // Negative area
+    const grNeg=ctx.createLinearGradient(0,zy,0,H);
+    grNeg.addColorStop(0,'rgba(239,68,68,0)'); grNeg.addColorStop(1,'rgba(239,68,68,0.18)');
+    ctx.beginPath(); ctx.moveTo(xOf(0),zy);
+    data.forEach(({val},i)=>{ const y=yOf(val??hi); ctx.lineTo(xOf(i),Math.max(y,zy)); });
+    ctx.lineTo(xOf(n-1),zy); ctx.closePath(); ctx.fillStyle=grNeg; ctx.fill();
+  } else {
+    const gr=ctx.createLinearGradient(0,pad.t,0,H);
+    gr.addColorStop(0,color+'44'); gr.addColorStop(1,color+'05');
+    const pts=data.map(({val},i)=>[xOf(i),yOf(val??lo)]);
+    ctx.beginPath(); pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.lineTo(pts[pts.length-1][0],H-pad.b); ctx.lineTo(pts[0][0],H-pad.b);
+    ctx.closePath(); ctx.fillStyle=gr; ctx.fill();
+  }
+
+  // Main line (color by value if split)
+  ctx.beginPath();
+  data.forEach(({val},i)=>{
+    const x=xOf(i), y=yOf(val??lo);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
   });
+  if(splitColor){
+    // Gradient stroke: green above zero, red below
+    const gStroke=ctx.createLinearGradient(0,yOf(mx),0,yOf(mn));
+    gStroke.addColorStop(0,'#22c55e'); gStroke.addColorStop(0.5-(0.001),'#22c55e');
+    gStroke.addColorStop(0.5,'#ef4444'); gStroke.addColorStop(1,'#ef4444');
+    ctx.strokeStyle=gStroke;
+  } else { ctx.strokeStyle=color; }
+  ctx.lineWidth=1.5*dpr; ctx.stroke();
+
+  // Last value annotation
+  const lastVal=data[n-1]?.val;
+  if(lastVal!=null){
+    const lx=xOf(n-1), ly=yOf(lastVal);
+    ctx.beginPath(); ctx.arc(lx,ly,3*dpr,0,Math.PI*2);
+    ctx.fillStyle=splitColor?(lastVal>=0?'#22c55e':'#ef4444'):color; ctx.fill();
+    const lbl=(lastVal>=0&&splitColor?'+':'')+lastVal.toFixed(2)+(opts.unit||'%');
+    ctx.font=`bold ${8*dpr}px monospace`; ctx.textAlign='right';
+    ctx.fillStyle=splitColor?(lastVal>=0?'#22c55e':'#ef4444'):color;
+    ctx.fillText(lbl, lx-4*dpr, ly+(lastVal<=(lo+r*0.15)?-4:9)*dpr);
+  }
+
+  // X-axis dates
+  ctx.fillStyle='rgba(128,128,128,0.5)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='center';
+  [0,Math.floor(n/2),n-1].forEach(i=>{ if(data[i]) ctx.fillText(data[i].date.slice(5),xOf(i),H-2*dpr); });
+
+  // Hover
+  if(!canvas._aHoverBound){ canvas._aHoverBound=true; canvas.style.cursor='crosshair';
+    canvas.addEventListener('mousemove',e=>{
+      const rect=canvas.getBoundingClientRect(), mx2=(e.clientX-rect.left)*(W/rect.width);
+      const i=Math.min(Math.max(Math.round((mx2-pad.l)/cW*(n-1)),0),n-1);
+      const tip=document.getElementById(canvasId+'-tooltip')||document.getElementById(canvasId.replace('-chart','-chart-tooltip'));
+      const v=data[i]?.val;
+      if(tip&&v!=null){ tip.style.display='block'; const u=opts.unit||'%';
+        tip.innerHTML=`<span style="color:var(--lo)">${data[i].date}</span>  <span style="color:${splitColor?(v>=0?'#22c55e':'#ef4444'):color};font-weight:700">${(v>=0&&splitColor?'+':'')+v.toFixed(3)+u}</span>`; }
+    });
+    canvas.addEventListener('mouseleave',()=>{ const tip=document.getElementById(canvasId+'-tooltip')||document.getElementById(canvasId.replace('-chart','-chart-tooltip')); if(tip)tip.style.display='none'; });
+  }
 }
+
 
 function drawBarChart(canvasId, data, h=100){
   if(!data?.length) return;
@@ -9156,10 +9245,16 @@ function switchLiqTab(panel, btn){
     btn.style.borderBottom='2px solid var(--ink)';
     btn.style.marginBottom='-2px';
   }
-  // Lazy render on first visit
+  // Lazy render on first visit — wait for layout (canvas needs offsetWidth > 0)
   if(el && !el._rendered){
     el._rendered=true;
-    setTimeout(()=>renderLiqSubPanel(panel),80);
+    const tryRender=(attempt=0)=>{
+      const cv=el.querySelector('canvas');
+      if(cv && cv.offsetWidth>0){ renderLiqSubPanel(panel); }
+      else if(attempt<8){ setTimeout(()=>tryRender(attempt+1), 80); }
+      else { renderLiqSubPanel(panel); } // give up waiting
+    };
+    setTimeout(()=>tryRender(), 50);
   }
 }
 
@@ -9209,7 +9304,10 @@ function renderLiqSubPanel(panel){
     }).join('');
 
     // T10Y2Y trend
-    if(d.t10y2y?.length) drawAreaChart('liq-t10y2y-chart', d.t10y2y.map(x=>({date:x.date,val:x.val*100})), d.t10y2y_val<0?'#ef4444':'#22c55e', 90);
+    if(d.t10y2y?.length) drawAreaChart('liq-t10y2y-chart',
+      d.t10y2y.map(x=>({date:x.date,val:x.val!=null?x.val*100:null})).filter(x=>x.val!=null),
+      (d.t10y2y_val??0)<0?'#ef4444':'#22c55e', 90,
+      {unit:'bp', zeroLine:true, thresholds:[{val:0,color:'rgba(239,68,68,0.6)',label:'倒掛基準'}]});
 
     // TIPS breakeven strip
     const tipsStrip=document.getElementById('liq-tips-strip');
@@ -9223,12 +9321,12 @@ function renderLiqSubPanel(panel){
 
     // TIPS chart
     if(d.t5yie?.length||d.t10yie?.length) drawMultiLineChart('liq-tips-chart',[
-      {data:d.t5yie, color:'#f59e0b', width:1.5},
-      {data:d.t10yie,color:'#ef4444', width:1.5},
-    ],100);
+      {data:d.t5yie, color:'#f59e0b', width:1.5, label:'5Y BE'},
+      {data:d.t10yie,color:'#ef4444', width:1.5, label:'10Y BE'},
+    ],100, {unit:'%', annotations:[{val:2.5,label:'Fed 目標 2.5%',color:'rgba(99,102,241,0.5)'}]});
 
     // Real yield
-    if(d.dfii10?.length) drawAreaChart('liq-realyield-chart',d.dfii10,'#8b5cf6',130);
+    if(d.dfii10?.length) drawAreaChart('liq-realyield-chart',d.dfii10,'#8b5cf6',130,{unit:'%',zeroLine:true,thresholds:[{val:0,color:'rgba(99,102,241,0.6)',label:'0% 實質利率'}],minRng:0.5});
   }
 
   else if(panel==='credit'){
@@ -9243,10 +9341,10 @@ function renderLiqSubPanel(panel){
       <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?(p.v.toFixed(2)+p.unit):'—'}</div>
     </div>`).join('');
-    if(d.hy?.length)   drawAreaChart('liq-hy-chart',  d.hy,  '#ef4444', 120);
-    if(d.ig?.length)   drawAreaChart('liq-ig-chart',  d.ig,  '#f59e0b', 120);
-    if(d.fsi?.length)  drawAreaChart('liq-fsi-chart', d.fsi, d.fsi[d.fsi.length-1]?.val>0?'#ef4444':'#22c55e', 120);
-    if(d.nfci?.length) drawAreaChart('liq-nfci-chart',d.nfci,d.nfci[d.nfci.length-1]?.val>0?'#ef4444':'#22c55e', 120);
+    if(d.hy?.length)   drawAreaChart('liq-hy-chart',  d.hy,  '#ef4444', 120, {unit:'bp',thresholds:[{val:400,color:'rgba(245,158,11,0.5)',label:'警戒 400bp'},{val:600,color:'rgba(239,68,68,0.6)',label:'危機 600bp'}]});
+    if(d.ig?.length)   drawAreaChart('liq-ig-chart',  d.ig,  '#f59e0b', 120, {unit:'bp',thresholds:[{val:150,color:'rgba(245,158,11,0.5)',label:'壓力 150bp'},{val:250,color:'rgba(239,68,68,0.6)',label:'危機 250bp'}]});
+    if(d.fsi?.length)  drawAreaChart('liq-fsi-chart', d.fsi, d.fsi[d.fsi.length-1]?.val>0?'#ef4444':'#22c55e', 120, {unit:'',zeroLine:true,thresholds:[{val:0,color:'rgba(128,128,128,0.4)',label:'正常基準'}]});
+    if(d.nfci?.length) drawAreaChart('liq-nfci-chart',d.nfci,d.nfci[d.nfci.length-1]?.val>0?'#ef4444':'#22c55e', 120, {unit:'',zeroLine:true,thresholds:[{val:0.5,color:'rgba(245,158,11,0.5)',label:'偏緊 0.5'},{val:-0.5,color:'rgba(34,197,94,0.5)',label:'寬鬆 -0.5'}]});
   }
 
   else if(panel==='dollar'){
@@ -9262,9 +9360,9 @@ function renderLiqSubPanel(panel){
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?p.fmt(p.v):'—'}</div>
     </div>`).join('');
     if(d.dxy?.length)    drawAreaChart('liq-dxy-chart',    d.dxy,   '#f59e0b', 130);
-    if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl, '#8b5cf6', 130);
-    if(d.resbal?.length) drawAreaChart('liq-resbal-chart', d.resbal,'#22c55e', 120);
-    if(d.mmf?.length)    drawAreaChart('liq-mmf-chart',    d.mmf,   '#06b6d4', 120);
+    if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null), '#8b5cf6', 130, {unit:'T',thresholds:[{val:7,color:'rgba(239,68,68,0.4)',label:'峰值 ~$9T'},{val:6.5,color:'rgba(245,158,11,0.4)',label:'QT 進行中'}]});
+    if(d.resbal?.length) drawAreaChart('liq-resbal-chart', d.resbal.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),'#22c55e', 120, {unit:'T',thresholds:[{val:3,color:'rgba(239,68,68,0.6)',label:'警戒 $3T'}]});
+    if(d.mmf?.length)    drawAreaChart('liq-mmf-chart',    d.mmf.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),   '#06b6d4', 120, {unit:'T'});
   }
 }
 
