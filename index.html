@@ -9513,18 +9513,16 @@ function renderLiqSubPanel(panel){
     // Real yield + Nominal (DGS10) dual-line chart
     if(d.dfii10?.length || d.dgs10?.length){
       if(d.dfii10?.length && d.dgs10?.length){
-        // Both available → multi-line
-        drawMultiLineChart('liq-realyield-chart',[
-          {data:d.dgs10,  color:'#f59e0b', width:1.5, label:'Nominal 10Y'},
-          {data:d.dfii10, color:'#8b5cf6', width:2,   label:'Real 10Y'},
-        ], 130, {annotations:[
-          {val:0,   color:'rgba(128,128,128,0.5)', label:'0% ← 負實質利率（利多 Gold）'},
-          {val:1.5, color:'rgba(239,68,68,0.4)',   label:'1.5% Gold 壓力'},
-          {val:2.5, color:'rgba(239,68,68,0.55)',  label:'2.5% 強壓力'},
-        ]});
-        // Add shading label explaining the gap = Breakeven
-        const tipEl = document.getElementById('liq-realyield-chart-tooltip');
-        if(tipEl) tipEl.innerHTML = '<span style="color:var(--lo);font-size:9px">橙色 - 紫色 之間的差距 ≈ Breakeven 通膨預期</span>';
+        // Both available → dual Y-axis
+        drawDualAxisChart('liq-realyield-chart',
+          {data:d.dfii10, color:'#8b5cf6', label:'Real',    unit:'%'},
+          {data:d.dgs10,  color:'#f59e0b', label:'Nominal', unit:'%'},
+          130,
+          {annotations:[
+            {val:0,   color:'rgba(128,128,128,0.5)', label:'0% 實質利率', axis:'left'},
+            {val:1.5, color:'rgba(239,68,68,0.4)',   label:'1.5% Gold壓力', axis:'left'},
+          ]}
+        );
       } else {
         // Fallback single line
         drawAreaChart('liq-realyield-chart', d.dfii10||d.dgs10, d.dfii10?'#8b5cf6':'#f59e0b', 130,
@@ -9599,6 +9597,157 @@ function renderLiqSubPanel(panel){
         {val:2,  color:'rgba(239,68,68,0.65)',    label:'$2T 緊張臨界點'},
       ]});
     if(d.mmf?.length)    drawAreaChart('liq-mmf-chart',    d.mmf.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),   '#06b6d4', 120, {unit:'T'});
+  }
+}
+
+
+function drawDualAxisChart(canvasId, left, right, h=130, opts={}){
+  // left: {data, color, label, unit}  — left Y-axis
+  // right: {data, color, label, unit} — right Y-axis
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  const dpr = window.devicePixelRatio||1;
+  const W = (canvas.offsetWidth||600)*dpr, H = h*dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+
+  const pad = {t:10, b:20, l:44, r:44};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const n = Math.max(left.data?.length||0, right.data?.length||0);
+  if(!n) return;
+
+  // Compute scales independently
+  const scale = (data) => {
+    const vals = data.map(d=>d.val).filter(v=>v!=null&&!isNaN(v));
+    if(!vals.length) return null;
+    const mn=Math.min(...vals), mx=Math.max(...vals);
+    const rng=Math.max(mx-mn,0.1), pad_v=rng*0.15;
+    return {lo:mn-pad_v, hi:mx+pad_v, r:(mx-mn+2*pad_v)};
+  };
+  const lScale = scale(left.data||[]);
+  const rScale = scale(right.data||[]);
+
+  const xOf = i => pad.l + (i/(n-1||1))*cW;
+  const yOfL = v => lScale ? pad.t + ((lScale.hi-v)/lScale.r)*cH : 0;
+  const yOfR = v => rScale ? pad.t + ((rScale.hi-v)/rScale.r)*cH : 0;
+
+  // Grid lines from left scale
+  if(lScale){
+    const steps=4;
+    ctx.setLineDash([2,4]); ctx.lineWidth=0.5*dpr;
+    for(let i=0;i<=steps;i++){
+      const v=lScale.lo+i/steps*lScale.r, y=yOfL(v);
+      ctx.strokeStyle='rgba(128,128,128,0.1)';
+      ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+      // Left Y labels
+      ctx.fillStyle=left.color||'rgba(128,128,128,0.7)';
+      ctx.font=`${7*dpr}px monospace`; ctx.textAlign='right';
+      ctx.fillText(v.toFixed(2)+(left.unit||'%'), pad.l-3*dpr, y+3*dpr);
+    }
+    ctx.setLineDash([]);
+  }
+
+  // Right Y labels from right scale
+  if(rScale){
+    const steps=4;
+    for(let i=0;i<=steps;i++){
+      const v=rScale.lo+i/steps*rScale.r, y=yOfR(v);
+      ctx.fillStyle=right.color||'rgba(128,128,128,0.7)';
+      ctx.font=`${7*dpr}px monospace`; ctx.textAlign='left';
+      ctx.fillText(v.toFixed(2)+(right.unit||'%'), W-pad.r+3*dpr, y+3*dpr);
+    }
+  }
+
+  // Annotation lines
+  if(opts.annotations){
+    opts.annotations.forEach(({val,color:ac,label:al,axis='left'})=>{
+      const sc=axis==='right'?rScale:lScale;
+      const yOf2=axis==='right'?yOfR:yOfL;
+      if(!sc||val<sc.lo||val>sc.hi) return;
+      const ay=yOf2(val);
+      ctx.setLineDash([5,4]); ctx.strokeStyle=ac||'rgba(99,102,241,0.4)'; ctx.lineWidth=1*dpr;
+      ctx.beginPath(); ctx.moveTo(pad.l,ay); ctx.lineTo(W-pad.r,ay); ctx.stroke();
+      ctx.setLineDash([]);
+      if(al){ ctx.fillStyle=ac||'rgba(99,102,241,0.7)'; ctx.font=`${7*dpr}px monospace`;
+        ctx.textAlign='right'; ctx.fillText(al,W-pad.r-2*dpr,ay-3*dpr); }
+    });
+  }
+
+  // Draw fills (subtle area under each line)
+  const drawFill = (data, color, yOf, scale) => {
+    if(!data?.length||!scale) return;
+    const pts = data.map(({val},i)=>[xOf(i), yOf(val??scale.lo)]);
+    const gr=ctx.createLinearGradient(0,pad.t,0,H);
+    gr.addColorStop(0,color+'22'); gr.addColorStop(1,color+'05');
+    ctx.beginPath(); pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.lineTo(pts[pts.length-1][0],H-pad.b); ctx.lineTo(pts[0][0],H-pad.b);
+    ctx.closePath(); ctx.fillStyle=gr; ctx.fill();
+  };
+  drawFill(right.data, right.color, yOfR, rScale);
+  drawFill(left.data,  left.color,  yOfL, lScale);
+
+  // Draw lines
+  const drawLine = (data, color, width, yOf, scale) => {
+    if(!data?.length||!scale) return;
+    ctx.beginPath();
+    data.forEach(({val},i)=>{
+      const x=xOf(i), y=yOf(val??scale.lo);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle=color; ctx.lineWidth=width*dpr; ctx.stroke();
+    // Last value dot
+    const lv=data[data.length-1]?.val;
+    if(lv!=null){
+      const lx=xOf(data.length-1), ly=yOf(lv);
+      ctx.beginPath(); ctx.arc(lx,ly,3.5*dpr,0,Math.PI*2);
+      ctx.fillStyle=color; ctx.fill();
+      ctx.strokeStyle='white'; ctx.lineWidth=1.2*dpr; ctx.stroke();
+    }
+  };
+  drawLine(right.data, right.color, 1.5, yOfR, rScale);
+  drawLine(left.data,  left.color,  2,   yOfL, lScale);
+
+  // X-axis date labels
+  const refData = (left.data?.length >= right.data?.length) ? left.data : right.data;
+  ctx.fillStyle='rgba(128,128,128,0.5)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='center';
+  [0,Math.floor(n/2),n-1].forEach(i=>{ if(refData[i]) ctx.fillText(refData[i].date.slice(5),xOf(i),H-3*dpr); });
+
+  // Store for hover redraw
+  canvas._redrawDual = () => drawDualAxisChart(canvasId, left, right, h, opts);
+
+  // Hover crosshair + tooltip
+  if(!canvas._dualHoverBound){
+    canvas._dualHoverBound=true; canvas.style.cursor='crosshair';
+    canvas.addEventListener('mousemove',e=>{
+      const rect=canvas.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
+      const idx=Math.min(Math.max(Math.round((mx-pad.l)/cW*(n-1)),0),n-1);
+      if(canvas._redrawDual) canvas._redrawDual();
+      const ctx2=canvas.getContext('2d');
+      const xPos=pad.l+(idx/(n-1||1))*cW;
+      ctx2.setLineDash([4,4]); ctx2.strokeStyle='rgba(128,128,128,0.4)'; ctx2.lineWidth=1*dpr;
+      ctx2.beginPath(); ctx2.moveTo(xPos,pad.t); ctx2.lineTo(xPos,H-pad.b); ctx2.stroke();
+      ctx2.setLineDash([]);
+      // Dots
+      const lv2=left.data?.[idx]?.val, rv2=right.data?.[idx]?.val;
+      if(lv2!=null&&lScale){ const y=yOfL(lv2); ctx2.beginPath();ctx2.arc(xPos,y,4*dpr,0,Math.PI*2);ctx2.fillStyle=left.color;ctx2.fill(); }
+      if(rv2!=null&&rScale){ const y=yOfR(rv2); ctx2.beginPath();ctx2.arc(xPos,y,4*dpr,0,Math.PI*2);ctx2.fillStyle=right.color;ctx2.fill(); }
+      const tip=document.getElementById(canvasId+'-tooltip');
+      if(tip){
+        const date=left.data?.[idx]?.date||right.data?.[idx]?.date||'';
+        const lStr=lv2!=null?`<span style="color:${left.color};font-weight:700">${left.label||'L'} ${lv2.toFixed(3)}%</span>`:'';
+        const rStr=rv2!=null?`<span style="color:${right.color};font-weight:700">${right.label||'R'} ${rv2.toFixed(3)}%</span>`:'';
+        const spread=lv2!=null&&rv2!=null?`<span style="color:var(--lo)"> · gap ${(rv2-lv2).toFixed(2)}%</span>`:'';
+        tip.style.display='block';
+        tip.innerHTML=`<span style="color:var(--lo)">${date}</span>  ${lStr}  ${rStr}${spread}`;
+      }
+    });
+    canvas.addEventListener('mouseleave',()=>{
+      if(canvas._redrawDual) canvas._redrawDual();
+      const tip=document.getElementById(canvasId+'-tooltip');
+      if(tip) tip.style.display='none';
+    });
   }
 }
 
