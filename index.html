@@ -967,6 +967,22 @@ select option{background:var(--paper2)}
       <div id="liq-sofravg-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0;color:var(--mid)"></div>
     </div>
 
+    <!-- OIS Term Structure -->
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink)">OIS Term Structure</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:2px">ON=SOFR · 1M/3M/6M=SOFR Avg · 1Y/2Y=Treasury（OIS proxy）</div>
+        </div>
+        <div id="liq-ois-date" style="font-family:var(--mono);font-size:9px;color:var(--lo)"></div>
+      </div>
+      <!-- Term structure dot chart -->
+      <canvas id="liq-ois-chart" style="width:100%;height:140px;display:block"></canvas>
+      <div id="liq-ois-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0;color:var(--mid)"></div>
+      <!-- Data points strip -->
+      <div id="liq-ois-strip" style="display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:10px;border-radius:var(--r);overflow:hidden"></div>
+    </div>
+
     <!-- SOFR Percentile bar -->
     <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
       <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">SOFR Percentile（252交易日）</div>
@@ -8390,7 +8406,7 @@ async function loadLiquidity(force=false){
   };
 
   // Fetch all in parallel — historical series for charts
-  const [sofrH, effrH, iorbH, obfrH, rrpH, srfH, s30H, s90H, s180H, oisH] = await Promise.all([
+  const [sofrH, effrH, iorbH, obfrH, rrpH, srfH, s30H, s90H, s180H, oisH, dgs1H, dgs2H] = await Promise.all([
     fetchSeries('SOFR',          Math.max(range, 252)),
     fetchSeries('EFFR',          range),
     fetchSeries('IORB',          range),
@@ -8400,7 +8416,9 @@ async function loadLiquidity(force=false){
     fetchSeries('SOFR30DAYAVG',  range),
     fetchSeries('SOFR90DAYAVG',  range),
     fetchSeries('SOFR180DAYAVG', range),
-    fetchSeries('SOFR1',         range),  // SOFR compounded index → OIS proxy
+    fetchSeries('SOFR1',         range),
+    fetchSeries('DGS1',          range),  // 1Y Treasury (OIS 1Y proxy)
+    fetchSeries('DGS2',          range),  // 2Y Treasury (OIS 2Y proxy)
   ]);
 
   // Convert to {date, val} arrays (chronological order)
@@ -8430,7 +8448,9 @@ async function loadLiquidity(force=false){
   }
 
   const ois = toSeries(oisH);
-  _liqData = { sofr, sofrFull, effr, iorb, obfr, rrp, srf, s30, s90, s180, ois, sofrPct, sofrPct30, sofrPct90 };
+  const dgs1 = toSeries(dgs1H);
+  const dgs2 = toSeries(dgs2H);
+  _liqData = { sofr, sofrFull, effr, iorb, obfr, rrp, srf, s30, s90, s180, ois, dgs1, dgs2, sofrPct, sofrPct30, sofrPct90 };
 
   // Check if anything loaded
   const loadedCount = [sofr,effr,iorb,rrp].filter(s=>s?.length>0).length;
@@ -8517,6 +8537,41 @@ function renderLiquidity(){
     </div>
     <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--lo);margin-top:4px"><span>0%</span><span>充裕</span><span>緊張</span><span>100%</span></div>`;
   }
+
+  // ── OIS Term Structure ──
+  const {dgs1, dgs2} = _liqData;
+  const lDgs1 = last(dgs1)?.val, lDgs2 = last(dgs2)?.val;
+  const lS30  = last(s30)?.val,  lS90  = last(s90)?.val, lS180 = last(s180)?.val;
+  const lSofr2 = last(sofr)?.val;
+
+  const oisPoints = [
+    { label:'ON',  tenor:0,    val:lSofr2, src:'SOFR' },
+    { label:'1M',  tenor:1,    val:lS30,   src:'30D avg' },
+    { label:'3M',  tenor:3,    val:lS90,   src:'90D avg' },
+    { label:'6M',  tenor:6,    val:lS180,  src:'180D avg' },
+    { label:'1Y',  tenor:12,   val:lDgs1,  src:'DGS1' },
+    { label:'2Y',  tenor:24,   val:lDgs2,  src:'DGS2' },
+  ].filter(p => p.val != null);
+
+  // Data strip
+  const oisStrip = document.getElementById('liq-ois-strip');
+  if(oisStrip){
+    oisStrip.innerHTML = oisPoints.map(p => {
+      const prev5 = oisPoints.find(x=>x.tenor < p.tenor)?.val;
+      return `<div style="background:var(--paper);padding:8px 10px;text-align:center">
+        <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:var(--lo);margin-bottom:3px">${p.label}</div>
+        <div style="font-family:Georgia,serif;font-size:15px;font-weight:700;color:var(--ink)">${p.val.toFixed(3)}%</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--lo);margin-top:2px">${p.src}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // OIS date label
+  const oisDateEl = document.getElementById('liq-ois-date');
+  if(oisDateEl) oisDateEl.textContent = last(sofr)?.date || '';
+
+  // Draw OIS curve chart
+  if(oisPoints.length >= 2) setTimeout(()=>drawOISCurve('liq-ois-chart', oisPoints), 60);
 
   // Draw charts after layout
   setTimeout(()=>{
@@ -8850,6 +8905,100 @@ function _onChartLeave(e, canvasId){
   const canvas = e.currentTarget;
   const fn = canvas._redrawFn;
   if(fn) fn();
+}
+
+
+function drawOISCurve(canvasId, points){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas || !points.length) return;
+  const dpr = window.devicePixelRatio||1;
+  const W = (canvas.offsetWidth||700)*dpr, H = 140*dpr;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+
+  const pad = {t:16, b:28, l:44, r:20};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+
+  const vals = points.map(p=>p.val);
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  const rng = Math.max(mx - mn, 0.05);
+  const lo = mn - rng*0.15, hi = mx + rng*0.15, r = hi - lo;
+
+  // Map tenor to X (0, 1, 3, 6, 12, 24 months)
+  const maxT = Math.max(...points.map(p=>p.tenor));
+  const xOf = t => pad.l + (t/maxT)*cW;
+  const yOf = v => pad.t + ((hi-v)/r)*cH;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(128,128,128,0.08)'; ctx.lineWidth = 0.5*dpr; ctx.setLineDash([3,4]);
+  const steps = 4;
+  for(let i=0; i<=steps; i++){
+    const v = lo + (i/steps)*r;
+    const y = yOf(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W-pad.r, y); ctx.stroke();
+    ctx.fillStyle='rgba(128,128,128,0.5)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='right';
+    ctx.fillText(v.toFixed(2)+'%', pad.l-3*dpr, y+3*dpr);
+  }
+  ctx.setLineDash([]);
+
+  // Smooth curve through points
+  const coords = points.map(p=>[xOf(p.tenor), yOf(p.val)]);
+
+  // Fill area under curve
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H);
+  grad.addColorStop(0, 'rgba(99,102,241,0.15)');
+  grad.addColorStop(1, 'rgba(99,102,241,0)');
+  ctx.beginPath();
+  ctx.moveTo(coords[0][0], H-pad.b);
+  coords.forEach(([x,y]) => ctx.lineTo(x,y));
+  ctx.lineTo(coords[coords.length-1][0], H-pad.b);
+  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+
+  // Curve line
+  ctx.beginPath();
+  ctx.moveTo(coords[0][0], coords[0][1]);
+  for(let i=1; i<coords.length; i++){
+    const [x0,y0] = coords[i-1], [x1,y1] = coords[i];
+    const cpx = (x0+x1)/2;
+    ctx.bezierCurveTo(cpx, y0, cpx, y1, x1, y1);
+  }
+  ctx.strokeStyle = 'rgba(99,102,241,0.8)'; ctx.lineWidth = 2*dpr; ctx.stroke();
+
+  // Data points + labels
+  points.forEach((p,[x,y]=coords[points.indexOf(p)]) => {
+    const [cx,cy] = coords[points.indexOf(p)];
+    // Dot
+    ctx.beginPath(); ctx.arc(cx, cy, 4.5*dpr, 0, Math.PI*2);
+    ctx.fillStyle = '#6366f1'; ctx.fill();
+    ctx.strokeStyle = 'var(--paper,#fff)'; ctx.lineWidth = 1.5*dpr; ctx.stroke();
+    // Tenor label (X axis)
+    ctx.fillStyle = 'rgba(128,128,128,0.6)'; ctx.font = `${7.5*dpr}px monospace`; ctx.textAlign = 'center';
+    ctx.fillText(p.label, cx, H-pad.b+11*dpr);
+    // Rate label above dot
+    ctx.fillStyle = '#6366f1'; ctx.font = `bold ${8*dpr}px monospace`;
+    const lbl = p.val.toFixed(2)+'%';
+    const labelY = cy - 8*dpr < pad.t+5*dpr ? cy + 14*dpr : cy - 8*dpr;
+    ctx.fillText(lbl, cx, labelY);
+  });
+
+  // Save for hover
+  canvas._oisData = points;
+  canvas._oisCoords = coords;
+  if(!canvas._oHoverBound){
+    canvas._oHoverBound = true;
+    canvas.style.cursor = 'crosshair';
+    canvas.addEventListener('mousemove', e=>{
+      const rect=canvas.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
+      let best=0, bestD=Infinity;
+      coords.forEach(([x],i)=>{ const d=Math.abs(x-mx); if(d<bestD){bestD=d;best=i;} });
+      const p=points[best];
+      const tip=document.getElementById(canvasId+'-tooltip');
+      if(tip){ tip.style.display='block'; tip.innerHTML=`<span style="color:#6366f1;font-weight:700">${p.label}</span> <span style="font-weight:700">${p.val.toFixed(3)}%</span> <span style="color:var(--lo);font-size:9px">${p.src}</span>`; }
+    });
+    canvas.addEventListener('mouseleave', ()=>{ const tip=document.getElementById(canvasId+'-tooltip'); if(tip)tip.style.display='none'; });
+  }
 }
 
 // ── New: Drawdown chart ──
