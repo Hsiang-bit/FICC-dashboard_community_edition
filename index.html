@@ -8631,13 +8631,14 @@ async function loadLiquidity(force=false){
     hy,ig,fsi,nfci,dxy,walcl,resbal,mmf,
     sofrPct,sofrPct30,sofrPct90
   };
-  // Reset sub-panel render flags on refresh, then re-render active panel
-  document.querySelectorAll('.liq-panel').forEach(p=>p._rendered=false);
-  // Re-render currently visible panel immediately (data just loaded)
-  const activePanel = document.querySelector('.liq-panel[style*="block"]');
-  if(activePanel && activePanel.id){
-    const pName = activePanel.id.replace('liq-panel-','');
-    if(pName !== 'liquidity'){ activePanel._rendered=true; setTimeout(()=>renderLiqSubPanel(pName),100); }
+  // Reset all sub-panel render flags, re-render currently active one
+  document.querySelectorAll('.liq-panel').forEach(p=>{ p._rendered=false; p.querySelector('.liq-panel-empty')?.remove(); });
+  const activePanel = document.querySelector('.liq-panel[style*="block"],.liq-panel.active');
+  const activePanelById = [...document.querySelectorAll('.liq-panel')].find(p=>p.style.display!=='none'&&p.id!=='liq-panel-liquidity');
+  const toRerender = activePanelById || activePanel;
+  if(toRerender?.id){
+    const pName = toRerender.id.replace('liq-panel-','');
+    if(pName !== 'liquidity'){ toRerender._rendered=true; setTimeout(()=>renderLiqSubPanel(pName),200); }
   }
 
   // Check if anything loaded
@@ -8900,16 +8901,27 @@ function drawMultiLineChart(canvasId, series, h=150, opts={}){
     canvas.addEventListener('mousemove',e=>{
       const rect=canvas.getBoundingClientRect();
       const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
-      const idx=Math.min(Math.max(Math.round((mx-pad.l*dpr)/((canvas.width-(pad.l+pad.r)*dpr))*(_n-1)),0),_n-1);
+      const cWm=canvas.width-(pad.l+pad.r)*dpr;
+      const idx=Math.min(Math.max(Math.round((mx-pad.l*dpr)/cWm*(_n-1)),0),_n-1);
+
+      // Redraw base
+      const ctx2=canvas.getContext('2d');
+      ctx2.clearRect(0,0,canvas.width,canvas.height);
+      // Quick redraw (re-call function is cleaner but expensive; use stored coords)
+      const xPos=pad.l*dpr+(idx/(_n-1||1))*cWm;
+      // Vertical crosshair
+      ctx2.setLineDash([4,4]); ctx2.strokeStyle='rgba(128,128,128,0.4)'; ctx2.lineWidth=1*dpr;
+      ctx2.beginPath(); ctx2.moveTo(xPos,pad.t*dpr); ctx2.lineTo(xPos,canvas.height-pad.b*dpr); ctx2.stroke();
+      ctx2.setLineDash([]);
+
       const tip=document.getElementById(canvasId+'-tooltip');
-      if(!tip) return;
       const date=series[0]?.data?.[idx]?.date||'';
-      const vals=series.map((s,i)=>{
+      const vals=series.map((s)=>{
         const v=s.data?.[idx]?.val;
         return v!=null?`<span style="color:${s.color};font-weight:700">${s.label?s.label+' ':''}${v.toFixed(3)}%</span>`:'';
       }).filter(Boolean).join('  ');
-      tip.style.display='block';
-      tip.innerHTML=`<span style="color:var(--lo)">${date}</span>  ${vals}`;
+      if(tip){ tip.style.display='block';
+        tip.innerHTML=`<span style="color:var(--lo)">${date}</span>  ${vals}`; }
     });
     canvas.addEventListener('mouseleave',()=>{
       const tip=document.getElementById(canvasId+'-tooltip');
@@ -9037,17 +9049,47 @@ function drawAreaChart(canvasId, data, color='#3b82f6', h=120, opts={}){
   ctx.fillStyle='rgba(128,128,128,0.5)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='center';
   [0,Math.floor(n/2),n-1].forEach(i=>{ if(data[i]) ctx.fillText(data[i].date.slice(5),xOf(i),H-2*dpr); });
 
-  // Hover
+  // Store redraw function for crosshair
+  canvas._redrawArea = ()=>drawAreaChart(canvasId, data, color, h, opts);
+
+  // Hover with crosshair
   if(!canvas._aHoverBound){ canvas._aHoverBound=true; canvas.style.cursor='crosshair';
     canvas.addEventListener('mousemove',e=>{
-      const rect=canvas.getBoundingClientRect(), mx2=(e.clientX-rect.left)*(W/rect.width);
+      const rect=canvas.getBoundingClientRect();
+      const mx2=(e.clientX-rect.left)*(canvas.width/rect.width);
       const i=Math.min(Math.max(Math.round((mx2-pad.l)/cW*(n-1)),0),n-1);
-      const tip=document.getElementById(canvasId+'-tooltip')||document.getElementById(canvasId.replace('-chart','-chart-tooltip'));
-      const v=data[i]?.val;
-      if(tip&&v!=null){ tip.style.display='block'; const u=opts.unit||'%';
-        tip.innerHTML=`<span style="color:var(--lo)">${data[i].date}</span>  <span style="color:${splitColor?(v>=0?'#22c55e':'#ef4444'):color};font-weight:700">${(v>=0&&splitColor?'+':'')+v.toFixed(3)+u}</span>`; }
+      const v=data[i]?.val; if(v==null) return;
+
+      // Redraw base chart
+      if(canvas._redrawArea) canvas._redrawArea();
+      const ctx2=canvas.getContext('2d'), dpr2=window.devicePixelRatio||1;
+      const xPos=pad.l+(i/(n-1||1))*cW;
+      const yPos=pad.t+((hi-v)/r)*cH;
+
+      // Vertical dashed line
+      ctx2.setLineDash([4,4]); ctx2.strokeStyle='rgba(128,128,128,0.5)'; ctx2.lineWidth=1*dpr2;
+      ctx2.beginPath(); ctx2.moveTo(xPos,pad.t); ctx2.lineTo(xPos,canvas.height-pad.b); ctx2.stroke();
+      // Horizontal dashed line
+      ctx2.setLineDash([3,5]); ctx2.strokeStyle='rgba(128,128,128,0.3)'; ctx2.lineWidth=0.8*dpr2;
+      ctx2.beginPath(); ctx2.moveTo(pad.l,yPos); ctx2.lineTo(canvas.width-pad.r,yPos); ctx2.stroke();
+      ctx2.setLineDash([]);
+      // Dot at intersection
+      ctx2.beginPath(); ctx2.arc(xPos,yPos,4*dpr2,0,Math.PI*2);
+      const dotCol=splitColor?(v>=0?'#22c55e':'#ef4444'):color;
+      ctx2.fillStyle=dotCol; ctx2.fill();
+      ctx2.strokeStyle='white'; ctx2.lineWidth=1.5*dpr2; ctx2.stroke();
+
+      // Tooltip
+      const tip=document.getElementById(canvasId+'-tooltip');
+      const u=opts.unit||'%';
+      if(tip){ tip.style.display='block';
+        tip.innerHTML=`<span style="color:var(--lo)">${data[i].date}</span>  <span style="color:${dotCol};font-weight:700">${(v>=0&&splitColor?'+':'')+v.toFixed(3)+u}</span>`; }
     });
-    canvas.addEventListener('mouseleave',()=>{ const tip=document.getElementById(canvasId+'-tooltip')||document.getElementById(canvasId.replace('-chart','-chart-tooltip')); if(tip)tip.style.display='none'; });
+    canvas.addEventListener('mouseleave',()=>{
+      if(canvas._redrawArea) canvas._redrawArea();
+      const tip=document.getElementById(canvasId+'-tooltip');
+      if(tip) tip.style.display='none';
+    });
   }
 }
 
@@ -9353,9 +9395,22 @@ function switchLiqTab(panel, btn){
     el._rendered=true;
     const tryRender=(attempt=0)=>{
       const cv=el.querySelector('canvas');
-      if(cv && cv.offsetWidth>0){ renderLiqSubPanel(panel); }
-      else if(attempt<8){ setTimeout(()=>tryRender(attempt+1), 80); }
-      else { renderLiqSubPanel(panel); } // give up waiting
+      if(!cv || cv.offsetWidth<=0){
+        if(attempt<10){ setTimeout(()=>tryRender(attempt+1), 100); return; }
+      }
+      // Check if data is loaded
+      if(!_liqData || !Object.keys(_liqData).length){
+        el._rendered=false; // allow retry when data loads
+        el.querySelector('.liq-panel-empty')?.remove();
+        const msg=document.createElement('div');
+        msg.className='liq-panel-empty';
+        msg.style.cssText='padding:30px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--lo)';
+        msg.textContent='⏳ 請先點「↻ 更新」載入資料';
+        el.insertBefore(msg, el.querySelector('.liq-panel-empty')?.nextSibling || el.firstChild);
+        return;
+      }
+      el.querySelector('.liq-panel-empty')?.remove();
+      renderLiqSubPanel(panel);
     };
     setTimeout(()=>tryRender(), 50);
   }
