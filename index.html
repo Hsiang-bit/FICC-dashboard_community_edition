@@ -8871,13 +8871,10 @@ function drawMultiLineChart(canvasId, series, h=150, opts={}){
       const lastPt = data[data.length-1];
       const lv = lastPt?.val;
       if(lv!=null){
-        const lx = pad.l*dpr + cW;
-        const allV2 = series.flatMap(s=>s.data?.map(d=>d.val)).filter(v=>v!=null);
-        const mn2=Math.min(...allV2), mx2=Math.max(...allV2), rng2=mx2-mn2||0.01;
-        const pad2=rng2*0.1; const hi2=mx2+pad2, r2=hi2-mn2+pad2*2;
-        const ly = (pad.t + ((hi2-lv)/r2)*cH)*dpr;
+        const lx = pad.l + cW/dpr;
+        const ly = pad.t + ((hi-lv)/rng)*cH/dpr;
         ctx.fillStyle = color; ctx.font = `bold ${7*dpr}px monospace`; ctx.textAlign='left';
-        ctx.fillText(label+' '+lv.toFixed(2)+'%', lx+3*dpr, ly+3*dpr);
+        ctx.fillText(label+' '+lv.toFixed(2)+'%', (lx+3)*dpr, (ly+4)*dpr);
       }
     }
   });
@@ -9336,8 +9333,8 @@ function drawOISCurve(canvasId, points){
   ctx.strokeStyle = 'rgba(99,102,241,0.8)'; ctx.lineWidth = 2*dpr; ctx.stroke();
 
   // Data points + labels
-  points.forEach((p,[x,y]=coords[points.indexOf(p)]) => {
-    const [cx,cy] = coords[points.indexOf(p)];
+  points.forEach((p, pi) => {
+    const [cx,cy] = coords[pi];
     // Dot
     ctx.beginPath(); ctx.arc(cx, cy, 4.5*dpr, 0, Math.PI*2);
     ctx.fillStyle = '#6366f1'; ctx.fill();
