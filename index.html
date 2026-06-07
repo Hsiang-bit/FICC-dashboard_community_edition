@@ -901,6 +901,15 @@ select option{background:var(--paper2)}
   </div>
 
   <div id="liq-content" style="display:none">
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:2px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
+    <button class="liq-tab active" onclick="switchLiqTab('liquidity',this)" style="font-family:var(--mono);font-size:10px;padding:6px 14px;background:none;border:none;cursor:pointer;border-bottom:2px solid var(--ink);margin-bottom:-2px;color:var(--ink);font-weight:700">💧 流動性</button>
+    <button class="liq-tab" onclick="switchLiqTab('curve',this)" style="font-family:var(--mono);font-size:10px;padding:6px 14px;background:none;border:none;cursor:pointer;color:var(--lo)">📈 殖利率曲線</button>
+    <button class="liq-tab" onclick="switchLiqTab('credit',this)" style="font-family:var(--mono);font-size:10px;padding:6px 14px;background:none;border:none;cursor:pointer;color:var(--lo)">⚠ 信用 & 壓力</button>
+    <button class="liq-tab" onclick="switchLiqTab('dollar',this)" style="font-family:var(--mono);font-size:10px;padding:6px 14px;background:none;border:none;cursor:pointer;color:var(--lo)">💵 美元 & 流量</button>
+  </div>
+  <!-- ══ Panel: 流動性 ══ -->
+  <div id="liq-panel-liquidity" class="liq-panel">
     <!-- Latest values strip -->
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px" id="liq-vals-strip"></div>
 
@@ -988,7 +997,98 @@ select option{background:var(--paper2)}
       <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">SOFR Percentile（252交易日）</div>
       <div id="liq-sofr-pct"></div>
     </div>
-  </div>
+  </div><!-- /liq-panel-liquidity -->
+
+  <!-- ══ Panel: 殖利率曲線 ══ -->
+  <div id="liq-panel-curve" class="liq-panel" style="display:none">
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px" id="liq-curve-strip"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Treasury Yield Curve</div>
+        <canvas id="liq-yc-chart" style="width:100%;height:150px;display:block"></canvas>
+        <div id="liq-yc-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 0"></div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Curve Spreads</div>
+        <div id="liq-spread-labels" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"></div>
+        <canvas id="liq-t10y2y-chart" style="width:100%;height:90px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">10Y−2Y Spread · 倒掛 = 衰退預警</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Breakeven Inflation（TIPS）</div>
+        <div id="liq-tips-strip" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"></div>
+        <canvas id="liq-tips-chart" style="width:100%;height:100px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">5Y & 10Y 通膨預期 · Gold 核心驅動</div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Real Yield（10Y TIPS）</div>
+        <canvas id="liq-realyield-chart" style="width:100%;height:130px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">DFII10 · 實質利率 ↑ → Gold 壓力</div>
+      </div>
+    </div>
+  </div><!-- /liq-panel-curve -->
+
+  <!-- ══ Panel: 信用 & 壓力 ══ -->
+  <div id="liq-panel-credit" class="liq-panel" style="display:none">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px;border-radius:var(--r);overflow:hidden" id="liq-credit-strip"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">HY Credit Spread (OAS)</div>
+        <canvas id="liq-hy-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">BAMLH0A0HYM2 · 高收益利差 ↑ = Risk-Off</div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">IG Credit Spread (OAS)</div>
+        <canvas id="liq-ig-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">BAMLC0A0CM · 投資等級利差</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">St. Louis 金融壓力指數</div>
+        <canvas id="liq-fsi-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">STLFSI4 · &gt;0 = 壓力升溫</div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Chicago Fed 金融條件</div>
+        <canvas id="liq-nfci-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">NFCI · &lt;0 = 寬鬆，&gt;0 = 緊縮</div>
+      </div>
+    </div>
+  </div><!-- /liq-panel-credit -->
+
+  <!-- ══ Panel: 美元 & 流量 ══ -->
+  <div id="liq-panel-dollar" class="liq-panel" style="display:none">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px;border-radius:var(--r);overflow:hidden" id="liq-dollar-strip"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">廣義美元指數 (DTWEXBGS)</div>
+        <canvas id="liq-dxy-chart" style="width:100%;height:130px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">Fed 廣義貿易加權美元 · 比 DXY 更全面</div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Fed 資產負債表 (WALCL)</div>
+        <canvas id="liq-walcl-chart" style="width:100%;height:130px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">QT 縮表進度 · 每週更新</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">銀行準備金 (WRESBAL)</div>
+        <canvas id="liq-resbal-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">銀行體系準備金 · &lt;$3T 開始關注</div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">貨幣市場基金 (WRMFSL)</div>
+        <canvas id="liq-mmf-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">零售 MMF 規模 · 潛在市場流動性</div>
+      </div>
+    </div>
+  </div><!-- /liq-panel-dollar -->
+
+</div>
 </div>
 
 <!-- ═══════ SETUP PAGE ═══════ -->
@@ -8406,8 +8506,12 @@ async function loadLiquidity(force=false){
   };
 
   // Fetch all in parallel — historical series for charts
-  const [sofrH, effrH, iorbH, obfrH, rrpH, srfH, s30H, s90H, s180H, oisH, dgs1H, dgs2H] = await Promise.all([
-    fetchSeries('SOFR',          Math.max(range, 252)),
+  const [
+    sofrH,effrH,iorbH,obfrH,rrpH,srfH,s30H,s90H,s180H,oisH,
+    dgs1H,dgs2H,dgs5H,dgs10H,dgs30H,t10y2yH,t10y3mH,t5yieH,t10yieH,dfii10H,
+    hyH,igH,fsiH,nfciH,dxyH,walclH,resbalH,mmfH
+  ] = await Promise.all([
+    fetchSeries('SOFR',          Math.max(range,252)),
     fetchSeries('EFFR',          range),
     fetchSeries('IORB',          range),
     fetchSeries('OBFR',          range),
@@ -8417,8 +8521,27 @@ async function loadLiquidity(force=false){
     fetchSeries('SOFR90DAYAVG',  range),
     fetchSeries('SOFR180DAYAVG', range),
     fetchSeries('SOFR1',         range),
-    fetchSeries('DGS1',          range),  // 1Y Treasury (OIS 1Y proxy)
-    fetchSeries('DGS2',          range),  // 2Y Treasury (OIS 2Y proxy)
+    fetchSeries('DGS1',          range),
+    fetchSeries('DGS2',          range),
+    // Yield curve
+    fetchSeries('DGS5',          range),
+    fetchSeries('DGS10',         range),
+    fetchSeries('DGS30',         range),
+    fetchSeries('T10Y2Y',        range),
+    fetchSeries('T10Y3M',        range),
+    fetchSeries('T5YIE',         range),
+    fetchSeries('T10YIE',        range),
+    fetchSeries('DFII10',        range),   // 10Y Real Yield
+    // Credit & stress
+    fetchSeries('BAMLH0A0HYM2',  range),
+    fetchSeries('BAMLC0A0CM',    range),
+    fetchSeries('STLFSI4',       range),
+    fetchSeries('NFCI',          range),
+    // Dollar & flow (weekly series — limit = range/5 approx)
+    fetchSeries('DTWEXBGS',      range),
+    fetchSeries('WALCL',         52),
+    fetchSeries('WRESBAL',       52),
+    fetchSeries('WRMFSL',        52),
   ]);
 
   // Convert to {date, val} arrays (chronological order)
@@ -8447,10 +8570,23 @@ async function loadLiquidity(force=false){
     const v90  = vals.slice(-90); sofrPct90=Math.round(v90.filter(v=>v<=cur).length/v90.length*100);
   }
 
-  const ois = toSeries(oisH);
-  const dgs1 = toSeries(dgs1H);
-  const dgs2 = toSeries(dgs2H);
-  _liqData = { sofr, sofrFull, effr, iorb, obfr, rrp, srf, s30, s90, s180, ois, dgs1, dgs2, sofrPct, sofrPct30, sofrPct90 };
+  const ois=toSeries(oisH), dgs1=toSeries(dgs1H), dgs2=toSeries(dgs2H);
+  const dgs5=toSeries(dgs5H), dgs10=toSeries(dgs10H), dgs30=toSeries(dgs30H);
+  const t10y2y=toSeries(t10y2yH), t10y3m=toSeries(t10y3mH);
+  const t5yie=toSeries(t5yieH), t10yie=toSeries(t10yieH), dfii10=toSeries(dfii10H);
+  const hy=toSeries(hyH), ig=toSeries(igH), fsi=toSeries(fsiH), nfci=toSeries(nfciH);
+  const dxy=toSeries(dxyH), walcl=toSeries(walclH), resbal=toSeries(resbalH), mmf=toSeries(mmfH);
+  // Pre-compute spread values
+  const t10y2y_val = t10y2y.length ? t10y2y[t10y2y.length-1].val*100 : null;
+  const t10y3m_val = t10y3m.length ? t10y3m[t10y3m.length-1].val*100 : null;
+  _liqData = {
+    sofr,sofrFull,effr,iorb,obfr,rrp,srf,s30,s90,s180,ois,dgs1,dgs2,
+    dgs5,dgs10,dgs30,t10y2y,t10y3m,t5yie,t10yie,dfii10,t10y2y_val,t10y3m_val,
+    hy,ig,fsi,nfci,dxy,walcl,resbal,mmf,
+    sofrPct,sofrPct30,sofrPct90
+  };
+  // Reset sub-panel render flags on refresh
+  document.querySelectorAll('.liq-panel').forEach(p=>p._rendered=false);
 
   // Check if anything loaded
   const loadedCount = [sofr,effr,iorb,rrp].filter(s=>s?.length>0).length;
@@ -8998,6 +9134,137 @@ function drawOISCurve(canvasId, points){
       if(tip){ tip.style.display='block'; tip.innerHTML=`<span style="color:#6366f1;font-weight:700">${p.label}</span> <span style="font-weight:700">${p.val.toFixed(3)}%</span> <span style="color:var(--lo);font-size:9px">${p.src}</span>`; }
     });
     canvas.addEventListener('mouseleave', ()=>{ const tip=document.getElementById(canvasId+'-tooltip'); if(tip)tip.style.display='none'; });
+  }
+}
+
+
+function switchLiqTab(panel, btn){
+  document.querySelectorAll('.liq-panel').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.liq-tab').forEach(b=>{
+    b.classList.remove('active');
+    b.style.color='var(--lo)';
+    b.style.fontWeight='';
+    b.style.borderBottom='none';
+    b.style.marginBottom='0';
+  });
+  const el=document.getElementById('liq-panel-'+panel);
+  if(el) el.style.display='block';
+  if(btn){
+    btn.classList.add('active');
+    btn.style.color='var(--ink)';
+    btn.style.fontWeight='700';
+    btn.style.borderBottom='2px solid var(--ink)';
+    btn.style.marginBottom='-2px';
+  }
+  // Lazy render on first visit
+  if(el && !el._rendered){
+    el._rendered=true;
+    setTimeout(()=>renderLiqSubPanel(panel),80);
+  }
+}
+
+function renderLiqSubPanel(panel){
+  const d=_liqData;
+  if(!d||!Object.keys(d).length) return;
+  const last=arr=>arr?.length?arr[arr.length-1]:null;
+  const fmt=v=>v!=null?v.toFixed(2)+'%':'—';
+  const fmtT=v=>v!=null?v.toFixed(2)+'%':'—';  // Treasury yields
+
+  if(panel==='curve'){
+    // ── Yield Curve strip ──
+    const strip=document.getElementById('liq-curve-strip');
+    const pts=[
+      {l:'2Y',  v:last(d.dgs2)?.val,  s:'DGS2'},
+      {l:'5Y',  v:last(d.dgs5)?.val,  s:'DGS5'},
+      {l:'10Y', v:last(d.dgs10)?.val, s:'DGS10'},
+      {l:'30Y', v:last(d.dgs30)?.val, s:'DGS30'},
+      {l:'10Y−2Y',v:d.t10y2y_val!=null?d.t10y2y_val:null, s:'T10Y2Y', isSpread:true},
+      {l:'10Y−3M',v:d.t10y3m_val!=null?d.t10y3m_val:null, s:'T10Y3M', isSpread:true},
+    ];
+    if(strip) strip.innerHTML=pts.map(p=>{
+      const col=p.isSpread?(p.v!=null?p.v<0?'var(--red)':'var(--green)':'var(--lo)'):'var(--ink)';
+      return`<div style="background:var(--paper);padding:8px 10px">
+        <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:var(--lo);margin-bottom:3px">${p.l}</div>
+        <div style="font-family:Georgia,serif;font-size:15px;font-weight:700;color:${col}">${p.v!=null?(p.isSpread?(p.v>=0?'+':'')+p.v.toFixed(0)+'bp':p.v.toFixed(2)+'%'):'—'}</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--lo);margin-top:2px">${p.s}</div>
+      </div>`;
+    }).join('');
+
+    // Yield curve shape chart
+    const ycPts=[{l:'2Y',v:last(d.dgs2)?.val},{l:'5Y',v:last(d.dgs5)?.val},{l:'10Y',v:last(d.dgs10)?.val},{l:'30Y',v:last(d.dgs30)?.val}].filter(p=>p.v!=null);
+    if(ycPts.length>=2) drawOISCurve('liq-yc-chart', ycPts.map((p,i)=>({label:p.l,tenor:[0,3,8,15][i],val:p.v,src:['DGS2','DGS5','DGS10','DGS30'][i]})));
+
+    // Spread labels
+    const spLabels=document.getElementById('liq-spread-labels');
+    if(spLabels) spLabels.innerHTML=[
+      {l:'10Y−2Y', v:d.t10y2y_val, warn:'<0=倒掛⚠'},
+      {l:'10Y−3M', v:d.t10y3m_val, warn:'<0=倒掛⚠'},
+    ].map(s=>{
+      const col=s.v!=null?(s.v<0?'var(--red)':'var(--green)'):'var(--lo)';
+      return`<div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;text-align:center">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:4px">${s.l}</div>
+        <div style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:${col}">${s.v!=null?(s.v>=0?'+':'')+s.v.toFixed(0)+'bp':'—'}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:${col};margin-top:2px">${s.v!=null&&s.v<0?s.warn:''}</div>
+      </div>`;
+    }).join('');
+
+    // T10Y2Y trend
+    if(d.t10y2y?.length) drawAreaChart('liq-t10y2y-chart', d.t10y2y.map(x=>({date:x.date,val:x.val*100})), d.t10y2y_val<0?'#ef4444':'#22c55e', 90);
+
+    // TIPS breakeven strip
+    const tipsStrip=document.getElementById('liq-tips-strip');
+    if(tipsStrip) tipsStrip.innerHTML=[
+      {l:'5Y Breakeven',v:last(d.t5yie)?.val},
+      {l:'10Y Breakeven',v:last(d.t10yie)?.val},
+    ].map(p=>`<div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;text-align:center">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:3px">${p.l}</div>
+      <div style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:var(--amber)">${p.v!=null?p.v.toFixed(2)+'%':'—'}</div>
+    </div>`).join('');
+
+    // TIPS chart
+    if(d.t5yie?.length||d.t10yie?.length) drawMultiLineChart('liq-tips-chart',[
+      {data:d.t5yie, color:'#f59e0b', width:1.5},
+      {data:d.t10yie,color:'#ef4444', width:1.5},
+    ],100);
+
+    // Real yield
+    if(d.dfii10?.length) drawAreaChart('liq-realyield-chart',d.dfii10,'#8b5cf6',130);
+  }
+
+  else if(panel==='credit'){
+    const strip=document.getElementById('liq-credit-strip');
+    const lHy=last(d.hy)?.val, lIg=last(d.ig)?.val, lFsi=last(d.fsi)?.val, lNfci=last(d.nfci)?.val;
+    if(strip) strip.innerHTML=[
+      {l:'HY Spread',v:lHy,  col:lHy!=null?(lHy>600?'var(--red)':lHy>400?'var(--amber)':'var(--green)'):'var(--lo)', unit:'bp'},
+      {l:'IG Spread', v:lIg, col:lIg!=null?(lIg>200?'var(--red)':lIg>100?'var(--amber)':'var(--green)'):'var(--lo)', unit:'bp'},
+      {l:'St.Louis FSI',v:lFsi,col:lFsi!=null?(lFsi>0?'var(--red)':'var(--green)'):'var(--lo)',unit:''},
+      {l:'NFCI',v:lNfci,col:lNfci!=null?(lNfci>0?'var(--red)':'var(--green)'):'var(--lo)',unit:''},
+    ].map(p=>`<div style="background:var(--paper);padding:10px 12px">
+      <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
+      <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?(p.v.toFixed(2)+p.unit):'—'}</div>
+    </div>`).join('');
+    if(d.hy?.length)   drawAreaChart('liq-hy-chart',  d.hy,  '#ef4444', 120);
+    if(d.ig?.length)   drawAreaChart('liq-ig-chart',  d.ig,  '#f59e0b', 120);
+    if(d.fsi?.length)  drawAreaChart('liq-fsi-chart', d.fsi, d.fsi[d.fsi.length-1]?.val>0?'#ef4444':'#22c55e', 120);
+    if(d.nfci?.length) drawAreaChart('liq-nfci-chart',d.nfci,d.nfci[d.nfci.length-1]?.val>0?'#ef4444':'#22c55e', 120);
+  }
+
+  else if(panel==='dollar'){
+    const strip=document.getElementById('liq-dollar-strip');
+    const lDxy=last(d.dxy)?.val, lWalcl=last(d.walcl)?.val, lResbal=last(d.resbal)?.val, lMmf=last(d.mmf)?.val;
+    if(strip) strip.innerHTML=[
+      {l:'Broad USD',v:lDxy,  fmt:v=>v?.toFixed(2), col:'var(--amber)'},
+      {l:'Fed Assets',v:lWalcl,fmt:v=>v?'$'+Math.round(v/1000)+'B':'—',col:'var(--pur)'},
+      {l:'Reserves',  v:lResbal,fmt:v=>v?'$'+Math.round(v/1000)+'B':'—',col:lResbal!=null?(lResbal<3000?'var(--red)':lResbal<4000?'var(--amber)':'var(--green)'):'var(--lo)'},
+      {l:'MMF Assets', v:lMmf, fmt:v=>v?'$'+Math.round(v/1000)+'B':'—', col:'var(--cyan)'},
+    ].map(p=>`<div style="background:var(--paper);padding:10px 12px">
+      <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
+      <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?p.fmt(p.v):'—'}</div>
+    </div>`).join('');
+    if(d.dxy?.length)    drawAreaChart('liq-dxy-chart',    d.dxy,   '#f59e0b', 130);
+    if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl, '#8b5cf6', 130);
+    if(d.resbal?.length) drawAreaChart('liq-resbal-chart', d.resbal,'#22c55e', 120);
+    if(d.mmf?.length)    drawAreaChart('liq-mmf-chart',    d.mmf,   '#06b6d4', 120);
   }
 }
 
