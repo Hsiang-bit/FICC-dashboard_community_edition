@@ -8891,7 +8891,9 @@ function drawMultiLineChart(canvasId, series, h=150, opts={}){
     });
   }
 
-  // Hover tooltip
+  // Store redraw fn so hover can restore the chart
+  canvas._redrawML = () => drawMultiLineChart(canvasId, series, h, opts);
+
   const _n=refDates.length;
   if(!canvas._mlHoverBound && _n>1){
     canvas._mlHoverBound=true; canvas.style.cursor='crosshair';
@@ -8901,19 +8903,32 @@ function drawMultiLineChart(canvasId, series, h=150, opts={}){
       const cWm=canvas.width-(pad.l+pad.r)*dpr;
       const idx=Math.min(Math.max(Math.round((mx-pad.l*dpr)/cWm*(_n-1)),0),_n-1);
 
-      // Redraw base
+      // Redraw full chart first, then overlay crosshair
+      if(canvas._redrawML) canvas._redrawML();
       const ctx2=canvas.getContext('2d');
-      ctx2.clearRect(0,0,canvas.width,canvas.height);
-      // Quick redraw (re-call function is cleaner but expensive; use stored coords)
       const xPos=pad.l*dpr+(idx/(_n-1||1))*cWm;
-      // Vertical crosshair
-      ctx2.setLineDash([4,4]); ctx2.strokeStyle='rgba(128,128,128,0.4)'; ctx2.lineWidth=1*dpr;
+
+      // Vertical dashed line
+      ctx2.setLineDash([4,4]); ctx2.strokeStyle='rgba(128,128,128,0.45)'; ctx2.lineWidth=1*dpr;
       ctx2.beginPath(); ctx2.moveTo(xPos,pad.t*dpr); ctx2.lineTo(xPos,canvas.height-pad.b*dpr); ctx2.stroke();
       ctx2.setLineDash([]);
 
+      // Dot on each series at cursor
+      series.forEach(s=>{
+        const v=s.data?.[idx]?.val; if(v==null) return;
+        const allV=s.data.map(d=>d.val).filter(v=>!isNaN(v));
+        const smn=Math.min(...allV), smx=Math.max(...allV), sr=Math.max(smx-smn,0.01);
+        const spad=sr*0.1; const shi=smx+spad, slo=smn-spad, sfull=shi-slo;
+        const sy=pad.t*dpr+((shi-v)/sfull)*(canvas.height-(pad.t+pad.b)*dpr);
+        ctx2.beginPath(); ctx2.arc(xPos,sy,3.5*dpr,0,Math.PI*2);
+        ctx2.fillStyle=s.color; ctx2.fill();
+        ctx2.strokeStyle='white'; ctx2.lineWidth=1.2*dpr; ctx2.stroke();
+      });
+
+      // Tooltip
       const tip=document.getElementById(canvasId+'-tooltip');
       const date=series[0]?.data?.[idx]?.date||'';
-      const vals=series.map((s)=>{
+      const vals=series.map(s=>{
         const v=s.data?.[idx]?.val;
         return v!=null?`<span style="color:${s.color};font-weight:700">${s.label?s.label+' ':''}${v.toFixed(3)}%</span>`:'';
       }).filter(Boolean).join('  ');
@@ -8921,6 +8936,7 @@ function drawMultiLineChart(canvasId, series, h=150, opts={}){
         tip.innerHTML=`<span style="color:var(--lo)">${date}</span>  ${vals}`; }
     });
     canvas.addEventListener('mouseleave',()=>{
+      if(canvas._redrawML) canvas._redrawML();
       const tip=document.getElementById(canvasId+'-tooltip');
       if(tip) tip.style.display='none';
     });
