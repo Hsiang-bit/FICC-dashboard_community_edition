@@ -8756,7 +8756,7 @@ function renderLiquidity(){
 
 // ── Chart drawing utilities ──
 
-function drawMultiLineChart(canvasId, series, h=150){
+function drawMultiLineChart(canvasId, series, h=150, opts={}){
   const canvas=document.getElementById(canvasId);
   if(!canvas||!series.length) return;
   const dpr=window.devicePixelRatio||1;
@@ -8786,8 +8786,21 @@ function drawMultiLineChart(canvasId, series, h=150){
     ctx.fillText(label, 0, y+3*dpr);
   }
 
+  // Annotation lines (horizontal thresholds)
+  if(opts.annotations){
+    opts.annotations.forEach(({val,label,color:ac})=>{
+      if(val<lo||val>hi) return;
+      const ay=pad.t+((hi-val)/r)*cH;
+      ctx.setLineDash([5,4]); ctx.strokeStyle=ac||'rgba(99,102,241,0.45)'; ctx.lineWidth=1*dpr;
+      ctx.beginPath(); ctx.moveTo(pad.l*dpr,ay); ctx.lineTo(W-pad.r*dpr,ay); ctx.stroke();
+      ctx.setLineDash([]);
+      if(label){ ctx.fillStyle=ac||'rgba(99,102,241,0.7)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='right';
+        ctx.fillText(label, W-pad.r*dpr-2*dpr, ay-3*dpr); }
+    });
+  }
+
   // Draw each series
-  series.forEach(({data, color, width=1.5, dash=[]}) => {
+  series.forEach(({data, color, width=1.5, dash=[], label}) => {
     if(!data?.length) return;
     const dates=data.map(d=>d.date);
     const n=data.length;
@@ -8800,6 +8813,20 @@ function drawMultiLineChart(canvasId, series, h=150){
       i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
     });
     ctx.stroke(); ctx.setLineDash([]);
+    // Series label at right end
+    if(label && data?.length){
+      const lastPt = data[data.length-1];
+      const lv = lastPt?.val;
+      if(lv!=null){
+        const lx = pad.l*dpr + cW;
+        const allV2 = series.flatMap(s=>s.data?.map(d=>d.val)).filter(v=>v!=null);
+        const mn2=Math.min(...allV2), mx2=Math.max(...allV2), rng2=mx2-mn2||0.01;
+        const pad2=rng2*0.1; const hi2=mx2+pad2, r2=hi2-mn2+pad2*2;
+        const ly = (pad.t + ((hi2-lv)/r2)*cH)*dpr;
+        ctx.fillStyle = color; ctx.font = `bold ${7*dpr}px monospace`; ctx.textAlign='left';
+        ctx.fillText(label+' '+lv.toFixed(2)+'%', lx+3*dpr, ly+3*dpr);
+      }
+    }
   });
 
   // X-axis date labels
@@ -9307,7 +9334,11 @@ function renderLiqSubPanel(panel){
     if(d.t10y2y?.length) drawAreaChart('liq-t10y2y-chart',
       d.t10y2y.map(x=>({date:x.date,val:x.val!=null?x.val*100:null})).filter(x=>x.val!=null),
       (d.t10y2y_val??0)<0?'#ef4444':'#22c55e', 90,
-      {unit:'bp', zeroLine:true, thresholds:[{val:0,color:'rgba(239,68,68,0.6)',label:'倒掛基準'}]});
+      {unit:'bp', zeroLine:true,
+       thresholds:[
+         {val:0,   color:'rgba(239,68,68,0.55)',  label:'0bp ← 倒掛開始'},
+         {val:-50, color:'rgba(239,68,68,0.35)',  label:'-50bp 深度倒掛'},
+       ]});
 
     // TIPS breakeven strip
     const tipsStrip=document.getElementById('liq-tips-strip');
@@ -9321,12 +9352,20 @@ function renderLiqSubPanel(panel){
 
     // TIPS chart
     if(d.t5yie?.length||d.t10yie?.length) drawMultiLineChart('liq-tips-chart',[
-      {data:d.t5yie, color:'#f59e0b', width:1.5, label:'5Y BE'},
+      {data:d.t5yie, color:'#f59e0b', width:2, label:'5Y BE'},
       {data:d.t10yie,color:'#ef4444', width:1.5, label:'10Y BE'},
-    ],100, {unit:'%', annotations:[{val:2.5,label:'Fed 目標 2.5%',color:'rgba(99,102,241,0.5)'}]});
+    ],100, {annotations:[
+      {val:2.5,label:'Fed 目標 2.5% ↑ = 通膨預期過熱', color:'rgba(239,68,68,0.5)'},
+      {val:2.0,label:'2.0% 理想通膨',                  color:'rgba(34,197,94,0.5)'},
+    ]});
 
     // Real yield
-    if(d.dfii10?.length) drawAreaChart('liq-realyield-chart',d.dfii10,'#8b5cf6',130,{unit:'%',zeroLine:true,thresholds:[{val:0,color:'rgba(99,102,241,0.6)',label:'0% 實質利率'}],minRng:0.5});
+    if(d.dfii10?.length) drawAreaChart('liq-realyield-chart',d.dfii10,'#8b5cf6',130,{unit:'%',zeroLine:true,minRng:0.5,
+      thresholds:[
+        {val:0,   color:'rgba(128,128,128,0.5)',  label:'0% ← 負實質利率區（利多 Gold）'},
+        {val:1.5, color:'rgba(239,68,68,0.4)',    label:'1.5% 對 Gold 壓力大'},
+        {val:2.5, color:'rgba(239,68,68,0.6)',    label:'2.5% 強壓力'},
+      ]});
   }
 
   else if(panel==='credit'){
@@ -9341,10 +9380,31 @@ function renderLiqSubPanel(panel){
       <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?(p.v.toFixed(2)+p.unit):'—'}</div>
     </div>`).join('');
-    if(d.hy?.length)   drawAreaChart('liq-hy-chart',  d.hy,  '#ef4444', 120, {unit:'bp',thresholds:[{val:400,color:'rgba(245,158,11,0.5)',label:'警戒 400bp'},{val:600,color:'rgba(239,68,68,0.6)',label:'危機 600bp'}]});
-    if(d.ig?.length)   drawAreaChart('liq-ig-chart',  d.ig,  '#f59e0b', 120, {unit:'bp',thresholds:[{val:150,color:'rgba(245,158,11,0.5)',label:'壓力 150bp'},{val:250,color:'rgba(239,68,68,0.6)',label:'危機 250bp'}]});
-    if(d.fsi?.length)  drawAreaChart('liq-fsi-chart', d.fsi, d.fsi[d.fsi.length-1]?.val>0?'#ef4444':'#22c55e', 120, {unit:'',zeroLine:true,thresholds:[{val:0,color:'rgba(128,128,128,0.4)',label:'正常基準'}]});
-    if(d.nfci?.length) drawAreaChart('liq-nfci-chart',d.nfci,d.nfci[d.nfci.length-1]?.val>0?'#ef4444':'#22c55e', 120, {unit:'',zeroLine:true,thresholds:[{val:0.5,color:'rgba(245,158,11,0.5)',label:'偏緊 0.5'},{val:-0.5,color:'rgba(34,197,94,0.5)',label:'寬鬆 -0.5'}]});
+    if(d.hy?.length)   drawAreaChart('liq-hy-chart',  d.hy,  '#ef4444', 120, {unit:'bp',
+      thresholds:[
+        {val:300, color:'rgba(34,197,94,0.45)',   label:'300bp 正常上限'},
+        {val:450, color:'rgba(245,158,11,0.55)',  label:'450bp Risk-Off 訊號'},
+        {val:650, color:'rgba(239,68,68,0.65)',   label:'650bp 系統性風險'},
+      ]});
+    if(d.ig?.length)   drawAreaChart('liq-ig-chart',  d.ig,  '#f59e0b', 120, {unit:'bp',
+      thresholds:[
+        {val:80,  color:'rgba(34,197,94,0.45)',   label:'80bp 寬鬆'},
+        {val:150, color:'rgba(245,158,11,0.55)',  label:'150bp 壓力上升'},
+        {val:250, color:'rgba(239,68,68,0.65)',   label:'250bp 信用危機'},
+      ]});
+    if(d.fsi?.length)  drawAreaChart('liq-fsi-chart', d.fsi, d.fsi[d.fsi.length-1]?.val>0?'#ef4444':'#22c55e', 120, {unit:'',zeroLine:true,
+      thresholds:[
+        {val:0,  color:'rgba(128,128,128,0.45)',  label:'0 = 正常水位'},
+        {val:1,  color:'rgba(245,158,11,0.55)',   label:'+1σ 壓力升溫'},
+        {val:2,  color:'rgba(239,68,68,0.65)',    label:'+2σ 金融壓力'},
+      ]});
+    if(d.nfci?.length) drawAreaChart('liq-nfci-chart',d.nfci,d.nfci[d.nfci.length-1]?.val>0?'#ef4444':'#22c55e', 120, {unit:'',zeroLine:true,
+      thresholds:[
+        {val:-0.5,color:'rgba(34,197,94,0.5)',    label:'-0.5 寬鬆金融環境'},
+        {val:0,   color:'rgba(128,128,128,0.4)',  label:'0 = 歷史平均'},
+        {val:0.5, color:'rgba(245,158,11,0.55)',  label:'+0.5 金融條件偏緊'},
+        {val:1.0, color:'rgba(239,68,68,0.6)',    label:'+1.0 顯著收緊'},
+      ]});
   }
 
   else if(panel==='dollar'){
@@ -9360,8 +9420,18 @@ function renderLiqSubPanel(panel){
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?p.fmt(p.v):'—'}</div>
     </div>`).join('');
     if(d.dxy?.length)    drawAreaChart('liq-dxy-chart',    d.dxy,   '#f59e0b', 130);
-    if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null), '#8b5cf6', 130, {unit:'T',thresholds:[{val:7,color:'rgba(239,68,68,0.4)',label:'峰值 ~$9T'},{val:6.5,color:'rgba(245,158,11,0.4)',label:'QT 進行中'}]});
-    if(d.resbal?.length) drawAreaChart('liq-resbal-chart', d.resbal.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),'#22c55e', 120, {unit:'T',thresholds:[{val:3,color:'rgba(239,68,68,0.6)',label:'警戒 $3T'}]});
+    if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null), '#8b5cf6', 130, {unit:'T',
+      thresholds:[
+        {val:9,   color:'rgba(239,68,68,0.4)',    label:'$9T 2022 峰值'},
+        {val:6.5, color:'rgba(245,158,11,0.45)',  label:'$6.5T QT 縮表中'},
+        {val:5.5, color:'rgba(34,197,94,0.45)',   label:'$5.5T 目標區間'},
+      ]});
+    if(d.resbal?.length) drawAreaChart('liq-resbal-chart', d.resbal.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),'#22c55e', 120, {unit:'T',
+      thresholds:[
+        {val:4,  color:'rgba(34,197,94,0.45)',    label:'$4T 充裕水位'},
+        {val:3,  color:'rgba(245,158,11,0.55)',   label:'$3T 警戒線'},
+        {val:2,  color:'rgba(239,68,68,0.65)',    label:'$2T 緊張臨界點'},
+      ]});
     if(d.mmf?.length)    drawAreaChart('liq-mmf-chart',    d.mmf.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),   '#06b6d4', 120, {unit:'T'});
   }
 }
