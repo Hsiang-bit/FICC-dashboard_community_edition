@@ -1012,6 +1012,7 @@ select option{background:var(--paper2)}
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Curve Spreads</div>
         <div id="liq-spread-labels" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"></div>
         <canvas id="liq-t10y2y-chart" style="width:100%;height:90px;display:block"></canvas>
+        <div id="liq-t10y2y-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">10Y−2Y Spread · 倒掛 = 衰退預警</div>
       </div>
     </div>
@@ -1020,12 +1021,27 @@ select option{background:var(--paper2)}
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Breakeven Inflation（TIPS）</div>
         <div id="liq-tips-strip" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"></div>
         <canvas id="liq-tips-chart" style="width:100%;height:100px;display:block"></canvas>
+        <div id="liq-tips-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">5Y & 10Y 通膨預期 · Gold 核心驅動</div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Real Yield（10Y TIPS）</div>
         <canvas id="liq-realyield-chart" style="width:100%;height:130px;display:block"></canvas>
+        <div id="liq-realyield-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">DFII10 · 實質利率 ↑ → Gold 壓力</div>
+      </div>
+    </div>
+
+    <!-- Definitions -->
+    <div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-top:12px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">指標定義 & 來源（FRED）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:10px;line-height:1.7">
+        <div><strong>DGS2/5/10/30</strong>：美國國債定期殖利率，每日更新。反映不同期限的無風險利率預期。</div>
+        <div><strong>T10Y2Y</strong>：10年-2年殖利率利差（bp）。倒掛（&lt;0）歷史上預測衰退，通常領先 6-18 個月。</div>
+        <div><strong>T10Y3M</strong>：10年-3月殖利率利差。Fed 研究偏好此指標，倒掛預測力更強。</div>
+        <div><strong>T5YIE / T10YIE</strong>：TIPS 隱含通膨預期（Breakeven Inflation）。TIPS 固定+通膨補償，與名目殖利率差即市場對通膨的定價。</div>
+        <div><strong>DFII10</strong>：10年實質利率（名目-通膨預期）。負實質利率 → 持有現金有損失 → 利多 Gold/Risk Assets。</div>
+        <div><strong>DGS1/2（OIS proxy）</strong>：短天期 Treasury 近似 OIS（Overnight Index Swap），反映市場對 Fed 路徑的定價。</div>
       </div>
     </div>
   </div><!-- /liq-panel-curve -->
@@ -1037,11 +1053,13 @@ select option{background:var(--paper2)}
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">HY Credit Spread (OAS)</div>
         <canvas id="liq-hy-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-hy-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">BAMLH0A0HYM2 · 高收益利差 ↑ = Risk-Off</div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">IG Credit Spread (OAS)</div>
         <canvas id="liq-ig-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-ig-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">BAMLC0A0CM · 投資等級利差</div>
       </div>
     </div>
@@ -1049,12 +1067,25 @@ select option{background:var(--paper2)}
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">St. Louis 金融壓力指數</div>
         <canvas id="liq-fsi-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-fsi-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">STLFSI4 · &gt;0 = 壓力升溫</div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Chicago Fed 金融條件</div>
         <canvas id="liq-nfci-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-nfci-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">NFCI · &lt;0 = 寬鬆，&gt;0 = 緊縮</div>
+      </div>
+    </div>
+
+    <!-- Definitions -->
+    <div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-top:12px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">指標定義 & 來源（FRED / ICE BofA）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:10px;line-height:1.7">
+        <div><strong>BAMLH0A0HYM2（HY OAS）</strong>：ICE BofA 美國高收益債 Option-Adjusted Spread。High Yield 發行人相對美國國債的溢價（bp）。&gt;450bp = Risk-Off 訊號，&gt;650bp = 系統性壓力。</div>
+        <div><strong>BAMLC0A0CM（IG OAS）</strong>：ICE BofA 美國投資等級債利差。代表優質企業借貸成本溢價，反映整體信用環境健康度。</div>
+        <div><strong>STLFSI4</strong>：聖路易斯聯儲金融壓力指數。綜合 18 個金融市場指標（利率、利差、其他指標）。0 = 歷史平均，正值 = 壓力高於平均，每週更新。</div>
+        <div><strong>NFCI</strong>：Chicago Fed 全國金融條件指數。覆蓋 105 個金融指標（貨幣、債券、股票、影子銀行）。負值 = 寬鬆，正值 = 緊縮，每週更新。</div>
       </div>
     </div>
   </div><!-- /liq-panel-credit -->
@@ -1066,11 +1097,13 @@ select option{background:var(--paper2)}
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">廣義美元指數 (DTWEXBGS)</div>
         <canvas id="liq-dxy-chart" style="width:100%;height:130px;display:block"></canvas>
+        <div id="liq-dxy-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">Fed 廣義貿易加權美元 · 比 DXY 更全面</div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Fed 資產負債表 (WALCL)</div>
         <canvas id="liq-walcl-chart" style="width:100%;height:130px;display:block"></canvas>
+        <div id="liq-walcl-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">QT 縮表進度 · 每週更新</div>
       </div>
     </div>
@@ -1078,12 +1111,25 @@ select option{background:var(--paper2)}
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">銀行準備金 (WRESBAL)</div>
         <canvas id="liq-resbal-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-resbal-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">銀行體系準備金 · &lt;$3T 開始關注</div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">貨幣市場基金 (WRMFSL)</div>
         <canvas id="liq-mmf-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-mmf-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">零售 MMF 規模 · 潛在市場流動性</div>
+      </div>
+    </div>
+
+    <!-- Definitions -->
+    <div style="background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-top:12px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">指標定義 & 來源（FRED / Federal Reserve）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:10px;line-height:1.7">
+        <div><strong>DTWEXBGS</strong>：Fed 廣義貿易加權美元指數。覆蓋 26 個主要貿易夥伴貨幣（比 DXY 的 6 種更全面），以進出口貿易量加權。</div>
+        <div><strong>WALCL</strong>：Fed 資產負債表總資產。QE 期間快速膨脹（2020 +$3T），QT 縮表中逐漸回落。直接影響系統流動性，每週四更新。</div>
+        <div><strong>WRESBAL</strong>：銀行準備金餘額（存放於聯儲的準備金）。$3T 以下開始出現流動性壓力，$2T 是 2019 年 repo 危機的觸發水位，每週更新。</div>
+        <div><strong>WRMFSL</strong>：零售貨幣市場基金總資產。高水位（&gt;$2T）代表大量資金停泊在 MMF 等待時機。RRP ↓ + MMF 規模穩定 = 資金流回市場，每週更新。</div>
       </div>
     </div>
   </div><!-- /liq-panel-dollar -->
@@ -8585,8 +8631,14 @@ async function loadLiquidity(force=false){
     hy,ig,fsi,nfci,dxy,walcl,resbal,mmf,
     sofrPct,sofrPct30,sofrPct90
   };
-  // Reset sub-panel render flags on refresh
+  // Reset sub-panel render flags on refresh, then re-render active panel
   document.querySelectorAll('.liq-panel').forEach(p=>p._rendered=false);
+  // Re-render currently visible panel immediately (data just loaded)
+  const activePanel = document.querySelector('.liq-panel[style*="block"]');
+  if(activePanel && activePanel.id){
+    const pName = activePanel.id.replace('liq-panel-','');
+    if(pName !== 'liquidity'){ activePanel._rendered=true; setTimeout(()=>renderLiqSubPanel(pName),100); }
+  }
 
   // Check if anything loaded
   const loadedCount = [sofr,effr,iorb,rrp].filter(s=>s?.length>0).length;
@@ -8838,6 +8890,30 @@ function drawMultiLineChart(canvasId, series, h=150, opts={}){
       if(!refDates[i]) return;
       const x=pad.l+(i/(refDates.length-1||1))*cW;
       ctx.fillText(refDates[i].date.slice(5), x, H-2*dpr);
+    });
+  }
+
+  // Hover tooltip
+  const _n=refDates.length;
+  if(!canvas._mlHoverBound && _n>1){
+    canvas._mlHoverBound=true; canvas.style.cursor='crosshair';
+    canvas.addEventListener('mousemove',e=>{
+      const rect=canvas.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
+      const idx=Math.min(Math.max(Math.round((mx-pad.l*dpr)/((canvas.width-(pad.l+pad.r)*dpr))*(_n-1)),0),_n-1);
+      const tip=document.getElementById(canvasId+'-tooltip');
+      if(!tip) return;
+      const date=series[0]?.data?.[idx]?.date||'';
+      const vals=series.map((s,i)=>{
+        const v=s.data?.[idx]?.val;
+        return v!=null?`<span style="color:${s.color};font-weight:700">${s.label?s.label+' ':''}${v.toFixed(3)}%</span>`:'';
+      }).filter(Boolean).join('  ');
+      tip.style.display='block';
+      tip.innerHTML=`<span style="color:var(--lo)">${date}</span>  ${vals}`;
+    });
+    canvas.addEventListener('mouseleave',()=>{
+      const tip=document.getElementById(canvasId+'-tooltip');
+      if(tip) tip.style.display='none';
     });
   }
 }
