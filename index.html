@@ -1133,8 +1133,8 @@ select option{background:var(--paper2)}
       <div style="font-family:var(--mono);font-size:9px;color:var(--lo);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">指標定義 & 來源（FRED / Federal Reserve）</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:10px;line-height:1.7">
         <div><strong>DTWEXBGS</strong>：Fed 廣義貿易加權美元指數。覆蓋 26 個主要貿易夥伴貨幣（比 DXY 的 6 種更全面），以進出口貿易量加權。</div>
-        <div><strong>WALCL</strong>：Fed 資產負債表總資產。QE 期間快速膨脹（2020 +$3T），QT 縮表中逐漸回落。直接影響系統流動性，每週四更新。</div>
-        <div><strong>WRESBAL</strong>：銀行準備金餘額（存放於聯儲的準備金）。$3T 以下開始出現流動性壓力，$2T 是 2019 年 repo 危機的觸發水位，每週更新。</div>
+        <div><strong>WALCL</strong>：Fed 資產負債表總資產（單位：兆美元 T）。FRED 原始單位為百萬美元，已轉換。QE 期間膨脹至 $9T，QT 縮表中，每週四更新。</div>
+        <div><strong>WRESBAL</strong>：銀行準備金餘額（單位：兆美元 T，FRED 原始為十億美元）。$3T 以下開始出現流動性壓力，$2T 是 2019 年 repo 危機的觸發水位，每週更新。</div>
         <div><strong>WRMFSL</strong>：零售貨幣市場基金總資產。高水位（&gt;$2T）代表大量資金停泊在 MMF 等待時機。RRP ↓ + MMF 規模穩定 = 資金流回市場，每週更新。</div>
       </div>
     </div>
@@ -9576,9 +9576,9 @@ function renderLiqSubPanel(panel){
     const lDxy=last(d.dxy)?.val, lWalcl=last(d.walcl)?.val, lResbal=last(d.resbal)?.val, lMmf=last(d.mmf)?.val;
     if(strip) strip.innerHTML=[
       {l:'Broad USD',v:lDxy,  fmt:v=>v?.toFixed(2), col:'var(--amber)'},
-      {l:'Fed Assets',v:lWalcl,fmt:v=>v?'$'+Math.round(v/1000)+'B':'—',col:'var(--pur)'},
-      {l:'Reserves',  v:lResbal,fmt:v=>v?'$'+Math.round(v/1000)+'B':'—',col:lResbal!=null?(lResbal<3000?'var(--red)':lResbal<4000?'var(--amber)':'var(--green)'):'var(--lo)'},
-      {l:'MMF Assets', v:lMmf, fmt:v=>v?'$'+Math.round(v/1000)+'B':'—', col:'var(--cyan)'},
+      {l:'Fed Assets', v:lWalcl,  fmt:v=>v?'$'+(v/1000000).toFixed(2)+'T':'—', col:'var(--pur)'},
+      {l:'Reserves',   v:lResbal, fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—',   col:lResbal!=null?(lResbal<3000?'var(--red)':lResbal<4000?'var(--amber)':'var(--green)'):'var(--lo)'},
+      {l:'MMF Assets', v:lMmf,   fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—',   col:'var(--cyan)'},
     ].map(p=>`<div style="background:var(--paper);padding:10px 12px">
       <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?p.fmt(p.v):'—'}</div>
