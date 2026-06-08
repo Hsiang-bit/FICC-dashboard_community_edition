@@ -8989,7 +8989,8 @@ function drawAreaChart(canvasId, data, color='#3b82f6', h=120, opts={}){
     } else {
       const prefix = opts.yPrefix||'';
       const abs = Math.abs(v);
-      const sign = splitColor ? (v>=0?'+':'-') : '';
+      const isSplit = (mn<0&&mx>0); // inline, before splitColor is declared
+      const sign = isSplit ? (v>=0?'+':'-') : '';
       label = abs>=1000 ? sign+prefix+Math.round(abs/1000)+'k'+(opts.unit||'%')
             : abs>=100  ? sign+prefix+abs.toFixed(0)+(opts.unit||'%')
             :             sign+prefix+abs.toFixed(2)+(opts.unit||'%');
