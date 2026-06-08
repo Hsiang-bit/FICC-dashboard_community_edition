@@ -1658,10 +1658,25 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
         3. 部署後把 Worker URL 填入上方欄位<br><br>
         <code style="display:block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px 12px;white-space:pre;font-size:9px;line-height:1.7;overflow-x:auto">export default {
   async fetch(request) {
+    // Health check for GET requests
+    if (request.method === 'GET') {
+      return new Response(JSON.stringify({ ok: true, service: 'FICC Proxy' }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+      });
+    }
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders() });
     }
-    const body = await request.json();
+    // Parse body with error handling
+    let body;
+    try {
+      body = await request.json();
+    } catch(e) {
+      return new Response(JSON.stringify({ error: true, message: 'Invalid JSON body: ' + e.message }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+      });
+    }
 
     // ── FRED API proxy ──
     if (body.fred) {
@@ -1716,17 +1731,28 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
     }
 
     // ── Gemini API proxy (default) ──
-    const { model, contents, generationConfig, apiKey } = body;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents, generationConfig }),
-    });
-    const data = await res.json();
-    return new Response(JSON.stringify(data), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    });
+    // Handles both callGemini and callGrok (which also uses Gemini)
+    try {
+      const { model, apiKey } = body;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      // Pass through full payload (supports safetySettings, tools/google_search, etc.)
+      const payload = body.payload || { contents: body.contents, generationConfig: body.generationConfig, safetySettings: body.safetySettings, tools: body.tools };
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      return new Response(text, {
+        status: res.status,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+      });
+    } catch(e) {
+      return new Response(JSON.stringify({ error: true, message: e.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+      });
+    }
   }
 };
 function corsHeaders() {
