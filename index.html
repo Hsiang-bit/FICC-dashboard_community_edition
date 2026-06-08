@@ -413,6 +413,13 @@ select option{background:var(--paper2)}
       請先在程式碼頂端填入 SUPABASE_URL 與 SUPABASE_ANON_KEY<br>
       <span style="color:var(--lo)">或聯絡管理員取得連線資訊</span>
     </div>
+  
+
+  
+
+  
+
+
     <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
       <button onclick="useWithoutAccount()" style="background:none;border:none;font-family:var(--mono);font-size:10px;color:var(--lo);cursor:pointer;text-decoration:underline;padding:4px 8px">不登入，本地使用（資料僅存此裝置）</button>
     </div>
@@ -1885,6 +1892,59 @@ create policy "own all" on ficc_sync for all using (key like '%'||auth.uid()::te
       <button class="btn btn-g btn-sm" onclick="resetDefaultAssets()">↺ 還原預設</button>
     </div>
   </div>
+  
+
+  
+
+  
+
+  <div class="card mb16" style="max-width:680px">
+    <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">🔍 Perplexity API Key（Macro 即時搜尋）</div>
+    <div class="settings-row">
+      <div class="settings-label">Perplexity API Key</div>
+      <input type="password" id="pplxKey" placeholder="pplx-..." oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
+      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('pplxKey')">👁</button>
+    </div>
+  </div>
+
+  <div class="card mb16" style="max-width:680px">
+    <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">☁️ GitHub Gist 雲端同步</div>
+    <div style="padding:8px 12px;background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.12);border-radius:var(--r);font-family:var(--mono);font-size:10px;color:var(--mid);line-height:1.9;margin-bottom:12px">
+      將 Checklist 結構、Gantt 任務、Settings 存到 <b>私人 GitHub Gist</b>，換裝置/換瀏覽器自動恢復。<br>
+      <span style="color:var(--lo)">取得 Token：github.com → Settings → Developer settings → Personal access tokens → New token → 勾選 <b>gist</b> 權限</span>
+    </div>
+    <div class="settings-row" style="margin-bottom:8px">
+      <div class="settings-label">GitHub Token</div>
+      <input type="password" id="ghToken" placeholder="ghp_..." oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
+      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('ghToken')">👁</button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-label">Gist ID（留空自動建立）</div>
+      <input type="text" id="ghGistId" placeholder="自動" oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
+      <a id="ghGistLink" href="#" target="_blank" style="display:none;font-family:var(--mono);font-size:10px;color:var(--blue);white-space:nowrap;margin-left:8px">🔗 查看</a>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <button class="btn btn-g btn-sm" onclick="gistPush()">⬆ 上傳</button>
+      <button class="btn btn-g btn-sm" onclick="gistPull()">⬇ 下載</button>
+      <span id="gistStatus" style="font-family:var(--mono);font-size:10px;color:var(--lo)"></span>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:6px" id="gistLastSync"></div>
+  </div>
+
+  <div class="card mb16" style="max-width:680px">
+    <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">🖼 圖表上傳（imgbb）</div>
+    <div style="padding:8px 12px;background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.12);border-radius:var(--r);font-family:var(--mono);font-size:10px;color:var(--mid);line-height:1.9;margin-bottom:10px">
+      Trade Log 圖表透過 <b>imgbb</b> 免費圖床上傳，再由 Notion 抓取顯示。<br>
+      <span style="color:var(--lo)">取得免費 API Key：<a href="https://imgbb.com/signup" target="_blank" style="color:var(--blue)">imgbb.com/signup</a> → API → Add API key</span>
+    </div>
+    <div class="settings-row" style="margin-bottom:6px">
+      <div class="settings-label">imgbb API Key</div>
+      <input type="password" id="imgbbKey" placeholder="..." oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
+      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('imgbbKey')">👁</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--lo)" id="imgbbStatus"></div>
+  </div>
+
   <div class="card" style="max-width:680px">
     <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">💾 本地資料管理</div>
     <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-bottom:10px;line-height:1.7">所有資料存於 localStorage。圖片以 base64 儲存，建議定期推送至 Notion 備份。</div>
@@ -10690,56 +10750,3 @@ function renderNewsTicker() {
 
 </body>
 </html>
-  
-
-  
-
-  
-
-
-  <div class="card mb16" style="max-width:680px">
-    <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">🔍 Perplexity API Key（Macro 即時搜尋）</div>
-    <div class="settings-row">
-      <div class="settings-label">Perplexity API Key</div>
-      <input type="password" id="pplxKey" placeholder="pplx-..." oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
-      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('pplxKey')">👁</button>
-    </div>
-  </div>
-
-  <div class="card mb16" style="max-width:680px">
-    <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">☁️ GitHub Gist 雲端同步</div>
-    <div style="padding:8px 12px;background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.12);border-radius:var(--r);font-family:var(--mono);font-size:10px;color:var(--mid);line-height:1.9;margin-bottom:12px">
-      將 Checklist 結構、Gantt 任務、Settings 存到 <b>私人 GitHub Gist</b>，換裝置/換瀏覽器自動恢復。<br>
-      <span style="color:var(--lo)">取得 Token：github.com → Settings → Developer settings → Personal access tokens → New token → 勾選 <b>gist</b> 權限</span>
-    </div>
-    <div class="settings-row" style="margin-bottom:8px">
-      <div class="settings-label">GitHub Token</div>
-      <input type="password" id="ghToken" placeholder="ghp_..." oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
-      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('ghToken')">👁</button>
-    </div>
-    <div class="settings-row" style="margin-bottom:8px">
-      <div class="settings-label">Gist ID（留空自動建立）</div>
-      <input type="text" id="ghGistId" placeholder="自動" oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
-      <a id="ghGistLink" href="#" target="_blank" style="display:none;font-family:var(--mono);font-size:10px;color:var(--blue);white-space:nowrap;margin-left:8px">🔗 查看</a>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
-      <button class="btn btn-g btn-sm" onclick="gistPush()">⬆ 上傳</button>
-      <button class="btn btn-g btn-sm" onclick="gistPull()">⬇ 下載</button>
-      <span id="gistStatus" style="font-family:var(--mono);font-size:10px;color:var(--lo)"></span>
-    </div>
-    <div style="font-family:var(--mono);font-size:10px;color:var(--lo);margin-top:6px" id="gistLastSync"></div>
-  </div>
-
-  <div class="card mb16" style="max-width:680px">
-    <div style="font-family:var(--cond);font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--lo);text-transform:uppercase;margin-bottom:12px">🖼 圖表上傳（imgbb）</div>
-    <div style="padding:8px 12px;background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.12);border-radius:var(--r);font-family:var(--mono);font-size:10px;color:var(--mid);line-height:1.9;margin-bottom:10px">
-      Trade Log 圖表透過 <b>imgbb</b> 免費圖床上傳，再由 Notion 抓取顯示。<br>
-      <span style="color:var(--lo)">取得免費 API Key：<a href="https://imgbb.com/signup" target="_blank" style="color:var(--blue)">imgbb.com/signup</a> 註冊後 → API → Add API key</span>
-    </div>
-    <div class="settings-row" style="margin-bottom:8px">
-      <div class="settings-label">imgbb API Key</div>
-      <input type="password" id="imgbbKey" placeholder="..." oninput="saveSettings()" style="flex:1;font-size:10px;font-family:var(--mono)">
-      <button class="btn btn-g btn-sm" onclick="toggleKeyVis('imgbbKey')">👁</button>
-    </div>
-    <div style="font-family:var(--mono);font-size:10px;color:var(--lo)" id="imgbbStatus"></div>
-  </div>
