@@ -9595,7 +9595,7 @@ function renderLiqSubPanel(panel){
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?p.fmt(p.v):'—'}</div>
     </div>`).join('');
     if(d.dxy?.length)    drawAreaChart('liq-dxy-chart',    d.dxy,   '#f59e0b', 130);
-    if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null), '#8b5cf6', 130, {unit:'T',
+    if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl.map(x=>({date:x.date,val:x.val!=null?x.val/1000000:null})).filter(x=>x.val!=null), '#8b5cf6', 130, {unit:'T',
       thresholds:[
         {val:9,   color:'rgba(239,68,68,0.4)',    label:'$9T 2022 峰值'},
         {val:6.5, color:'rgba(245,158,11,0.45)',  label:'$6.5T QT 縮表中'},
