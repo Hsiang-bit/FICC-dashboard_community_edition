@@ -8982,11 +8982,20 @@ function drawAreaChart(canvasId, data, color='#3b82f6', h=120, opts={}){
     ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
     // Y-axis labels
     const unit=opts.unit||'%';
-    const label=Math.abs(v)>=1000?(v>=0?'+':'')+Math.round(v/1000)+'k'
-              : Math.abs(v)>=100 ?(v>=0?'+':'')+v.toFixed(0)
-              :                   (v>=0?'+':'')+v.toFixed(2);
+    // Y-axis label: use opts.yFmt if provided, else smart format
+    let label;
+    if(opts.yFmt){
+      label = opts.yFmt(v);
+    } else {
+      const prefix = opts.yPrefix||'';
+      const abs = Math.abs(v);
+      const sign = splitColor ? (v>=0?'+':'-') : '';
+      label = abs>=1000 ? sign+prefix+Math.round(abs/1000)+'k'+(opts.unit||'%')
+            : abs>=100  ? sign+prefix+abs.toFixed(0)+(opts.unit||'%')
+            :             sign+prefix+abs.toFixed(2)+(opts.unit||'%');
+    }
     ctx.fillStyle='rgba(128,128,128,0.6)'; ctx.font=`${7*dpr}px monospace`; ctx.textAlign='right';
-    ctx.fillText(label+unit, pad.l-3*dpr, y+3*dpr);
+    ctx.fillText(label, pad.l-3*dpr, y+3*dpr);
   }
   ctx.setLineDash([]);
 
@@ -9058,10 +9067,11 @@ function drawAreaChart(canvasId, data, color='#3b82f6', h=120, opts={}){
     const lx=xOf(n-1), ly=yOf(lastVal);
     ctx.beginPath(); ctx.arc(lx,ly,3*dpr,0,Math.PI*2);
     ctx.fillStyle=splitColor?(lastVal>=0?'#22c55e':'#ef4444'):color; ctx.fill();
-    const lbl=(lastVal>=0&&splitColor?'+':'')+lastVal.toFixed(2)+(opts.unit||'%');
+    const lastLbl = opts.yFmt ? opts.yFmt(lastVal)
+      : (opts.yPrefix||'')+(Math.abs(lastVal)>=100?Math.abs(lastVal).toFixed(0):Math.abs(lastVal).toFixed(2))+(opts.unit||'%');
     ctx.font=`bold ${8*dpr}px monospace`; ctx.textAlign='right';
     ctx.fillStyle=splitColor?(lastVal>=0?'#22c55e':'#ef4444'):color;
-    ctx.fillText(lbl, lx-4*dpr, ly+(lastVal<=(lo+r*0.15)?-4:9)*dpr);
+    ctx.fillText(lastLbl, lx-4*dpr, ly+(lastVal<=(lo+r*0.15)?-4:9)*dpr);
   }
 
   // X-axis dates
@@ -9590,13 +9600,14 @@ function renderLiqSubPanel(panel){
         {val:6.5, color:'rgba(245,158,11,0.45)',  label:'$6.5T QT 縮表中'},
         {val:5.5, color:'rgba(34,197,94,0.45)',   label:'$5.5T 目標區間'},
       ]});
-    if(d.resbal?.length) drawAreaChart('liq-resbal-chart', d.resbal.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),'#22c55e', 120, {unit:'T',
-      thresholds:[
-        {val:4,  color:'rgba(34,197,94,0.45)',    label:'$4T 充裕水位'},
-        {val:3,  color:'rgba(245,158,11,0.55)',   label:'$3T 警戒線'},
-        {val:2,  color:'rgba(239,68,68,0.65)',    label:'$2T 緊張臨界點'},
-      ]});
-    if(d.mmf?.length)    drawAreaChart('liq-mmf-chart',    d.mmf.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),   '#06b6d4', 120, {unit:'T'});
+    if(d.resbal?.length) drawAreaChart('liq-resbal-chart', d.resbal.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),'#22c55e', 120,
+      {yFmt:v=>'$'+v.toFixed(2)+'T', unit:'T',
+       thresholds:[
+         {val:4,  color:'rgba(34,197,94,0.45)',    label:'$4.0T 充裕水位'},
+         {val:3,  color:'rgba(245,158,11,0.55)',   label:'$3.0T 警戒線'},
+         {val:2,  color:'rgba(239,68,68,0.65)',    label:'$2.0T 緊張臨界點'},
+       ]});
+    if(d.mmf?.length)    drawAreaChart('liq-mmf-chart',    d.mmf.map(x=>({date:x.date,val:x.val!=null?x.val/1000:null})).filter(x=>x.val!=null),   '#06b6d4', 120, {yFmt:v=>'$'+v.toFixed(2)+'T', unit:'T'});
   }
 }
 
