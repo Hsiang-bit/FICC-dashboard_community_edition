@@ -9630,25 +9630,34 @@ function renderLiqSubPanel(panel){
   else if(panel==='credit'){
     const strip=document.getElementById('liq-credit-strip');
     const lHy=last(d.hy)?.val, lIg=last(d.ig)?.val, lFsi=last(d.fsi)?.val, lNfci=last(d.nfci)?.val;
+    // Convert % → bp for display (FRED returns % e.g. 3.20 = 320bp)
+    const lHyBp = lHy!=null ? lHy*100 : null;
+    const lIgBp = lIg!=null ? lIg*100 : null;
     if(strip) strip.innerHTML=[
-      {l:'HY Spread',v:lHy,  col:lHy!=null?(lHy>600?'var(--red)':lHy>400?'var(--amber)':'var(--green)'):'var(--lo)', unit:'bp'},
-      {l:'IG Spread', v:lIg, col:lIg!=null?(lIg>200?'var(--red)':lIg>100?'var(--amber)':'var(--green)'):'var(--lo)', unit:'bp'},
+      {l:'HY Spread',v:lHyBp, col:lHyBp!=null?(lHyBp>600?'var(--red)':lHyBp>400?'var(--amber)':'var(--green)'):'var(--lo)', unit:'bp'},
+      {l:'IG Spread', v:lIgBp,col:lIgBp!=null?(lIgBp>200?'var(--red)':lIgBp>100?'var(--amber)':'var(--green)'):'var(--lo)', unit:'bp'},
       {l:'St.Louis FSI',v:lFsi,col:lFsi!=null?(lFsi>0?'var(--red)':'var(--green)'):'var(--lo)',unit:''},
       {l:'NFCI',v:lNfci,col:lNfci!=null?(lNfci>0?'var(--red)':'var(--green)'):'var(--lo)',unit:''},
     ].map(p=>`<div style="background:var(--paper);padding:10px 12px">
       <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?(p.v.toFixed(2)+p.unit):'—'}</div>
     </div>`).join('');
-    if(d.hy?.length)   drawAreaChart('liq-hy-chart',  d.hy,  '#ef4444', 120, {unit:'bp',
+    // BAMLH0A0HYM2: FRED unit = % (e.g. 3.20 = 320bp) → ×100 for bp
+    if(d.hy?.length)   drawAreaChart('liq-hy-chart',
+      d.hy.map(x=>({date:x.date,val:x.val!=null?x.val*100:null})).filter(x=>x.val!=null),
+      '#ef4444', 120, {yFmt:v=>v.toFixed(0)+'bp', unit:'bp',
       thresholds:[
         {val:300, color:'rgba(34,197,94,0.45)',   label:'300bp 正常上限'},
-        {val:450, color:'rgba(245,158,11,0.55)',  label:'450bp Risk-Off 訊號'},
+        {val:450, color:'rgba(245,158,11,0.55)',  label:'450bp Risk-Off'},
         {val:650, color:'rgba(239,68,68,0.65)',   label:'650bp 系統性風險'},
       ]});
-    if(d.ig?.length)   drawAreaChart('liq-ig-chart',  d.ig,  '#f59e0b', 120, {unit:'bp',
+    // BAMLC0A0CM: FRED unit = % (e.g. 0.95 = 95bp) → ×100 for bp
+    if(d.ig?.length)   drawAreaChart('liq-ig-chart',
+      d.ig.map(x=>({date:x.date,val:x.val!=null?x.val*100:null})).filter(x=>x.val!=null),
+      '#f59e0b', 120, {yFmt:v=>v.toFixed(0)+'bp', unit:'bp',
       thresholds:[
         {val:80,  color:'rgba(34,197,94,0.45)',   label:'80bp 寬鬆'},
-        {val:150, color:'rgba(245,158,11,0.55)',  label:'150bp 壓力上升'},
+        {val:150, color:'rgba(245,158,11,0.55)',  label:'150bp 壓力'},
         {val:250, color:'rgba(239,68,68,0.65)',   label:'250bp 信用危機'},
       ]});
     if(d.fsi?.length)  drawAreaChart('liq-fsi-chart', d.fsi, d.fsi[d.fsi.length-1]?.val>0?'#ef4444':'#22c55e', 120, {unit:'',zeroLine:true,
@@ -9670,7 +9679,7 @@ function renderLiqSubPanel(panel){
     const strip=document.getElementById('liq-dollar-strip');
     const lDxy=last(d.dxy)?.val, lWalcl=last(d.walcl)?.val, lResbal=last(d.resbal)?.val, lMmf=last(d.mmf)?.val;
     if(strip) strip.innerHTML=[
-      {l:'Broad USD',v:lDxy,  fmt:v=>v?.toFixed(2), col:'var(--amber)'},
+      {l:'Broad USD',v:lDxy,  fmt:v=>v!=null?v.toFixed(1)+' (idx)':'—', col:'var(--amber)'},
       {l:'Fed Assets', v:lWalcl,  fmt:v=>v?'$'+(v/1000000).toFixed(2)+'T':'—', col:'var(--pur)'},
       {l:'Reserves',   v:lResbal, fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—',   col:lResbal!=null?(lResbal<3000?'var(--red)':lResbal<4000?'var(--amber)':'var(--green)'):'var(--lo)'},
       {l:'MMF Assets', v:lMmf,   fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—',   col:'var(--cyan)'},
@@ -9678,7 +9687,14 @@ function renderLiqSubPanel(panel){
       <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?p.fmt(p.v):'—'}</div>
     </div>`).join('');
-    if(d.dxy?.length)    drawAreaChart('liq-dxy-chart',    d.dxy,   '#f59e0b', 130);
+    // DTWEXBGS: Index Jan 2006=100 (not dollars, not %)
+    if(d.dxy?.length)    drawAreaChart('liq-dxy-chart', d.dxy, '#f59e0b', 130,
+      {yFmt:v=>v.toFixed(1), unit:'',
+       thresholds:[
+         {val:100, color:'rgba(128,128,128,0.4)',  label:'100 = Jan 2006 基準'},
+         {val:110, color:'rgba(239,68,68,0.45)',   label:'110 強美元'},
+         {val:95,  color:'rgba(34,197,94,0.45)',   label:'95 弱美元'},
+       ]});
     if(d.walcl?.length)  drawAreaChart('liq-walcl-chart',  d.walcl.map(x=>({date:x.date,val:x.val!=null?x.val/1000000:null})).filter(x=>x.val!=null), '#8b5cf6', 130, {unit:'T',
       thresholds:[
         {val:9,   color:'rgba(239,68,68,0.4)',    label:'$9T 2022 峰值'},
