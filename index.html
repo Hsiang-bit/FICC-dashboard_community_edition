@@ -1128,7 +1128,7 @@ select option{background:var(--paper2)}
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">銀行體系準備金 · &lt;$3T 開始關注</div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
-        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">貨幣市場基金 (WRMFSL)</div>
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">貨幣市場基金 (WRMFNS)</div>
         <canvas id="liq-mmf-chart" style="width:100%;height:120px;display:block"></canvas>
         <div id="liq-mmf-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">零售 MMF 規模 · 潛在市場流動性</div>
@@ -8677,7 +8677,7 @@ async function loadLiquidity(force=false){
     fetchSeries('DTWEXBGS',      range),
     fetchSeries('WALCL',         52),
     fetchSeries('WRESBAL',       52),
-    fetchSeries('WRMFSL',        52),
+    fetchSeries('WRMFNS',        52),
   ]);
 
   // Convert to {date, val} arrays (chronological order)
