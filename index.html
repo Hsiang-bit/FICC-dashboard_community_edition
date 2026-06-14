@@ -865,6 +865,12 @@ select option{background:var(--paper2)}
     <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Style Analysis</div>
     <div id="stat-style-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px"></div>
   </div>
+    <!-- Day of Week Analysis -->
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Day of Week 分析</div>
+      <div id="stat-dow-body" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px"></div>
+    </div>
+
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
     <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
@@ -8358,6 +8364,35 @@ function renderStat() {
           </div>
         </div>`;
       }).join('');
+  }
+
+  // ── Day of Week breakdown ──
+  const dowEl = document.getElementById('stat-dow-body');
+  if(dowEl){
+    const DOW_FULL = ['週一','週二','週三','週四','週五'];
+    const byDow = {1:{n:0,w:0,r:0},2:{n:0,w:0,r:0},3:{n:0,w:0,r:0},4:{n:0,w:0,r:0},5:{n:0,w:0,r:0}};
+    cl.forEach(t=>{
+      const dow = new Date(t.date).getDay();
+      if(dow>=1&&dow<=5){ byDow[dow].n++; if(t.pnl>0)byDow[dow].w++; byDow[dow].r+=t.pnl; }
+    });
+    const avgRs=[1,2,3,4,5].map(d=>byDow[d].n?byDow[d].r/byDow[d].n:null);
+    const validRs=avgRs.filter(v=>v!=null);
+    const bestR=validRs.length?Math.max(...validRs):null;
+    const worstR=validRs.length?Math.min(...validRs):null;
+    dowEl.innerHTML=[1,2,3,4,5].map((dow,i)=>{
+      const d=byDow[dow], avgR=d.n?d.r/d.n:null, wr=d.n?d.w/d.n:null;
+      const isBest=avgR!=null&&avgR===bestR&&d.n>0;
+      const isWorst=avgR!=null&&avgR===worstR&&d.n>0&&avgR!==bestR;
+      const col=avgR==null?'var(--lo)':avgR>0?'var(--green)':'var(--red)';
+      return`<div style="background:var(--paper2);border:1px solid var(--border);border-top:2px solid ${isBest?'var(--green)':isWorst?'var(--red)':'transparent'};border-radius:var(--r);padding:10px 8px;text-align:center">
+        <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:4px">${DOW_FULL[i]}</div>
+        <div style="font-family:Georgia,serif;font-size:18px;font-weight:700;color:${col};line-height:1;margin-bottom:2px">${avgR!=null?(avgR>=0?'+':'')+avgR.toFixed(2)+'R':'—'}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:5px">${d.n>0?d.n+'筆 · '+(wr*100).toFixed(0)+'% WR':'無資料'}</div>
+        <div style="height:3px;background:var(--border);border-radius:2px"><div style="height:100%;border-radius:2px;background:${col};width:${d.n>0?(wr*100).toFixed(0):0}%"></div></div>
+        ${isBest?'<div style="font-family:var(--mono);font-size:8px;color:var(--green);margin-top:4px">★ 最佳</div>':''}
+        ${isWorst?'<div style="font-family:var(--mono);font-size:8px;color:var(--red);margin-top:4px">▼ 最弱</div>':''}
+      </div>`;
+    }).join('');
   }
 
   // Session breakdown
