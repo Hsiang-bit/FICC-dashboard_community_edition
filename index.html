@@ -761,7 +761,7 @@ select option{background:var(--paper2)}
   </div>
   <div style="overflow-x:auto">
     <table class="ttable">
-      <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>Trend</th><th>Grade</th><th>Conf.</th><th>Type</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
+      <thead><tr><th>#</th><th>日期</th><th>資產</th><th>方向</th><th>Trend</th><th>Grade</th><th>Conf.</th><th>Type</th><th>入場</th><th>出場</th><th>Risk%</th><th>R</th><th style="color:var(--green)">MFE R</th><th style="color:var(--red)">MAE R</th><th>P&L(R)</th><th>PnL $</th><th>狀態</th><th>理由</th><th>圖表</th><th>操作</th></tr></thead>
       <tbody id="tBody"><tr><td colspan="18" class="t-empty">尚無記錄，點擊「+ 新增交易」</td></tr></tbody>
     </table>
   </div>
@@ -870,6 +870,14 @@ select option{background:var(--paper2)}
       <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Day of Week 分析</div>
       <div id="stat-dow-body" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px"></div>
     </div>
+    <!-- MFE / MAE Analysis -->
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:14px">
+      <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:12px">MFE / MAE 分析</div>
+      <div id="stat-mfemae-body">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--lo);text-align:center;padding:16px">填入交易的 MFE / MAE Price 後顯示分析</div>
+      </div>
+    </div>
+
 
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
@@ -2255,7 +2263,7 @@ create policy "own all" on ficc_sync for all using (key like '%'||auth.uid()::te
         </div>
         <div class="leg-table">
           <div class="leg-header">
-            <div>入場日期</div><div>入場價</div><div>SL <span style="font-size:8px;color:var(--lo)" title="填第一腳 SL 後，其餘空白腳自動帶入">↓auto</span></div><div>出場日期</div><div>出場價</div><div>倉%</div><div>Risk%</div><div style="color:var(--amber)">R</div><div style="color:var(--green)">PnL</div><div></div>
+            <div>入場日期</div><div>入場價</div><div>SL <span style="font-size:8px;color:var(--lo)" title="填第一腳 SL 後，其餘空白腳自動帶入">↓auto</span></div><div>出場日期</div><div>出場價</div><div>倉%</div><div>Risk%</div><div style="color:var(--amber)">R</div><div style="color:var(--green)">MFE</div><div style="color:var(--red)">MAE</div><div style="color:var(--green)">PnL</div><div></div>
           </div>
           <div id="legsContainer"></div>
         </div>
@@ -2282,6 +2290,27 @@ create policy "own all" on ficc_sync for all using (key like '%'||auth.uid()::te
           <button class="btn btn-g btn-sm" onclick="applyAutoR()" style="font-size:10px;width:100%">↻ 套用總 R</button>
         </div>
       </div>
+      <!-- MFE / MAE -->
+      <div class="fg mb12" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <span class="fl">MFE Price <span style="font-size:9px;color:var(--lo)">(持倉期間最優價格)</span></span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="number" id="m-mfe-price" placeholder="選填" step="0.0001" style="width:100%" oninput="updateMfeR()">
+            <span id="m-mfe-r" style="font-family:var(--mono);font-size:10px;color:var(--green);white-space:nowrap;min-width:40px"></span>
+          </div>
+        </div>
+        <div>
+          <span class="fl">MAE Price <span style="font-size:9px;color:var(--lo)">(持倉期間最差價格)</span></span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="number" id="m-mae-price" placeholder="選填" step="0.0001" style="width:100%" oninput="updateMfeR()">
+            <span id="m-mae-r" style="font-family:var(--mono);font-size:10px;color:var(--red);white-space:nowrap;min-width:40px"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-leg MFE/MAE breakdown -->
+      <div id="mfe-leg-breakdown" style="display:none;background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:8px;margin-bottom:12px"></div>
+
       <!-- Public/Private toggle -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
         <span style="font-family:var(--mono);font-size:10px;color:var(--lo)">社群可見度</span>
@@ -5118,6 +5147,24 @@ function renderTrades(){
       <td style="font-family:var(--mono);font-size:11px">${t.entry?t.entry:'—'}${t.legs&&t.legs.length>1?`<span style="font-size:9px;margin-left:3px;background:rgba(37,99,235,.12);color:var(--blue);border:1px solid rgba(37,99,235,.2);border-radius:2px;padding:1px 4px">×${t.legs.length}</span>`:''}</td>
       <td>${t.exit||'—'}</td>
       <td>${t.risk}%</td><td>${t.r?t.r+'R':'—'}</td>
+      <td style="color:var(--green);font-family:var(--mono)">${(()=>{
+        const legs=t.legs?.filter(l=>parseFloat(l.entryPrice)&&parseFloat(l.sl))||[];
+        const entry=legs.length?legs.reduce((s,l)=>s+(parseFloat(l.entryPrice)||0)*(parseFloat(l.size)||1),0)/Math.max(legs.reduce((s,l)=>s+(parseFloat(l.size)||1),0),1):parseFloat(t.entry)||0;
+        const sl=parseFloat(legs[0]?.sl||t.sl)||0;
+        const d=Math.abs(entry-sl);
+        if(!t.mfePrice||!d)return'—';
+        const r=t.dir==='LONG'?(t.mfePrice-entry)/d:(entry-t.mfePrice)/d;
+        return(r>=0?'+':'')+r.toFixed(2)+'R';
+      })()}</td>
+      <td style="color:var(--red);font-family:var(--mono)">${(()=>{
+        const legs=t.legs?.filter(l=>parseFloat(l.entryPrice)&&parseFloat(l.sl))||[];
+        const entry=legs.length?legs.reduce((s,l)=>s+(parseFloat(l.entryPrice)||0)*(parseFloat(l.size)||1),0)/Math.max(legs.reduce((s,l)=>s+(parseFloat(l.size)||1),0),1):parseFloat(t.entry)||0;
+        const sl=parseFloat(legs[0]?.sl||t.sl)||0;
+        const d=Math.abs(entry-sl);
+        if(!t.maePrice||!d)return'—';
+        const r=t.dir==='LONG'?(t.maePrice-entry)/d:(entry-t.maePrice)/d;
+        return(r>=0?'+':'')+r.toFixed(2)+'R';
+      })()}</td>
       <td>${pd}</td>
       <td style="font-family:var(--mono);font-size:11px">${pnlAmt}</td>
       <td style="color:${t.status==='WIN'?'var(--green)':t.status==='TP HIT'?'var(--green)':t.status==='LOSS'?'var(--red)':t.status==='SL HIT'?'var(--red)':t.status==='BREAK EVEN'?'var(--amber)':t.status==='OPEN'?'var(--amber)':'var(--lo)'};font-weight:${t.status==='WIN'||t.status==='LOSS'||t.status==='BREAK EVEN'?'700':'400'}">${t.status==='BREAK EVEN'?'BE':t.status}</td>
@@ -5706,6 +5753,11 @@ function saveTrade(){
   };
   // pnl = R multiple (for win rate / avg R stats)
   d.pnl = d.status!=='OPEN' ? d.r : null;
+  // MFE / MAE
+  const mfePriceVal = parseFloat(document.getElementById('m-mfe-price')?.value);
+  const maePriceVal = parseFloat(document.getElementById('m-mae-price')?.value);
+  if(!isNaN(mfePriceVal) && mfePriceVal>0) d.mfePrice = mfePriceVal;
+  if(!isNaN(maePriceVal) && maePriceVal>0) d.maePrice = maePriceVal;
   // totalPnl = actual $ amount (sum of leg PnL inputs)
   if(hasLegs && _legs.some(l=>parseFloat(l.pnl))){
     d.totalPnl = parseFloat(_legs.reduce((s,l)=>s+(parseFloat(l.pnl)||0),0).toFixed(2));
@@ -9896,6 +9948,72 @@ function drawDualAxisChart(canvasId, left, right, h=130, opts={}){
       if(tip) tip.style.display='none';
     });
   }
+}
+
+
+function updateMfeR(){
+  const mfePriceEl = document.getElementById('m-mfe-price');
+  const maePriceEl = document.getElementById('m-mae-price');
+  const mfeREl = document.getElementById('m-mfe-r');
+  const maeREl = document.getElementById('m-mae-r');
+  const dir = document.getElementById('m-dir')?.value || 'LONG';
+
+  const mfePrice = parseFloat(mfePriceEl?.value);
+  const maePrice = parseFloat(maePriceEl?.value);
+
+  // Use weighted avg entry from legs, or single entry
+  const res = _computeLegs();
+  const avgEntry = res?.avgEntry || parseFloat(document.getElementById('m-entry')?.value);
+
+  // Find a SL — use first leg SL or fallback
+  const slVal = _legs.length ? parseFloat(_legs[0]?.sl) : null;
+  if(!avgEntry || !slVal) {
+    if(mfeREl) mfeREl.textContent = '';
+    if(maeREl) maeREl.textContent = '';
+    return;
+  }
+  const slDist = Math.abs(avgEntry - slVal);
+  if(!slDist) return;
+
+  // Calc MFE R
+  if(!isNaN(mfePrice) && mfePrice > 0){
+    const mfeR = dir==='LONG' ? (mfePrice-avgEntry)/slDist : (avgEntry-mfePrice)/slDist;
+    if(mfeREl) mfeREl.textContent = (mfeR>=0?'+':'')+mfeR.toFixed(2)+'R';
+  } else { if(mfeREl) mfeREl.textContent = ''; }
+
+  // Calc MAE R
+  if(!isNaN(maePrice) && maePrice > 0){
+    const maeR = dir==='LONG' ? (maePrice-avgEntry)/slDist : (avgEntry-maePrice)/slDist;
+    if(maeREl) maeREl.textContent = (maeR>=0?'+':'')+maeR.toFixed(2)+'R';
+  } else { if(maeREl) maeREl.textContent = ''; }
+
+  // Per-leg breakdown
+  updateMfeLegBreakdown(mfePrice, maePrice, dir);
+}
+
+function updateMfeLegBreakdown(mfePrice, maePrice, dir){
+  const el = document.getElementById('mfe-leg-breakdown');
+  if(!el) return;
+  const legsWithEntry = _legs.filter(l => parseFloat(l.entryPrice) && parseFloat(l.sl));
+  if(!legsWithEntry.length || (isNaN(mfePrice) && isNaN(maePrice))){
+    el.style.display='none'; return;
+  }
+  el.style.display='block';
+  el.innerHTML = `<div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">每腳 MFE / MAE R</div>`
+    + legsWithEntry.map((l,i)=>{
+      const entry=parseFloat(l.entryPrice), sl=parseFloat(l.sl);
+      const slDist=Math.abs(entry-sl);
+      if(!slDist) return '';
+      const mfeR = !isNaN(mfePrice) ? (dir==='LONG'?(mfePrice-entry)/slDist:(entry-mfePrice)/slDist) : null;
+      const maeR = !isNaN(maePrice) ? (dir==='LONG'?(maePrice-entry)/slDist:(entry-maePrice)/slDist) : null;
+      const size = l.size ? l.size+'%' : '—';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--paper);border-radius:4px;margin-bottom:3px;font-family:var(--mono);font-size:10px">
+        <span style="color:var(--lo)">Leg${i+1} (${size})</span>
+        <span>Entry <strong>${entry}</strong></span>
+        ${mfeR!=null?`<span style="color:var(--green)">MFE <strong>${mfeR>=0?'+':''}${mfeR.toFixed(2)}R</strong></span>`:''}
+        ${maeR!=null?`<span style="color:var(--red)">MAE <strong>${maeR>=0?'+':''}${maeR.toFixed(2)}R</strong></span>`:''}
+      </div>`;
+    }).join('');
 }
 
 // ── New: Drawdown chart ──
