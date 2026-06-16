@@ -5780,6 +5780,9 @@ function saveTrade(){
       const wSum=maeRs.reduce((s,x)=>s+x.sz,0);
       d.maeR = maeRs.reduce((s,x)=>s+x.r*(x.sz/wSum),0);
     }
+    if(d.mfeR!=null||d.maeR!=null){
+      console.log('[MFE/MAE]', 'mfeR:', d.mfeR?.toFixed(2), 'maeR:', d.maeR?.toFixed(2), 'from', legsForMfe.length, 'legs');
+    }
   }
   // totalPnl = actual $ amount (sum of leg PnL inputs)
   if(hasLegs && _legs.some(l=>parseFloat(l.pnl))){
@@ -5797,7 +5800,9 @@ function saveTrade(){
   } else {
     d.id=Date.now(); d.charts=window._pc||{}; trades.push(d);
   }
-  saveAll(); renderTrades(); updateRisk(); updateKpiStrip(); closeModal(); toast('✓ 交易已儲存');
+  saveAll(); renderTrades(); updateRisk(); updateKpiStrip();
+  const _sp=document.getElementById('page-stat'); if(_sp?.classList.contains('active')) setTimeout(renderStat,100);
+  closeModal(); toast('✓ 交易已儲存');
 }
 function deleteTrade(){if(!currentTradeId||!confirm('刪除？'))return;trades=trades.filter(t=>t.id!==currentTradeId);saveAll();renderTrades();updateRisk();closeModal();}
 
