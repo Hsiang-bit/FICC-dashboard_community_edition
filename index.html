@@ -1044,13 +1044,21 @@ select option{background:var(--paper2)}
         <canvas id="liq-tips-chart" style="width:100%;height:100px;display:block"></canvas>
         <div id="liq-tips-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">5Y & 10Y 通膨預期 · Gold 核心驅動</div>
+        <!-- T5YIFR -->
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:5px">5y5y Forward Breakeven (T5YIFR) <span id="liq-t5yifr-val" style="color:var(--amber);font-weight:700"></span></div>
+          <canvas id="liq-t5yifr-chart" style="width:100%;height:70px;display:block"></canvas>
+          <div id="liq-t5yifr-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:2px 0"></div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:3px">第 5-10 年通膨預期錨定 · Fed 最關注的長期通膨指標</div>
+        </div>
       </div>
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink)">Real vs Nominal（10Y）</div>
+          <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink)">Real vs Nominal</div>
           <div style="display:flex;gap:10px;font-family:var(--mono);font-size:9px">
-            <span><span style="display:inline-block;width:14px;height:2px;background:#f59e0b;vertical-align:middle;margin-right:3px"></span>Nominal</span>
-            <span><span style="display:inline-block;width:14px;height:2px;background:#8b5cf6;vertical-align:middle;margin-right:3px"></span>Real</span>
+            <span><span style="display:inline-block;width:14px;height:2px;background:#f59e0b;vertical-align:middle;margin-right:3px"></span>Nominal 10Y</span>
+            <span><span style="display:inline-block;width:14px;height:2px;background:#8b5cf6;vertical-align:middle;margin-right:3px"></span>Real 10Y</span>
+            <span><span style="display:inline-block;width:14px;height:2px;background:#22c55e;vertical-align:middle;margin-right:3px;border-bottom:2px dashed rgba(34,197,94,.5)"></span>Real 5Y</span>
           </div>
         </div>
         <canvas id="liq-realyield-chart" style="width:100%;height:130px;display:block"></canvas>
@@ -1115,11 +1123,22 @@ select option{background:var(--paper2)}
         <div><strong>NFCI</strong>：Chicago Fed 全國金融條件指數。覆蓋 105 個金融指標（貨幣、債券、股票、影子銀行）。負值 = 寬鬆，正值 = 緊縮，每週更新。</div>
       </div>
     </div>
+
+    <!-- VIX -->
+    <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-top:12px">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+        <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink)">VIX（CBOE 波動率）</div>
+        <div id="liq-vix-val" style="font-family:Georgia,serif;font-size:14px;font-weight:700;margin-left:auto"></div>
+      </div>
+      <canvas id="liq-vix-chart" style="width:100%;height:110px;display:block"></canvas>
+      <div id="liq-vix-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid)"></div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">確認層指標（VIXCLS · FRED）· &lt;15 平靜，15-25 正常，&gt;30 恐慌</div>
+    </div>
   </div><!-- /liq-panel-credit -->
 
   <!-- ══ Panel: 美元 & 流量 ══ -->
   <div id="liq-panel-dollar" class="liq-panel" style="display:none">
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px;border-radius:var(--r);overflow:hidden" id="liq-dollar-strip"></div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:14px;border-radius:var(--r);overflow:hidden" id="liq-dollar-strip"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">廣義美元指數 (DTWEXBGS)</div>
@@ -1127,6 +1146,19 @@ select option{background:var(--paper2)}
         <div id="liq-dxy-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid);min-height:16px"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">Fed 廣義貿易加權美元 · 比 DXY 更全面</div>
       </div>
+      <!-- Net Liquidity -->
+      <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+          <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink)">淨流動性</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--lo)">WALCL − TGA − RRP</div>
+          <div id="liq-netliq-val" style="font-family:Georgia,serif;font-size:14px;font-weight:700;margin-left:auto"></div>
+        </div>
+        <canvas id="liq-netliq-chart" style="width:100%;height:120px;display:block"></canvas>
+        <div id="liq-netliq-chart-tooltip" style="display:none;font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--mid)"></div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:4px">上升 = 系統流動性增加（利多風險資產）；下降 = 資金被財政/Fed 抽走</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
       <div style="background:var(--paper);border:1px solid var(--border);border-radius:var(--r);padding:14px">
         <div style="font-family:Georgia,serif;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Fed 資產負債表 (WALCL)</div>
         <canvas id="liq-walcl-chart" style="width:100%;height:130px;display:block"></canvas>
@@ -1159,6 +1191,7 @@ select option{background:var(--paper2)}
         <div><strong>WRMFSL</strong>：零售貨幣市場基金總資產。高水位（&gt;$2T）代表大量資金停泊在 MMF 等待時機。RRP ↓ + MMF 規模穩定 = 資金流回市場，每週更新。</div>
       </div>
     </div>
+    </div><!-- /walcl+resbal grid -->
   </div><!-- /liq-panel-dollar -->
 
 </div>
@@ -8732,7 +8765,8 @@ async function loadLiquidity(force=false){
   const [
     sofrH,effrH,iorbH,obfrH,rrpH,srfH,s30H,s90H,s180H,oisH,
     dgs1H,dgs2H,dgs5H,dgs10H,dgs30H,t10y2yH,t10y3mH,t5yieH,t10yieH,dfii10H,
-    hyH,igH,fsiH,nfciH,dxyH,walclH,resbalH,mmfH
+    hyH,igH,fsiH,nfciH,dxyH,walclH,resbalH,mmfH,
+    wtregenH,vixH,t5yifrH,dfii5H
   ] = await Promise.all([
     fetchSeries('SOFR',          Math.max(range,252)),
     fetchSeries('EFFR',          range),
@@ -8765,6 +8799,10 @@ async function loadLiquidity(force=false){
     fetchSeries('WALCL',         52),
     fetchSeries('WRESBAL',       52),
     fetchSeries('WRMFNS',        52),
+    fetchSeries('WTREGEN',       52),   // Treasury General Account (TGA)
+    fetchSeries('VIXCLS',        range), // VIX daily
+    fetchSeries('T5YIFR',        range), // 5y5y forward inflation
+    fetchSeries('DFII5',         range), // 5Y real yield
   ]);
 
   // Convert to {date, val} arrays (chronological order)
@@ -8799,13 +8837,28 @@ async function loadLiquidity(force=false){
   const t5yie=toSeries(t5yieH), t10yie=toSeries(t10yieH), dfii10=toSeries(dfii10H);
   const hy=toSeries(hyH), ig=toSeries(igH), fsi=toSeries(fsiH), nfci=toSeries(nfciH);
   const dxy=toSeries(dxyH), walcl=toSeries(walclH), resbal=toSeries(resbalH), mmf=toSeries(mmfH);
+  const wtregen=toSeries(wtregenH), vix=toSeries(vixH), t5yifr=toSeries(t5yifrH), dfii5=toSeries(dfii5H);
+
+  // ── Net Liquidity = WALCL - WTREGEN - RRPONTSYD ──
+  // All three in billions; WALCL in millions → convert to billions first
+  const netLiq = (() => {
+    const dateMap = {};
+    walcl.forEach(p=>{ if(p.val!=null) dateMap[p.date] = {walcl: p.val/1000}; }); // M→B
+    wtregen.forEach(p=>{ if(p.val!=null && dateMap[p.date]) dateMap[p.date].tga = p.val; });
+    rrp.forEach(p=>{ if(p.val!=null && dateMap[p.date]) dateMap[p.date].rrp = p.val; });
+    return Object.entries(dateMap)
+      .filter(([,v])=>v.walcl!=null&&v.tga!=null&&v.rrp!=null)
+      .map(([date,v])=>({ date, val: v.walcl - v.tga - v.rrp }))
+      .sort((a,b)=>a.date.localeCompare(b.date));
+  })();
+
   // Pre-compute spread values
   const t10y2y_val = t10y2y.length ? t10y2y[t10y2y.length-1].val*100 : null;
   const t10y3m_val = t10y3m.length ? t10y3m[t10y3m.length-1].val*100 : null;
   _liqData = {
     sofr,sofrFull,effr,iorb,obfr,rrp,srf,s30,s90,s180,ois,dgs1,dgs2,
     dgs5,dgs10,dgs30,t10y2y,t10y3m,t5yie,t10yie,dfii10,t10y2y_val,t10y3m_val,
-    hy,ig,fsi,nfci,dxy,walcl,resbal,mmf,
+    hy,ig,fsi,nfci,dxy,walcl,resbal,mmf,wtregen,netLiq,vix,t5yifr,dfii5,
     sofrPct,sofrPct30,sofrPct90
   };
   // Reset all sub-panel render flags, re-render currently active one
@@ -9690,15 +9743,26 @@ function renderLiqSubPanel(panel){
       {val:2.5,label:'Fed 目標 2.5% ↑ = 通膨預期過熱', color:'rgba(239,68,68,0.5)'},
       {val:2.0,label:'2.0% 理想通膨',                  color:'rgba(34,197,94,0.5)'},
     ]});
+    // T5YIFR — 5y5y forward
+    const lT5yifr=last(d.t5yifr)?.val;
+    const t5yifrValEl=document.getElementById('liq-t5yifr-val');
+    if(t5yifrValEl) t5yifrValEl.textContent=lT5yifr!=null?lT5yifr.toFixed(2)+'%':'—';
+    if(d.t5yifr?.length) drawAreaChart('liq-t5yifr-chart', d.t5yifr, '#f59e0b', 70,
+      {yFmt:v=>v.toFixed(2)+'%', unit:'%',
+       thresholds:[
+         {val:2.5,color:'rgba(239,68,68,0.5)',label:'2.5% 過熱'},
+         {val:2.0,color:'rgba(34,197,94,0.4)',label:'2.0% 錨定'},
+       ]});
 
     // Real yield
     // Real yield + Nominal (DGS10) dual-line chart
     if(d.dfii10?.length || d.dgs10?.length){
       if(d.dfii10?.length && d.dgs10?.length){
-        // Both available → dual Y-axis
+        // Both available → dual Y-axis (Real 10Y + Real 5Y on left, Nominal 10Y on right)
+        // Add DFII5 as extra line overlay after dual chart renders
         drawDualAxisChart('liq-realyield-chart',
-          {data:d.dfii10, color:'#8b5cf6', label:'Real',    unit:'%'},
-          {data:d.dgs10,  color:'#f59e0b', label:'Nominal', unit:'%'},
+          {data:d.dfii10, color:'#8b5cf6', label:'Real 10Y', unit:'%'},
+          {data:d.dgs10,  color:'#f59e0b', label:'Nominal',  unit:'%'},
           130,
           {annotations:[
             {val:0,   color:'rgba(128,128,128,0.5)', label:'0% 實質利率', axis:'left'},
@@ -9759,17 +9823,46 @@ function renderLiqSubPanel(panel){
         {val:0,   color:'rgba(128,128,128,0.4)',  label:'0 = 歷史平均'},
         {val:0.5, color:'rgba(245,158,11,0.55)',  label:'+0.5 金融條件偏緊'},
         {val:1.0, color:'rgba(239,68,68,0.6)',    label:'+1.0 顯著收緊'},
+      ]});    // ── VIX ──
+    const lVix=last(d.vix)?.val;
+    const vixValEl=document.getElementById('liq-vix-val');
+    if(vixValEl&&lVix!=null){
+      vixValEl.textContent=lVix.toFixed(1);
+      vixValEl.style.color=lVix>30?'var(--red)':lVix>20?'var(--amber)':'var(--green)';
+    }
+    if(d.vix?.length) drawAreaChart('liq-vix-chart', d.vix, '#6366f1', 110, {yFmt:v=>v.toFixed(1), unit:'',
+      thresholds:[
+        {val:15, color:'rgba(34,197,94,0.4)',   label:'15 平靜'},
+        {val:25, color:'rgba(245,158,11,0.45)', label:'25 波動升溫'},
+        {val:30, color:'rgba(239,68,68,0.55)',  label:'30 恐慌'},
       ]});
+
   }
 
   else if(panel==='dollar'){
     const strip=document.getElementById('liq-dollar-strip');
     const lDxy=last(d.dxy)?.val, lWalcl=last(d.walcl)?.val, lResbal=last(d.resbal)?.val, lMmf=last(d.mmf)?.val;
+    const lNetLiq=last(d.netLiq)?.val, lTga=last(d.wtregen)?.val;
+    // Net Liquidity display
+    const netliqEl=document.getElementById('liq-netliq-val');
+    if(netliqEl&&lNetLiq!=null){
+      netliqEl.textContent='$'+lNetLiq.toFixed(0)+'B';
+      netliqEl.style.color=lNetLiq>0?'var(--green)':'var(--red)';
+    }
+    if(d.netLiq?.length) drawAreaChart('liq-netliq-chart', d.netLiq, '#22c55e', 120,
+      {yFmt:v=>'$'+Math.round(v)+'B', unit:'B', zeroLine:true,
+       thresholds:[
+         {val:3000, color:'rgba(34,197,94,0.45)',  label:'$3T 充裕'},
+         {val:2000, color:'rgba(245,158,11,0.45)', label:'$2T 警戒'},
+         {val:1000, color:'rgba(239,68,68,0.55)',  label:'$1T 緊張'},
+       ]});
     if(strip) strip.innerHTML=[
+      {l:'淨流動性',v:lNetLiq, fmt:v=>'$'+Math.round(v)+'B', col:lNetLiq!=null?(lNetLiq>3000?'var(--green)':lNetLiq>2000?'var(--amber)':'var(--red)'):'var(--lo)'},
+      {l:'TGA',     v:lTga,    fmt:v=>v?'$'+(v/1000).toFixed(1)+'T':'—', col:'var(--pur)'},
       {l:'Broad USD',v:lDxy,  fmt:v=>v!=null?v.toFixed(1)+' (idx)':'—', col:'var(--amber)'},
-      {l:'Fed Assets', v:lWalcl,  fmt:v=>v?'$'+(v/1000000).toFixed(2)+'T':'—', col:'var(--pur)'},
-      {l:'Reserves',   v:lResbal, fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—',   col:lResbal!=null?(lResbal<3000?'var(--red)':lResbal<4000?'var(--amber)':'var(--green)'):'var(--lo)'},
-      {l:'MMF Assets', v:lMmf,   fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—',   col:'var(--cyan)'},
+      {l:'Fed Assets',v:lWalcl,fmt:v=>v?'$'+(v/1000000).toFixed(2)+'T':'—',col:'var(--pur)'},
+      {l:'Reserves', v:lResbal,fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—', col:lResbal!=null?(lResbal<3000?'var(--red)':lResbal<4000?'var(--amber)':'var(--green)'):'var(--lo)'},
+      {l:'MMF', v:lMmf,fmt:v=>v?'$'+(v/1000).toFixed(2)+'T':'—',col:'var(--cyan)'},
     ].map(p=>`<div style="background:var(--paper);padding:10px 12px">
       <div style="font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--lo);margin-bottom:3px">${p.l}</div>
       <div style="font-family:Georgia,serif;font-size:17px;font-weight:700;color:${p.col}">${p.v!=null?p.fmt(p.v):'—'}</div>
