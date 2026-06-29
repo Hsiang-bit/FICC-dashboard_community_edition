@@ -7535,7 +7535,7 @@ async function callGeminiSearch(messages,clearOutput=false,useSearch=false){
   const proxyUrl=(settings.geminiProxyUrl||'').trim();
   const ENDPOINTS=[
     // Cloudflare Worker proxy (most reliable on GitHub Pages)
-    ...(proxyUrl ? [()=>fetch(proxyUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gemini:true,model,apiKey:key,payload:bodyObj}),signal:AbortSignal.timeout(timeout)})] : []),
+    ...(proxyUrl ? [()=>fetch(proxyUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...bodyObj, model, apiKey:key}),signal:AbortSignal.timeout(timeout)})] : []),
     ()=>fetch(BASE,{method:'POST',headers:{'Content-Type':'application/json'},body,signal:AbortSignal.timeout(timeout)}),
     ()=>fetch('https://corsproxy.io/?'+encodeURIComponent(BASE),{method:'POST',headers:{'Content-Type':'application/json','x-requested-with':'XMLHttpRequest'},body,signal:AbortSignal.timeout(timeout)}),
     ()=>fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(BASE),{method:'POST',headers:{'Content-Type':'application/json'},body,signal:AbortSignal.timeout(timeout)}),
