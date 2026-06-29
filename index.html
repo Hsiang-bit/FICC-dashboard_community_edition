@@ -7542,19 +7542,26 @@ async function callGeminiSearch(messages,clearOutput=false,useSearch=false){
   ];
 
   let data=null,lastErr='';
+  let isFirstEndpoint=true;
   for(const makeReq of ENDPOINTS){
+    const isWorker = isFirstEndpoint && !!proxyUrl;
+    isFirstEndpoint=false;
     try{
       const res=await makeReq();
-      if(res.ok||res.status===400){
-        const d=await res.json();
-        if(!d?.error) { data=d; break; }
-        // Got response but Gemini returned error
-        lastErr=(d.error?.message||JSON.stringify(d.error)).slice(0,100);
-        if(lastErr.includes('API_KEY')||lastErr.includes('quota')) break; // no point retrying
-        continue;
-      }
-      lastErr='HTTP '+res.status+(res.status===520?' (Worker 崩潰，需更新程式碼)':'');
-    }catch(e){lastErr=e.message;continue;}
+      const d=await res.json().catch(()=>null);
+      if(res.ok && d && !d.error){ data=d; break; }
+      // Got HTTP response — extract error
+      const errMsg = d?.error?.message || d?.error?.status || ('HTTP '+res.status);
+      lastErr = errMsg.slice(0,120);
+      // If Worker responded (any status), don't fall through to CORS endpoints
+      // Worker is reachable — the issue is API key / quota / model, not network
+      if(isWorker){ break; }
+      continue;
+    }catch(e){
+      lastErr=e.message;
+      // Network error on Worker → fall through to try direct/proxy
+      continue;
+    }
   }
 
   const typing=document.getElementById('grok-typing');
