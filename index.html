@@ -7545,15 +7545,33 @@ async function callGeminiSearch(messages,clearOutput=false,useSearch=false){
   for(const makeReq of ENDPOINTS){
     try{
       const res=await makeReq();
-      if(res.ok||res.status===400){data=await res.json();break;}
-      lastErr='HTTP '+res.status;
+      if(res.ok||res.status===400){
+        const d=await res.json();
+        if(!d?.error) { data=d; break; }
+        // Got response but Gemini returned error
+        lastErr=(d.error?.message||JSON.stringify(d.error)).slice(0,100);
+        if(lastErr.includes('API_KEY')||lastErr.includes('quota')) break; // no point retrying
+        continue;
+      }
+      lastErr='HTTP '+res.status+(res.status===520?' (Worker 崩潰，需更新程式碼)':'');
     }catch(e){lastErr=e.message;continue;}
   }
 
   const typing=document.getElementById('grok-typing');
   if(typing)typing.remove();
 
-  if(!data){showMacroError('連線失敗（'+lastErr+'）— 請確認部署在 GitHub Pages 上');return;}
+  if(!data){
+    let hint = '';
+    if(lastErr.includes('Failed to fetch')||lastErr.includes('CORS')){
+      hint = proxyUrl
+        ? '<br>🔧 Worker 有設定但所有端點都失敗，請確認 Worker 程式碼已更新並重新 Deploy'
+        : '<br>🔧 請在 Settings 填入 Cloudflare Worker URL（Gemini Proxy URL）';
+    } else if(lastErr.includes('520')||lastErr.includes('500')){
+      hint = '<br>🔧 Worker 返回錯誤，請重新 Deploy 最新版 Worker 程式碼';
+    }
+    showMacroError('⚠ 連線失敗（'+lastErr+'）'+hint);
+    return;
+  }
   if(data.error){
     const msg=data.error.message||'';
     if(msg.includes('API_KEY')||msg.includes('key')){
