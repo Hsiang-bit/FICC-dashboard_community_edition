@@ -10282,7 +10282,12 @@ async function callCoachAgent(userMessage){
   const proxyUrl = (settings.geminiProxyUrl||'').trim();
   if(!key){ appendMsg('⚠ 請先在 Settings 填入 Gemini API Key', 'ai'); return; }
 
-  const modelId = 'gemini-2.0-flash';
+  // Use the model selected in Settings (falls back to gemini-2.5-flash-lite for free tier)
+  const selectedModel = document.getElementById('geminiModel')?.value || '';
+  const isGroqModel = selectedModel.startsWith('groq:');
+  // For agent loop, prefer Gemini; if Groq selected, use gemini-2.5-flash-lite as default
+  const modelId = isGroqModel ? 'gemini-2.5-flash-lite-preview-06-17'
+                : selectedModel || 'gemini-2.5-flash-lite-preview-06-17';
   const MAX_ITER = 6;
   const system = `你是 FICC 交易教練，使用者以 ICT/SMC 方法交易 NQ、GC、6E、ZN、CL 等品種。
 你有工具可以查詢使用者的真實交易數據與日誌，請先用工具收集相關數據，再給出有根據的分析與建議。
@@ -10325,8 +10330,17 @@ async function callCoachAgent(userMessage){
     }
 
     if(resp.error){
+      const errMsg = resp.error.message || JSON.stringify(resp.error);
+      // Rate limit: auto-retry after delay
+      if(errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED') || resp.error.code === 429){
+        const waitSec = 3;
+        const tipEl = document.getElementById('coach-typing');
+        if(tipEl) tipEl.querySelector('.msg-bubble').textContent = `⏳ 配額限制，${waitSec} 秒後重試...`;
+        await new Promise(r => setTimeout(r, waitSec * 1000));
+        continue; // retry this iteration
+      }
       removeTyping();
-      appendMsg('⚠ Gemini 錯誤：' + (resp.error.message||JSON.stringify(resp.error)), 'ai');
+      appendMsg('⚠ Gemini 錯誤：' + errMsg + '\n\n💡 如果是 quota 超額，可考慮：1) 稍後再試 2) 在 Google AI Studio 啟用付費方案', 'ai');
       return;
     }
 
