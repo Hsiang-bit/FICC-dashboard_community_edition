@@ -2,7 +2,8 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https
+        }://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>FICC PRO v3</title>
 <style>@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&family=UnifrakturMaguntia&display=swap');
@@ -3071,7 +3072,9 @@ async function sbPullSilent(){
     // Cloud is newer → merge cloud into local
     if(cloudUpdated > localUpdated){
       if(snap.weeklyOutlook){ weeklyOutlook=snap.weeklyOutlook; localStorage.setItem('ficc_weekly_outlook',JSON.stringify(weeklyOutlook)); }
-    if(snap.trades){
+    // Only overwrite local trades if cloud has equal or more trades (prevents overwriting newer local data)
+    const safeToOverwrite = snap.trades && snap.trades.length > 0 && snap.trades.length >= trades.length;
+    if(safeToOverwrite){
         // Preserve local base64 charts (not stored in cloud)
         const localCharts={};
         trades.forEach(t=>{if(t.id&&t.charts)localCharts[t.id]=t.charts;});
@@ -3178,6 +3181,10 @@ function saveAll(){
     }
   } catch(e) {
     console.error('[saveAll] unexpected error:', e);
+  }
+  // Mark local save time so sbPullSilent doesn't incorrectly think cloud is newer
+  if(!settings.sbLastPush || trades.length > 0){
+    settings.sbLastPush = settings.sbLastPush || new Date(0).toISOString(); // at minimum set to epoch
   }
   if (sbReady() && currentUser) sbDebouncedPush();
 }
