@@ -10288,13 +10288,13 @@ async function callCoachAgent(userMessage){
   // For agent loop, prefer Gemini; if Groq selected, use gemini-2.5-flash-lite as default
   const modelId = isGroqModel ? 'gemini-2.5-flash-lite-preview-06-17'
                 : selectedModel || 'gemini-2.5-flash-lite-preview-06-17';
-  const MAX_ITER = 6;
+  const MAX_ITER = 3;
   const system = `你是 FICC 交易教練，使用者以 ICT/SMC 方法交易 NQ、GC、6E、ZN、CL 等品種。
 
 規則（必須嚴格遵守）：
 1. 收到問題後，立刻呼叫工具查詢數據，不要先用文字說「我將查詢」或「請稍候」
 2. 每次回應要嘛是工具呼叫，要嘛是最終分析結論——不能只是說明自己要做什麼
-3. 先呼叫 get_stats 和 get_trades 取得數值，再呼叫 get_journal 了解心理狀態
+3. 第一輪同時呼叫多個工具（get_stats + get_trades + get_journal），不要分輪呼叫
 4. 最終分析必須引用具體數字（勝率%、R值、筆數），不能泛泛而談`;
 
   // Gemini contents format
@@ -10380,9 +10380,8 @@ async function callCoachAgent(userMessage){
       get_weekly_outlook: '查詢宏觀 Bias', get_streak_analysis: '分析連勝/連敗',
     };
     const toolList = fnCalls.map(p => toolNames[p.functionCall.name] || p.functionCall.name).join('、');
-    const tipEl2 = document.getElementById('coach-typing');
-    if(tipEl2) tipEl2.querySelector('.msg-bubble').innerHTML =
-      `🔧 工具查詢中（第 ${iter} 輪）：<strong>${toolList}</strong>`;
+    const tipTextEl2 = document.getElementById('typing-text');
+    if(tipTextEl2) tipTextEl2.innerHTML = `🔧 工具查詢中（第 ${iter} 輪）：<strong>${toolList}</strong>`;
 
     const toolResults = fnCalls.map(p => {
       const { name, args } = p.functionCall;
@@ -10406,7 +10405,7 @@ async function callCoachAgent(userMessage){
 
 function removeTyping(){
   const el = document.getElementById('coach-typing');
-  if(el) el.remove();
+  if(el){ clearInterval(el._timerInterval); el.remove(); }
 }
 
 function appendTyping(){
@@ -10416,9 +10415,16 @@ function appendTyping(){
   const div = document.createElement('div');
   div.className = 'msg ai';
   div.id = 'coach-typing';
-  div.innerHTML = '<div class="msg-avatar">G</div><div class="msg-bubble" style="color:var(--lo);font-style:italic">🤔 思考中...</div>';
+  div.innerHTML = '<div class="msg-avatar">G</div><div class="msg-bubble" style="color:var(--lo)"><span id="typing-text">🤔 思考中...</span> <span id="typing-timer" style="font-size:9px;opacity:.5">0s</span></div>';
   messages.appendChild(div);
   messages.scrollTop = messages.scrollHeight;
+  // Start elapsed time counter
+  const start = Date.now();
+  div._timerInterval = setInterval(()=>{
+    const el = document.getElementById('typing-timer');
+    if(el) el.textContent = Math.round((Date.now()-start)/1000)+'s';
+    else clearInterval(div._timerInterval);
+  }, 1000);
 }
 
 // ══════════════════════════════════════════════════════
