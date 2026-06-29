@@ -1423,6 +1423,7 @@ select option{background:var(--paper2)}
       <div class="coach-quick-btns">
         <button class="qbtn" onclick="coachFullReview()" style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.06)">📋 全部交易 Deep Review<br><span style="font-size:9px;opacity:.6">送出全部紀錄做完整分析</span></button>
         <button class="qbtn" onclick="coachWeeklyReport()" style="border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.06)">📆 Weekly Report<br><span style="font-size:9px;opacity:.6">本週交易總結 + 改善建議</span></button>
+        <button class="qbtn" onclick="coachAgentAnalyze()" style="border:1px solid rgba(16,185,129,.4);background:rgba(16,185,129,.06);position:relative">🤖 Agent 深度分析<br><span style="font-size:9px;opacity:.6">多輪工具查詢 → 完整報告</span></button>
         <button class="qbtn" onclick="coachQuick('weekly_review')">📊 本週整體回顧<br><span style="font-size:9px;opacity:.6">分析本週日誌與交易記錄</span></button>
         <button class="qbtn" onclick="coachQuick('trade_patterns')">🔍 交易模式分析<br><span style="font-size:9px;opacity:.6">找出你的強項與弱點</span></button>
         <button class="qbtn" onclick="coachQuick('risk_review')">⚖️ 風險管理評估<br><span style="font-size:9px;opacity:.6">R倍數、月度執行率分析</span></button>
@@ -1778,7 +1779,7 @@ Bond 應該 Long，Gold 短線看漲因為避險需求，BTC 偏弱。
     }
 
     // ── Gemini API proxy (default) ──
-    // Handles both callGemini and callGrok (which also uses Gemini)
+    // Handles both callGemini and callGeminiSearch (both use Gemini)
     try {
       const { model, apiKey } = body;
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -6453,6 +6454,13 @@ function buildContext(maxTrades=50){
 }
 
 
+
+async function coachAgentAnalyze(){
+  const prompt = '請幫我做一個完整的交易績效分析。先查詢我最近的交易記錄和統計數據，再看日誌了解我的心理狀態，最後針對我的弱點給出具體改善建議。';
+  appendMsg('🤖 啟動 Agent 深度分析...', 'user');
+  await callCoachAgent(prompt);
+}
+
 async function coachWeeklyReport(){
   const model = document.getElementById('geminiModel').value || 'groq:llama-3.1-8b-instant';
   const isGroq = model.startsWith('groq:');
@@ -6607,7 +6615,11 @@ async function coachSend(){
   if(!input)return;
   document.getElementById('coachInput').value='';
   appendMsg(input,'user');
-  await callGemini(input);
+  // Use agent loop for analytical questions, single-turn for quick chat
+  const agentKeywords = /分析|統計|建議|績效|改善|評估|問題|弱點|模式|規律|回顧|為什麼|怎麼/;
+  const useAgent = document.getElementById('coachAgentToggle')?.checked || agentKeywords.test(input);
+  if(useAgent){ await callCoachAgent(input); }
+  else { await callGemini(input); }
 }
 async function coachQuick(type){
   const prompt=QUICK_PROMPTS[type];
@@ -6627,13 +6639,8 @@ function appendMsg(text,role){
   messages.scrollTop=messages.scrollHeight;
   return div;
 }
-function appendTyping(){
-  const messages=document.getElementById('coachMessages');
-  const div=document.createElement('div');div.className='msg ai';div.id='typingMsg';
-  div.innerHTML=`<div class="msg-avatar">G</div><div class="msg-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
-  messages.appendChild(div);messages.scrollTop=messages.scrollHeight;
-}
-function removeTyping(){const t=document.getElementById('typingMsg');if(t)t.remove();}
+// appendTyping: see Agent section
+// removeTyping: see Agent section
 function formatAIText(text){
   return text.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/#{3}(.*)/g,'<h4>$1</h4>').replace(/#{2}(.*)/g,'<h4>$1</h4>').replace(/#{1}(.*)/g,'<h4>$1</h4>').replace(/\n- (.*)/g,'\n<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,'<ul>$&</ul>').replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
 }
@@ -7417,7 +7424,7 @@ ${macroMd ? '---\n【你的 Macro Framework 參考】\n' + macroMd : ''}
 - 禁止使用「可能」「或許」「預計」等模糊詞——必須給出明確判斷和信心水平`;
 
   macroChatHistory=[{role:'user',content:prompt}];
-  await callGrok(macroChatHistory,true,true); // useSearch=true
+  await callGeminiSearch(macroChatHistory,true,true); // useSearch=true
 }
 
 async function macroAnalyze(type){
@@ -7439,7 +7446,7 @@ async function macroAnalyze(type){
     macroSaveInputs();
     const prompt=buildMacroPrompt(type);
     macroChatHistory=[{role:'user',content:prompt}];
-    await callGrok(macroChatHistory,true);
+    await callGeminiSearch(macroChatHistory,true);
   }
 }
 
@@ -7452,7 +7459,7 @@ async function macroContinue(){
   // Remove the continue button
   const btn=out.querySelector('.btn-macro');
   if(btn)btn.remove();
-  await callGrok(macroChatHistory,false);
+  await callGeminiSearch(macroChatHistory,false);
 }
 
 async function macroChat(){
@@ -7469,10 +7476,10 @@ async function macroChat(){
 
   const isPplx=document.getElementById('macroProvider').value==='perplexity';
   if(isPplx) await callPerplexity(q,false);
-  else await callGrok(macroChatHistory,false);
+  else await callGeminiSearch(macroChatHistory,false);
 }
 
-async function callGrok(messages,clearOutput=false,useSearch=false){
+async function callGeminiSearch(messages,clearOutput=false,useSearch=false){
   const key=settings.geminiKey||document.getElementById('geminiKey')?.value?.trim()||'';
   if(!key){
     showMacroError('請先在 Settings 填入 Gemini API Key<br><a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--blue)">免費取得 →</a>');
@@ -10081,6 +10088,306 @@ function updateMfeLegBreakdown(mfePrice, maePrice, dir){
     }).join('');
 }
 
+
+// ══════════════════════════════════════════════════════
+// AI COACH — AGENT LOOP (Gemini Function Calling)
+// ══════════════════════════════════════════════════════
+
+// ── Tool definitions (Gemini functionDeclarations format) ──
+const COACH_TOOLS = [{
+  functionDeclarations: [
+    {
+      name: 'get_trades',
+      description: '查詢交易記錄，可依日期/資產/方向/狀態過濾。返回交易列表含 R值、勝率、策略類型等。',
+      parameters: {
+        type: 'object',
+        properties: {
+          date_from:  { type: 'string',  description: 'YYYY-MM-DD 開始日期，不填則不限' },
+          date_to:    { type: 'string',  description: 'YYYY-MM-DD 結束日期，不填則不限' },
+          asset:      { type: 'string',  description: '資產名稱，如 NQ, GC, 6E，不填則全部' },
+          direction:  { type: 'string',  description: 'LONG 或 SHORT，不填則全部' },
+          status:     { type: 'string',  description: 'WIN / LOSS / BREAK EVEN / OPEN，不填則全部' },
+          limit:      { type: 'integer', description: '返回筆數上限，預設 20' },
+        },
+      },
+    },
+    {
+      name: 'get_stats',
+      description: '計算指定期間的交易統計：勝率、累積R、Profit Factor、最大回撤、平均MFE/MAE、Entry Efficiency。',
+      parameters: {
+        type: 'object',
+        properties: {
+          date_from: { type: 'string', description: 'YYYY-MM-DD，不填則全部' },
+          date_to:   { type: 'string', description: 'YYYY-MM-DD，不填則全部' },
+          asset:     { type: 'string', description: '過濾特定資產，不填則全部' },
+        },
+      },
+    },
+    {
+      name: 'get_journal',
+      description: '查詢日誌記錄，包含 Pre-market 計劃、EOD 反思、心理評分。',
+      parameters: {
+        type: 'object',
+        properties: {
+          date_from: { type: 'string', description: 'YYYY-MM-DD' },
+          date_to:   { type: 'string', description: 'YYYY-MM-DD' },
+        },
+      },
+    },
+    {
+      name: 'get_dow_stats',
+      description: '分析各星期幾（週一到週五）的勝率與平均R，找出最佳/最差交易日。',
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'get_weekly_outlook',
+      description: '取得本週或指定週的宏觀 Bias（各資產的多空偏向與描述）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          week_offset: { type: 'integer', description: '0=本週, -1=上週, 1=下週' },
+        },
+      },
+    },
+    {
+      name: 'get_streak_analysis',
+      description: '分析連勝/連敗記錄，找出最長連勝、最長連敗及當前狀態。',
+      parameters: { type: 'object', properties: {} },
+    },
+  ],
+}];
+
+// ── Tool executor ──
+function executeCoachTool(name, args){
+  const closed = trades.filter(t =>
+    t.status !== 'OPEN' && t.pnl != null && (t.outcome_type||'normal') === 'normal'
+  );
+
+  const inRange = (t, from, to) => {
+    if(from && t.date < from) return false;
+    if(to   && t.date > to)   return false;
+    return true;
+  };
+
+  if(name === 'get_trades'){
+    let src = closed;
+    if(args.date_from || args.date_to) src = src.filter(t => inRange(t, args.date_from, args.date_to));
+    if(args.asset)    src = src.filter(t => t.asset?.toLowerCase() === args.asset.toLowerCase());
+    if(args.direction)src = src.filter(t => t.dir === args.direction);
+    if(args.status)   src = src.filter(t => t.status === args.status);
+    const lim = Math.min(args.limit||20, 50);
+    const rows = src.slice(-lim).map(t => ({
+      date: t.date, asset: t.asset, dir: t.dir, status: t.status,
+      r: t.pnl, mfeR: t.mfeR, maeR: t.maeR,
+      grade: t.grade, style: t.trade_type, session: t.session,
+      reason: (t.reason||'').slice(0, 120),
+    }));
+    return { count: src.length, returned: rows.length, trades: rows };
+  }
+
+  if(name === 'get_stats'){
+    let src = closed;
+    if(args.date_from || args.date_to) src = src.filter(t => inRange(t, args.date_from, args.date_to));
+    if(args.asset) src = src.filter(t => t.asset?.toLowerCase() === args.asset.toLowerCase());
+    if(!src.length) return { error: '該條件下無交易記錄' };
+    const wins = src.filter(t => t.pnl > 0);
+    const losses = src.filter(t => t.pnl < 0);
+    const cumR = src.reduce((s,t) => s+t.pnl, 0);
+    const avgR = cumR / src.length;
+    const pf = losses.length
+      ? Math.abs(wins.reduce((s,t)=>s+t.pnl,0)) / Math.abs(losses.reduce((s,t)=>s+t.pnl,0))
+      : null;
+    // Max drawdown
+    let peak = 0, eq = 0, mdd = 0;
+    src.forEach(t => { eq += t.pnl; if(eq>peak)peak=eq; if(peak-eq>mdd)mdd=peak-eq; });
+    // MFE/MAE
+    const mfeTrades = src.filter(t => t.mfeR != null);
+    const maeTrades = src.filter(t => t.maeR != null);
+    const avgMfe = mfeTrades.length ? mfeTrades.reduce((s,t)=>s+t.mfeR,0)/mfeTrades.length : null;
+    const avgMae = maeTrades.length ? maeTrades.reduce((s,t)=>s+t.maeR,0)/maeTrades.length : null;
+    const effTrades = mfeTrades.filter(t => t.mfeR > 0);
+    const avgEff = effTrades.length ? effTrades.reduce((s,t)=>s+t.pnl/t.mfeR,0)/effTrades.length : null;
+    return {
+      total: src.length, wins: wins.length, losses: losses.length,
+      win_rate: (wins.length/src.length*100).toFixed(1)+'%',
+      cum_r: cumR.toFixed(2), avg_r: avgR.toFixed(2),
+      profit_factor: pf ? pf.toFixed(2) : 'N/A',
+      max_drawdown: mdd.toFixed(2)+'R',
+      avg_mfe: avgMfe ? avgMfe.toFixed(2)+'R' : 'N/A',
+      avg_mae: avgMae ? avgMae.toFixed(2)+'R' : 'N/A',
+      entry_efficiency: avgEff ? (avgEff*100).toFixed(0)+'%' : 'N/A',
+    };
+  }
+
+  if(name === 'get_journal'){
+    const entries = Object.entries(journals)
+      .filter(([d]) => inRange({date:d}, args.date_from, args.date_to))
+      .slice(-10)
+      .map(([d, j]) => ({
+        date: d,
+        pre:  (j.notes?.pre  || '').slice(0, 200),
+        eod:  (j.notes?.eod  || '').slice(0, 200),
+        mood: j.mood, energy: j.energy, focus: j.focus,
+      }));
+    return { count: entries.length, entries };
+  }
+
+  if(name === 'get_dow_stats'){
+    const byDow = {1:{n:0,w:0,r:0},2:{n:0,w:0,r:0},3:{n:0,w:0,r:0},4:{n:0,w:0,r:0},5:{n:0,w:0,r:0}};
+    const names = {1:'週一',2:'週二',3:'週三',4:'週四',5:'週五'};
+    closed.forEach(t => {
+      const d = new Date(t.date).getDay();
+      if(d>=1&&d<=5){ byDow[d].n++; if(t.pnl>0)byDow[d].w++; byDow[d].r+=t.pnl; }
+    });
+    return Object.entries(byDow).map(([d,v]) => ({
+      day: names[d], trades: v.n,
+      win_rate: v.n ? (v.w/v.n*100).toFixed(0)+'%' : 'N/A',
+      avg_r: v.n ? (v.r/v.n).toFixed(2)+'R' : 'N/A',
+      cum_r: v.r.toFixed(2)+'R',
+    }));
+  }
+
+  if(name === 'get_weekly_outlook'){
+    const off = args.week_offset ?? 0;
+    const key = woGetWeekKey(off);
+    const wo = weeklyOutlook[key];
+    if(!wo) return { error: '該週無 Outlook 記錄', week: key };
+    return { week: key, assets: wo.assets || [] };
+  }
+
+  if(name === 'get_streak_analysis'){
+    let curStreak = 0, maxWin = 0, maxLoss = 0, curType = null;
+    closed.forEach(t => {
+      const win = t.pnl > 0;
+      if(curType === null) curType = win;
+      if(win === curType) curStreak++;
+      else { curStreak = 1; curType = win; }
+      if(win && curStreak > maxWin) maxWin = curStreak;
+      if(!win && curStreak > maxLoss) maxLoss = curStreak;
+    });
+    return {
+      max_win_streak: maxWin,
+      max_loss_streak: maxLoss,
+      current_streak: curStreak,
+      current_streak_type: curType ? 'WIN' : 'LOSS',
+    };
+  }
+
+  return { error: `未知 tool: ${name}` };
+}
+
+// ── Agent Loop ──
+async function callCoachAgent(userMessage){
+  const key = document.getElementById('geminiKey')?.value.trim() || settings.geminiKey || '';
+  const proxyUrl = (settings.geminiProxyUrl||'').trim();
+  if(!key){ appendMsg('⚠ 請先在 Settings 填入 Gemini API Key', 'ai'); return; }
+
+  const modelId = 'gemini-2.0-flash';
+  const MAX_ITER = 6;
+  const system = `你是 FICC 交易教練，使用者以 ICT/SMC 方法交易 NQ、GC、6E、ZN、CL 等品種。
+你有工具可以查詢使用者的真實交易數據與日誌，請先用工具收集相關數據，再給出有根據的分析與建議。
+分析要具體（引用實際數字），不要泛泛而談。`;
+
+  // Gemini contents format
+  const contents = [
+    { role: 'user',  parts: [{ text: system + '\n\n' + userMessage }] },
+  ];
+
+  appendTyping();
+  let iter = 0;
+
+  while(iter < MAX_ITER){
+    iter++;
+    // Update typing indicator with iteration count
+    const typingEl = document.getElementById('coach-typing');
+    if(typingEl) typingEl.textContent = iter > 1 ? `🔄 推理中（第 ${iter} 輪）...` : '🤔 思考中...';
+
+    const payload = {
+      contents,
+      tools: COACH_TOOLS,
+      generationConfig: { temperature: 0.4, maxOutputTokens: 1500 },
+      systemInstruction: { parts: [{ text: system }] },
+    };
+
+    let resp;
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${key}`;
+      const fetchFn = proxyUrl
+        ? () => fetch(proxyUrl, { method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ gemini:true, model:modelId, apiKey:key, payload }) })
+        : () => fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const r = await fetchFn();
+      resp = await r.json();
+    } catch(e){
+      removeTyping();
+      appendMsg('⚠ Agent 呼叫失敗：' + e.message, 'ai');
+      return;
+    }
+
+    if(resp.error){
+      removeTyping();
+      appendMsg('⚠ Gemini 錯誤：' + (resp.error.message||JSON.stringify(resp.error)), 'ai');
+      return;
+    }
+
+    const candidate = resp.candidates?.[0];
+    const parts = candidate?.content?.parts || [];
+    const finishReason = candidate?.finishReason || 'STOP';
+
+    // Check for function calls
+    const fnCalls = parts.filter(p => p.functionCall);
+
+    if(fnCalls.length === 0 || finishReason === 'STOP'){
+      // Final text response
+      const text = parts.filter(p => p.text).map(p => p.text).join('');
+      removeTyping();
+      if(text) appendMsg(text, 'ai');
+      else appendMsg('（Agent 完成，無文字輸出）', 'ai');
+      coachHistory.push({ role:'user', content: userMessage });
+      coachHistory.push({ role:'assistant', content: text });
+      break;
+    }
+
+    // Execute all function calls and append results
+    // Add model's response (with function calls) to contents
+    contents.push({ role: 'model', parts });
+
+    const toolResults = fnCalls.map(p => {
+      const { name, args } = p.functionCall;
+      console.log('[Agent] Tool call:', name, args);
+      let result;
+      try { result = executeCoachTool(name, args); }
+      catch(e) { result = { error: e.message }; }
+      return { functionResponse: { name, response: result } };
+    });
+
+    contents.push({ role: 'user', parts: toolResults });
+  }
+
+  if(iter >= MAX_ITER){
+    removeTyping();
+    appendMsg('⚠ Agent 已達最大迭代次數（' + MAX_ITER + '）', 'ai');
+  }
+}
+
+function removeTyping(){
+  const el = document.getElementById('coach-typing');
+  if(el) el.remove();
+}
+
+function appendTyping(){
+  removeTyping();
+  const messages = document.getElementById('coachMessages');
+  if(!messages) return;
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.id = 'coach-typing';
+  div.innerHTML = '<div class="msg-avatar">G</div><div class="msg-bubble" style="color:var(--lo);font-style:italic">🤔 思考中...</div>';
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════
 // ── New: Drawdown chart ──
 function drawDrawdown(canvas, ddSeries) {
   if (!canvas || !ddSeries.length) return;
