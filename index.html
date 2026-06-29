@@ -10290,8 +10290,12 @@ async function callCoachAgent(userMessage){
                 : selectedModel || 'gemini-2.5-flash-lite-preview-06-17';
   const MAX_ITER = 6;
   const system = `你是 FICC 交易教練，使用者以 ICT/SMC 方法交易 NQ、GC、6E、ZN、CL 等品種。
-你有工具可以查詢使用者的真實交易數據與日誌，請先用工具收集相關數據，再給出有根據的分析與建議。
-分析要具體（引用實際數字），不要泛泛而談。`;
+
+規則（必須嚴格遵守）：
+1. 收到問題後，立刻呼叫工具查詢數據，不要先用文字說「我將查詢」或「請稍候」
+2. 每次回應要嘛是工具呼叫，要嘛是最終分析結論——不能只是說明自己要做什麼
+3. 先呼叫 get_stats 和 get_trades 取得數值，再呼叫 get_journal 了解心理狀態
+4. 最終分析必須引用具體數字（勝率%、R值、筆數），不能泛泛而談`;
 
   // Gemini contents format
   const contents = [
@@ -10307,10 +10311,13 @@ async function callCoachAgent(userMessage){
     const typingEl = document.getElementById('coach-typing');
     if(typingEl) typingEl.textContent = iter > 1 ? `🔄 推理中（第 ${iter} 輪）...` : '🤔 思考中...';
 
+    const isFirstTurn = iter === 1;
     const payload = {
       contents,
       tools: COACH_TOOLS,
-      generationConfig: { temperature: 0.4, maxOutputTokens: 1500 },
+      // Force tool call on first turn; allow free choice after
+      ...(isFirstTurn ? { toolConfig: { functionCallingConfig: { mode: 'ANY' } } } : {}),
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2000 },
       systemInstruction: { parts: [{ text: system }] },
     };
 
@@ -10351,27 +10358,40 @@ async function callCoachAgent(userMessage){
     // Check for function calls
     const fnCalls = parts.filter(p => p.functionCall);
 
-    if(fnCalls.length === 0 || finishReason === 'STOP'){
-      // Final text response
-      const text = parts.filter(p => p.text).map(p => p.text).join('');
+    const textParts = parts.filter(p => p.text).map(p => p.text).join('');
+    if(fnCalls.length === 0){
+      // No function calls → final response
       removeTyping();
-      if(text) appendMsg(text, 'ai');
+      if(textParts) appendMsg(textParts, 'ai');
       else appendMsg('（Agent 完成，無文字輸出）', 'ai');
       coachHistory.push({ role:'user', content: userMessage });
-      coachHistory.push({ role:'assistant', content: text });
+      coachHistory.push({ role:'assistant', content: textParts });
       break;
     }
+    // Has function calls — if there's also text, it's a preamble (ignore it, force tool first)
 
     // Execute all function calls and append results
-    // Add model's response (with function calls) to contents
     contents.push({ role: 'model', parts });
+
+    // Show tool calls in typing indicator
+    const toolNames = {
+      get_trades: '查詢交易記錄', get_stats: '計算統計數據',
+      get_journal: '讀取日誌', get_dow_stats: '分析星期幾分布',
+      get_weekly_outlook: '查詢宏觀 Bias', get_streak_analysis: '分析連勝/連敗',
+    };
+    const toolList = fnCalls.map(p => toolNames[p.functionCall.name] || p.functionCall.name).join('、');
+    const tipEl2 = document.getElementById('coach-typing');
+    if(tipEl2) tipEl2.querySelector('.msg-bubble').innerHTML =
+      `🔧 工具查詢中（第 ${iter} 輪）：<strong>${toolList}</strong>`;
 
     const toolResults = fnCalls.map(p => {
       const { name, args } = p.functionCall;
-      console.log('[Agent] Tool call:', name, args);
+      console.log('[Agent] Tool:', name, args);
       let result;
       try { result = executeCoachTool(name, args); }
       catch(e) { result = { error: e.message }; }
+      // Show result summary in console
+      console.log('[Agent] Result:', JSON.stringify(result).slice(0, 200));
       return { functionResponse: { name, response: result } };
     });
 
