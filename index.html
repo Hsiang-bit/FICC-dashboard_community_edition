@@ -1514,7 +1514,7 @@ select option{background:var(--paper2)}
           </div>
         </div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:6px">可自訂你的 Macro Regime 分析框架，AI 會依此分析</div>
-        <textarea id="macroMd" style="width:100%;height:320px;font-family:var(--mono);font-size:10px;line-height:1.7;resize:vertical;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px;color:var(--hi)" spellcheck="false" placeholder="在此貼上你的 Macro Regime MD 框架..."></textarea>
+        <textarea id="macroMd" style="width:100%;height:320px;font-family:var(--mono);font-size:10px;line-height:1.7;resize:vertical;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px;color:var(--hi)" spellcheck="false" placeholder="在此貼上你的 Macro Regime MD 框架..." oninput="clearTimeout(window._mdSaveTimer);window._mdSaveTimer=setTimeout(macroSaveMd,1500)"></textarea>
       </div>
 
       <!-- Perplexity: My View input -->
@@ -7380,9 +7380,11 @@ async function macroAutoScan(){
   const macroMd=localStorage.getItem('ficc_macro_md')||'';
   const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 
-  const prompt=`你是一位 FICC 宏觀分析師。今天是 ${today}。
+  const prompt=`你是一位 FICC 宏觀分析師，使用以下分析框架作為你判斷的核心依據。今天是 ${today}。
 
-請使用 Google Search 工具，搜尋以下資訊並整合分析：
+${macroMd ? '【你的 Macro Regime 分析框架 — 所有判斷必須依此邏輯進行】\n' + macroMd + '\n\n⚠️ 上述框架是你的核心分析邏輯，REGIME 判斷、RISK_SCORE 評分、各資產方向判斷都必須套用此框架的判斷標準，不可忽略。\n\n---\n' : ''}
+
+請使用 Google Search 工具，搜尋以下資訊並依照上方框架整合分析：
 
 【搜尋任務】
 1. 搜尋今日最新市場數據：US 10Y/2Y 殖利率、DXY、Gold現貨價、Oil(WTI)、SPX指數、BTC價格、VIX
@@ -7391,7 +7393,7 @@ async function macroAutoScan(){
 4. 搜尋近期主要宏觀事件（地緣政治、貿易政策、關稅等）
 5. 搜尋主要金融媒體（Bloomberg、Reuters、WSJ、FT）對當前市場環境的觀點
 
-【輸出格式（必須嚴格遵守）】
+【輸出格式（必須嚴格遵守，並套用上方框架的判斷邏輯）】
 
 ## 📊 即時市場數據快照
 （列出你搜尋到的各項數據，必須標明來源與日期）
@@ -7422,8 +7424,6 @@ async function macroAutoScan(){
 
 ## ⚠️ 主要下行風險
 （列出3個最需注意的尾部風險）
-
-${macroMd ? '---\n【你的 Macro Framework 參考】\n' + macroMd : ''}
 
 【輸出規則】
 - 必須用繁體中文回答
