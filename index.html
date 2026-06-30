@@ -7380,9 +7380,50 @@ async function macroAutoScan(){
   const macroMd=localStorage.getItem('ficc_macro_md')||'';
   const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 
-  const prompt=`你是一位 FICC 宏觀分析師，使用以下分析框架作為你判斷的核心依據。今天是 ${today}。
+  // Detect if user's MD already defines its own complete output spec
+  // (e.g. contains <output_specification>, === HEADER ===, or similar structured format markers)
+  const hasOwnFormat = /<output_specification>|===\s*[A-Z]/i.test(macroMd);
 
-${macroMd ? '【你的 Macro Regime 分析框架 — 所有判斷必須依此邏輯進行】\n' + macroMd + '\n\n⚠️ 上述框架是你的核心分析邏輯，REGIME 判斷、RISK_SCORE 評分、各資產方向判斷都必須套用此框架的判斷標準，不可忽略。\n\n---\n' : ''}
+  let prompt;
+  if(macroMd && hasOwnFormat){
+    // User's framework defines its OWN complete output format.
+    // Prepend a quick real-time data/news snapshot, THEN run the full framework output.
+    prompt = `今天是 ${today}。
+
+你必須完全遵循以下系統提示詞的所有規則、分析框架、與輸出格式規範：
+
+${macroMd}
+
+---
+
+【任務】
+請使用 Google Search 工具搜尋最新資訊，並按照以下兩階段輸出：
+
+═══ 階段一：即時數據快照（先輸出，簡短） ═══
+搜尋並列出（每項標明來源與日期）：
+- 市場數據：US 2Y/5Y/10Y/30Y 殖利率、2s10s、3M10Y、DXY、Gold、WTI、SPX、BTC、VIX
+- 3~5 條今日/近期最重要的宏觀新聞（格式：日期 | 標題 | 一句話重要性）
+
+═══ 階段二：完整框架分析（接續階段一輸出） ═══
+基於階段一蒐集到的數據與新聞，並額外搜尋以下資訊：
+- 最新 Fed 官員發言、FOMC 決議或會議紀要
+- 最新 CPI、PCE、NFP、ISM PMI 等經濟數據
+- 近期主要宏觀事件（地緣政治、貿易政策、央行動向）
+- 主要金融媒體（Bloomberg、Reuters、WSJ、FT）觀點
+
+然後嚴格依照上方系統提示詞中 <output_specification> 規定的完整章節結構輸出（=== ACTIVE MODE ===、=== MACRO REGIME CALL === 等所有必填章節），不要省略任何章節，不要使用其他格式。
+
+兩階段必須在同一次回應中完整輸出，階段一在前、階段二在後，中間用分隔線 "━━━━━━━━━━" 隔開。`;
+  } else if(macroMd){
+    // MD present but doesn't look like a full framework — use as reference, keep our format
+    prompt = `你是一位 FICC 宏觀分析師。今天是 ${today}。
+
+【你的 Macro Regime 分析框架 — 所有判斷必須依此邏輯進行】
+${macroMd}
+
+⚠️ 上述框架是你的核心分析邏輯，REGIME 判斷、RISK_SCORE 評分、各資產方向判斷都必須套用此框架的判斷標準。
+
+---
 
 請使用 Google Search 工具，搜尋以下資訊並依照上方框架整合分析：
 
@@ -7430,6 +7471,57 @@ ${macroMd ? '【你的 Macro Regime 分析框架 — 所有判斷必須依此邏
 - 每個數據必須標明搜尋來源與日期
 - RISK_SCORE 必須是 0~10 之間的整數或一位小數
 - 禁止使用「可能」「或許」「預計」等模糊詞——必須給出明確判斷和信心水平`;
+  } else {
+    // No MD at all — generic format
+    prompt = `你是一位 FICC 宏觀分析師。今天是 ${today}。
+
+請使用 Google Search 工具，搜尋以下資訊並整合分析：
+
+【搜尋任務】
+1. 搜尋今日最新市場數據：US 10Y/2Y 殖利率、DXY、Gold現貨價、Oil(WTI)、SPX指數、BTC價格、VIX
+2. 搜尋最新 Fed 官員發言、FOMC 決議或聲明
+3. 搜尋最新 CPI、PCE、NFP 等重要經濟數據
+4. 搜尋近期主要宏觀事件（地緣政治、貿易政策、關稅等）
+5. 搜尋主要金融媒體（Bloomberg、Reuters、WSJ、FT）對當前市場環境的觀點
+
+【輸出格式（必須嚴格遵守）】
+
+## 📊 即時市場數據快照
+（列出你搜尋到的各項數據，必須標明來源與日期）
+
+## 📰 重要新聞摘要
+（3~5條關鍵新聞，每條一行，格式：日期 | 標題 | 重要性）
+
+## 🧭 Macro Regime 判斷
+**REGIME:** [具體分類名稱]
+**主要驅動：** [2~3個最關鍵的驅動因子]
+**FICC 信號：** BOND [方向] | FX [方向] | GOLD [方向] | OIL [方向] | BTC [方向]
+
+## 📈 各大類資產看法
+（每個資產 2~3 行，包含方向、原因、關鍵價位）
+- **BOND（債券）：**
+- **FX / DXY：**
+- **GOLD（黃金）：**
+- **OIL（原油）：**
+- **BTC：**
+- **股市（SPX）：**
+
+## ⚖️ Risk-On/Off 評分
+**RISK_SCORE: [0~10]**
+（0 = 極端 Risk-Off，5 = 中性，10 = 極端 Risk-On）
+
+評分依據：
+- 評分理由（3~5點）
+
+## ⚠️ 主要下行風險
+（列出3個最需注意的尾部風險）
+
+【輸出規則】
+- 必須用繁體中文回答
+- 每個數據必須標明搜尋來源與日期
+- RISK_SCORE 必須是 0~10 之間的整數或一位小數
+- 禁止使用「可能」「或許」「預計」等模糊詞——必須給出明確判斷和信心水平`;
+  }
 
   macroChatHistory=[{role:'user',content:prompt}];
   await callGeminiSearch(macroChatHistory,true,true); // useSearch=true
@@ -7517,7 +7609,7 @@ async function callGeminiSearch(messages,clearOutput=false,useSearch=false){
     contents,
     generationConfig:{
       temperature:useSearch?0.2:0.15,
-      maxOutputTokens:8192,
+      maxOutputTokens:useSearch?24576:8192,
       topP:0.8,
       topK:20,
     },
