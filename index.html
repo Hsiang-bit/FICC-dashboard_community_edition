@@ -3256,10 +3256,24 @@ async function sbFetch(method, key, payload){
   try {
     const sb = sbClient();
     if (sb) {
-      const { data: { session } } = await sb.auth.getSession();
+      // Try getSession first; if token is expired, force refresh
+      let { data: { session } } = await sb.auth.getSession();
+      if(session && session.expires_at){
+        const expiresAt = session.expires_at * 1000; // convert to ms
+        const bufferMs = 60 * 1000; // refresh if < 60s remaining
+        if(Date.now() + bufferMs > expiresAt){
+          // Token about to expire or already expired — refresh
+          const { data: refreshed } = await sb.auth.refreshSession();
+          if(refreshed?.session) session = refreshed.session;
+        }
+      }
       if (session?.access_token) authToken = session.access_token;
+      // Also update currentUser in case it changed
+      if(session?.user && (!currentUser || currentUser.id !== session.user.id)){
+        currentUser = session.user;
+      }
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[sbFetch] session refresh failed:', e.message); }
   const headers={
     'apikey':sbKey(),
     'Authorization':'Bearer '+authToken,
@@ -3317,6 +3331,25 @@ async function sbPush(silent=false){
   };
   const {ok,status,err}=await sbFetch('POST',pushKey,payload);
   if(!ok){
+    // 42501 = RLS violation (likely expired session) → refresh and retry once
+    if(status===403 || (data?.code==='42501' || data?.[0]?.code==='42501')){
+      try {
+        const sb=sbClient();
+        if(sb){ await sb.auth.refreshSession(); }
+        // Retry the push after refresh
+        const retry=await sbFetch('POST',pushKey,payload);
+        if(retry.ok){
+          _sbFailCount=0;
+          settings.sbLastPush=new Date().toISOString();
+          localStorage.setItem('ficc_settings',JSON.stringify(settings));
+          sbUpdateLastSync();
+          if(!silent) toast('✓ 已同步到雲端（重試成功）');
+          sbSetStatus('✓ 已同步','var(--green)');
+          setTimeout(()=>sbSetStatus('',''),3000);
+          return true;
+        }
+      } catch(e){ console.warn('[sbPush] retry after RLS error failed:', e.message); }
+    }
     _sbFailCount++;
     const msg=err||'HTTP '+status;
     // Show warning after 3 consecutive silent failures
