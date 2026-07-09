@@ -638,6 +638,31 @@ select option{background:var(--paper2)}
         <textarea data-note="tomorrow" onchange="jDirty()" style="width:100%;min-height:100px;resize:vertical" placeholder="明日入場計畫、觀察標的、注意事項..."></textarea>
       </div>
     </div>
+
+      <!-- ── Chart Tabs ── -->
+      <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span class="fl">📊 圖表分析</span>
+          <button class="btn btn-g btn-sm" onclick="jAddChart()" style="font-size:10px">＋ 新增圖表</button>
+        </div>
+        <div id="j-chart-tabs" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px"></div>
+        <div id="j-chart-panel" style="display:none">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+            <input id="j-chart-url" type="text" placeholder="貼上 TradingView 快照連結 https://s3.tradingview.com/snapshots/..." style="flex:1;font-family:var(--mono);font-size:10px" oninput="jUrlInput(this.value)">
+            <button class="btn btn-g btn-sm" onclick="jLoadChart()" style="font-size:10px;white-space:nowrap">載入圖片</button>
+            <button class="btn btn-danger btn-sm" onclick="jRemoveChart()" style="font-size:10px">🗑</button>
+          </div>
+          <div id="j-chart-img-wrap" style="display:none;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;max-height:380px">
+            <img id="j-chart-img" style="width:100%;display:block;object-fit:contain" onerror="jImgError()">
+          </div>
+          <div id="j-chart-img-err" style="display:none;padding:12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:var(--r);font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:8px">
+            ⚠ 無法載入圖片，請確認為 TradingView 快照連結（.png 結尾）
+          </div>
+          <textarea id="j-chart-comment" placeholder="圖表評論..." style="width:100%;min-height:80px;font-size:11px;resize:vertical" oninput="jCommentInput(this.value)"></textarea>
+        </div>
+        <div id="j-chart-empty" style="font-family:var(--mono);font-size:10px;color:var(--lo);text-align:center;padding:16px 0">點「＋ 新增圖表」加入第一張圖</div>
+      </div>
+
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-a" onclick="saveJournal()">💾 儲存</button>
       <button class="btn btn-g" onclick="pushJournalNotion()">◩ Push to Notion</button>
@@ -3125,6 +3150,9 @@ let currentChartPhase = 'entry'; // 'entry' | 'exit'
 let trades=[], journals={}, settings={}, ganttData={};
 let currentTradeId=null;
 
+let _jActiveChart = 0;
+let _jCurrentDate = null;
+
 function load(){
   setTimeout(updateKpiStrip, 300);
   setTimeout(loadTickerNews, 1500);
@@ -4301,6 +4329,7 @@ document.getElementById('jDate').addEventListener('change',function(){
 });
 function loadJournal(date){
   currentJDate=date;
+  _jCurrentDate=date;
   const j=journals[date]||{};
   // Restore checklist checked state
   document.querySelectorAll('#clBody .cl-dropdown').forEach(sel=>{
@@ -4325,6 +4354,8 @@ function loadJournal(date){
   const b=document.getElementById('jBadge');
   if(journals[date]){b.style.display='inline-block';b.className='jbadge jb-saved';b.textContent='✓ 已存';}
   else{b.style.display='none';}
+  _jActiveChart=0;
+  jRenderChartTabs();
 }
 function jDirty(){
   jIsDirty=true;
@@ -4342,7 +4373,9 @@ function getJournalSnapshot(){
   document.querySelectorAll('[data-note]').forEach(ta=>notes[ta.dataset.note]=ta.value);
   const all=document.querySelectorAll('#clBody .cl-item').length;
   const done=document.querySelectorAll('#clBody .cl-item.ck').length;
-  return{cl,rs,macro,signals,notes,score:done,total:all,savedAt:new Date().toISOString()};
+  // Include charts (managed separately via jSetCharts, read from journals[date].charts)
+  const charts = (_jCurrentDate && journals[_jCurrentDate]?.charts) || [];
+  return{cl,rs,macro,signals,notes,charts,score:done,total:all,savedAt:new Date().toISOString()};
 }
 function saveJournal(){
   journals[currentJDate]=getJournalSnapshot();
@@ -10598,6 +10631,143 @@ function appendTyping(){
 }
 
 // ══════════════════════════════════════════════════════
+
+// ══════════════════════════════════════
+// JOURNAL CHART TABS
+// ══════════════════════════════════════
+function jGetCharts(){
+  if(!_jCurrentDate || !journals[_jCurrentDate]) return [];
+  return journals[_jCurrentDate].charts || [];
+}
+
+function jSetCharts(arr){
+  if(!_jCurrentDate) return;
+  if(!journals[_jCurrentDate]) journals[_jCurrentDate] = {};
+  journals[_jCurrentDate].charts = arr;
+  jDirty();
+}
+
+function jRenderChartTabs(){
+  const charts = jGetCharts();
+  const tabsEl  = document.getElementById('j-chart-tabs');
+  const panelEl = document.getElementById('j-chart-panel');
+  const emptyEl = document.getElementById('j-chart-empty');
+  if(!tabsEl) return;
+
+  if(!charts.length){
+    tabsEl.innerHTML = '';
+    if(panelEl) panelEl.style.display = 'none';
+    if(emptyEl) emptyEl.style.display = 'block';
+    return;
+  }
+  if(emptyEl) emptyEl.style.display = 'none';
+
+  tabsEl.innerHTML = charts.map((ch, i) => {
+    const active = i === _jActiveChart;
+    return `<div style="display:inline-flex;align-items:center;background:${active?'var(--accent)':'var(--paper2)'};border:1px solid ${active?'var(--accent)':'var(--border)'};border-radius:var(--r);overflow:hidden">
+      <button onclick="jSwitchChart(${i})" ondblclick="jRenameChart(${i})"
+        style="padding:4px 10px;font-family:var(--mono);font-size:10px;background:none;border:none;cursor:pointer;color:${active?'#fff':'var(--mid)'};max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+        title="雙擊改名">${jEscHtml(ch.name||('圖 '+(i+1)))}</button>
+    </div>`;
+  }).join('');
+
+  if(panelEl) panelEl.style.display = 'block';
+  jShowChart(_jActiveChart < charts.length ? _jActiveChart : 0);
+}
+
+function jShowChart(idx){
+  const charts = jGetCharts();
+  if(!charts[idx]) return;
+  _jActiveChart = idx;
+  const ch = charts[idx];
+  const urlEl  = document.getElementById('j-chart-url');
+  const imgEl  = document.getElementById('j-chart-img');
+  const wrapEl = document.getElementById('j-chart-img-wrap');
+  const errEl  = document.getElementById('j-chart-img-err');
+  const cmEl   = document.getElementById('j-chart-comment');
+  if(urlEl) urlEl.value = ch.url || '';
+  if(cmEl)  cmEl.value  = ch.comment || '';
+  if(ch.url){
+    if(wrapEl) wrapEl.style.display = 'block';
+    if(errEl)  errEl.style.display  = 'none';
+    if(imgEl)  imgEl.src = ch.url;
+  } else {
+    if(wrapEl) wrapEl.style.display = 'none';
+    if(errEl)  errEl.style.display  = 'none';
+  }
+}
+
+function jSwitchChart(idx){
+  _jActiveChart = idx;
+  jRenderChartTabs();
+}
+
+function jAddChart(){
+  const charts = jGetCharts();
+  charts.push({ name: '圖 '+(charts.length+1), url: '', comment: '' });
+  jSetCharts(charts);
+  _jActiveChart = charts.length - 1;
+  jRenderChartTabs();
+}
+
+function jRemoveChart(){
+  const charts = jGetCharts();
+  if(!charts.length) return;
+  const name = charts[_jActiveChart]?.name || '此圖';
+  if(!confirm('刪除「'+name+'」？')) return;
+  charts.splice(_jActiveChart, 1);
+  _jActiveChart = Math.max(0, _jActiveChart - 1);
+  jSetCharts(charts);
+  jRenderChartTabs();
+}
+
+function jRenameChart(idx){
+  const charts = jGetCharts();
+  const old = charts[idx]?.name || ('圖 '+(idx+1));
+  const nw = prompt('修改圖表名稱：', old);
+  if(nw === null) return;
+  charts[idx].name = nw.trim() || old;
+  jSetCharts(charts);
+  jRenderChartTabs();
+}
+
+function jUrlInput(val){
+  const charts = jGetCharts();
+  if(!charts[_jActiveChart]) return;
+  charts[_jActiveChart].url = val.trim();
+  jSetCharts(charts);
+}
+
+function jLoadChart(){
+  const charts = jGetCharts();
+  const ch = charts[_jActiveChart];
+  if(!ch?.url){ toast('⚠ 請先貼上圖表連結','e'); return; }
+  const imgEl  = document.getElementById('j-chart-img');
+  const wrapEl = document.getElementById('j-chart-img-wrap');
+  const errEl  = document.getElementById('j-chart-img-err');
+  if(wrapEl) wrapEl.style.display = 'block';
+  if(errEl)  errEl.style.display  = 'none';
+  if(imgEl)  imgEl.src = ch.url;
+}
+
+function jImgError(){
+  const wrapEl = document.getElementById('j-chart-img-wrap');
+  const errEl  = document.getElementById('j-chart-img-err');
+  if(wrapEl) wrapEl.style.display = 'none';
+  if(errEl)  errEl.style.display  = 'block';
+}
+
+function jCommentInput(val){
+  const charts = jGetCharts();
+  if(!charts[_jActiveChart]) return;
+  charts[_jActiveChart].comment = val;
+  jSetCharts(charts);
+}
+
+function jEscHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── New: Drawdown chart ──
 function drawDrawdown(canvas, ddSeries) {
   if (!canvas || !ddSeries.length) return;
