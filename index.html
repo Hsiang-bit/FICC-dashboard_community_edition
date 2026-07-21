@@ -2433,15 +2433,33 @@ function setAuthMsg(msg, isErr=false){
 }
 
 async function authLogin(){
-  const sb = sbClient();
-  if(!sb){ setAuthMsg('未設定 Supabase 連線', true); return; }
-  const email = document.getElementById('authEmail').value.trim();
-  const pwd   = document.getElementById('authPwd').value;
-  if(!email||!pwd){ setAuthMsg('請填入 Email 與密碼', true); return; }
-  setAuthMsg('登入中...');
-  const { error } = await sb.auth.signInWithPassword({ email, password: pwd });
-  if(error){ setAuthMsg(error.message, true); return; }
-  setAuthMsg('✓ 登入成功');
+  try {
+    const sb = sbClient();
+    if(!sb){
+      setAuthMsg('⚠ 請先在 Settings 頁填入 Supabase URL 與 Anon Key', true);
+      return;
+    }
+    const email = document.getElementById('authEmail')?.value.trim();
+    const pwd   = document.getElementById('authPwd')?.value;
+    if(!email||!pwd){ setAuthMsg('請填入 Email 與密碼', true); return; }
+    setAuthMsg('登入中...');
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pwd });
+    if(error){ setAuthMsg('❌ ' + error.message, true); return; }
+    // Explicitly set currentUser and load data (don't rely solely on onAuthStateChange)
+    if(data?.user){
+      currentUser = data.user;
+      localStorage.removeItem('ficc_local_mode');
+      setAuthMsg('✓ 登入成功，載入資料中...');
+      await sbPullSilent();
+      load(); renderTrades(); loadJournal(currentJDate);
+      hideAuthGate();
+      const { data: pd } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+      if(pd){ currentProfile = pd; renderUserBar(currentProfile); }
+    }
+  } catch(e) {
+    setAuthMsg('❌ 錯誤：' + e.message, true);
+    console.error('[authLogin]', e);
+  }
 }
 
 async function authRegister(){
@@ -2471,14 +2489,18 @@ async function enterLocalMode(){
 }
 
 async function authMagicLink(){
-  const sb = sbClient();
-  if(!sb){ setAuthMsg('未設定 Supabase 連線', true); return; }
-  const email = document.getElementById('authEmail').value.trim();
-  if(!email){ setAuthMsg('請先填入 Email', true); return; }
-  setAuthMsg('發送中...');
-  const { error } = await sb.auth.signInWithOtp({ email });
-  if(error){ setAuthMsg(error.message, true); return; }
-  setAuthMsg('✉ 已發送 Magic Link，請查收信件');
+  try {
+    const sb = sbClient();
+    if(!sb){ setAuthMsg('⚠ 請先在 Settings 頁填入 Supabase URL 與 Anon Key', true); return; }
+    const email = document.getElementById('authEmail')?.value.trim();
+    if(!email){ setAuthMsg('請先填入 Email', true); return; }
+    setAuthMsg('發送中...');
+    const { error } = await sb.auth.signInWithOtp({ email });
+    if(error){ setAuthMsg('❌ ' + error.message, true); return; }
+    setAuthMsg('✉ 已發送 Magic Link，請查收信件');
+  } catch(e) {
+    setAuthMsg('❌ 錯誤：' + e.message, true);
+  }
 }
 
 async function authLogout(){
@@ -2532,79 +2554,64 @@ function renderUserBar(profile){
 // ── Auth state listener ──
 async function initAuth(){
   const sb = sbClient();
+
+  // Always register auth state listener first (handles token refresh, sign-out)
+  if(sb){
+    let _authInitDone = false;
+    sb.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth]', event, session?.user?.email||'no user');
+      if(session?.user){
+        const isNewLogin = !currentUser || currentUser.id !== session.user.id;
+        currentUser = session.user;
+        localStorage.removeItem('ficc_local_mode');
+        hideAuthGate();
+        if(event==='SIGNED_IN' || event==='INITIAL_SESSION' || !currentProfile){
+          const { data: pd } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+          if(pd){ currentProfile = pd; }
+          else {
+            const pendingName = localStorage.getItem('ficc_pending_username') ||
+                                currentUser.email?.split('@')[0] || 'Trader';
+            const { data: newPd, error: pe } = await sb.from('profiles').upsert({
+              id: currentUser.id, username: pendingName,
+              avatar_color: '#f59e0b', created_at: new Date().toISOString()
+            }, {onConflict:'id'}).select().maybeSingle();
+            if(!pe){ currentProfile = newPd; localStorage.removeItem('ficc_pending_username'); }
+          }
+        }
+        renderUserBar(currentProfile);
+        if(!_authInitDone || event==='SIGNED_IN'){
+          _authInitDone = true;
+          await sbPullSilent();
+          load(); renderTrades(); loadJournal(currentJDate);
+        }
+      } else if(event==='SIGNED_OUT'){
+        currentUser = null; currentProfile = null; _authInitDone = false;
+        showAuthGate();
+        document.getElementById('userBar').style.display='none';
+      }
+      if(event==='TOKEN_REFRESHED' && session?.user){
+        currentUser = session.user;
+        console.log('[Auth] Token refreshed, currentUser updated');
+      }
+    });
+  }
+
   if(!sb){
-    // No Supabase configured — check if user previously chose local mode
     if(localStorage.getItem('ficc_local_mode')==='1'){
       load(); renderTrades(); loadJournal(currentJDate);
-    } else {
-      showAuthGate();
-    }
+    } else { showAuthGate(); }
     return;
   }
-  // If Supabase project is paused or unreachable, fall back gracefully
+
+  // Connectivity check
   try { await sb.auth.getSession(); } catch(e) {
     console.warn('[Auth] Supabase unreachable:', e.message);
     if(localStorage.getItem('ficc_local_mode')==='1'){
       load(); renderTrades(); loadJournal(currentJDate);
-    } else {
-      showAuthGate();
-    }
+    } else { showAuthGate(); }
     return;
   }
 
-  // Listen for auth changes
-  let _authInitDone = false;
-  sb.auth.onAuthStateChange(async (event, session) => {
-    console.log('[Auth]', event, session?.user?.email||'no user');
-
-    if(session?.user){
-      const isNewLogin = !currentUser || currentUser.id !== session.user.id;
-      currentUser = session.user;
-      localStorage.removeItem('ficc_local_mode');
-      hideAuthGate();
-      // Load profile (always refresh on login events)
-      if(event==='SIGNED_IN' || event==='INITIAL_SESSION' || !currentProfile){
-        const { data: pd } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
-        if(pd){
-          currentProfile = pd;
-        } else {
-          // First login after email verification — create profile now
-          const pendingName = localStorage.getItem('ficc_pending_username') ||
-                              currentUser.email?.split('@')[0] || 'Trader';
-          const { data: newPd, error: pe } = await sb.from('profiles').upsert({
-            id: currentUser.id,
-            username: pendingName,
-            avatar_color: '#f59e0b',
-            created_at: new Date().toISOString()
-          }, {onConflict:'id'}).select().maybeSingle();
-          if(!pe){
-            currentProfile = newPd;
-            localStorage.removeItem('ficc_pending_username');
-          }
-        }
-      }
-      renderUserBar(currentProfile);
-      // Only pull data + reload on actual login, not on every token refresh
-      if(!_authInitDone || event==='SIGNED_IN'){
-        _authInitDone = true;
-        await sbPullSilent();
-        load(); renderTrades(); loadJournal(currentJDate);
-      }
-    } else if(event==='SIGNED_OUT'){
-      // Only truly log out on explicit sign-out
-      currentUser = null;
-      currentProfile = null;
-      _authInitDone = false;
-      showAuthGate();
-      document.getElementById('userBar').style.display='none';
-    }
-    // TOKEN_REFRESHED — update currentUser with fresh session
-    if(event==='TOKEN_REFRESHED' && session?.user){
-      currentUser = session.user;
-      console.log('[Auth] Token refreshed, currentUser updated');
-    }
-    // USER_UPDATED with null session = ignore (transient)
-  });
   // Check existing session
   const { data: { session } } = await sb.auth.getSession();
   if(!session) showAuthGate();
@@ -3116,7 +3123,18 @@ async function sbPullSilent(){
         localStorage.setItem('ficc_trades',JSON.stringify(stripped));
         renderTrades();
       }
-      if(snap.journals){journals=snap.journals;localStorage.setItem('ficc_journals',JSON.stringify(journals));}
+      // Merge journals: prefer local entries where both exist, take cloud-only entries
+      if(snap.journals){
+        const cloudJournals = snap.journals;
+        const localKeys = Object.keys(journals).length;
+        const cloudKeys = Object.keys(cloudJournals).length;
+        if(cloudKeys > 0){
+          // Merge: cloud entries fill gaps, local entries take priority on same date
+          const merged = { ...cloudJournals, ...journals }; // local wins on conflict
+          journals = merged;
+          localStorage.setItem('ficc_journals', JSON.stringify(journals));
+        }
+      }
       if(snap.gantt){ganttData=snap.gantt;localStorage.setItem('ficc_gantt',JSON.stringify(ganttData));}
       if(snap.checklist)localStorage.setItem('ficc_checklist',JSON.stringify(snap.checklist));
       if(snap.macro_md)localStorage.setItem('ficc_macro_md',snap.macro_md);
