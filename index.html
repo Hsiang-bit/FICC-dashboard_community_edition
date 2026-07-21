@@ -2,8 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-  <script src="https
-        }://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>FICC PRO v3</title>
 <style>@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&family=UnifrakturMaguntia&display=swap');
@@ -2407,8 +2406,13 @@ let currentUser = null;
 let currentProfile = null;
 
 function sbClient(){
-  if(!_sb && SUPABASE_URL && SUPABASE_ANON){
-    _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  if(!_sb){
+    const url  = SUPABASE_URL  || settings.supabaseUrl  || '';
+    const anon = SUPABASE_ANON || settings.supabaseKey  || '';
+    if(url && anon){
+      try { _sb = supabase.createClient(url, anon); }
+      catch(e){ console.warn('[sbClient] createClient failed:', e.message); }
+    }
   }
   return _sb;
 }
@@ -2597,9 +2601,13 @@ async function initAuth(){
   }
 
   if(!sb){
-    if(localStorage.getItem('ficc_local_mode')==='1'){
+    // If user has Supabase credentials in settings but client failed to init,
+    // still show authGate (not local mode) so they can attempt login
+    if(localStorage.getItem('ficc_local_mode')==='1' && !settings.supabaseUrl){
       load(); renderTrades(); loadJournal(currentJDate);
-    } else { showAuthGate(); }
+    } else {
+      showAuthGate();
+    }
     return;
   }
 
