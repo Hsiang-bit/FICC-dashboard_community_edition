@@ -3347,9 +3347,13 @@ async function sbPush(silent=false){
     if(!silent) toast('⚠ 請先填入 Supabase URL 與 Key','e');
     return false;
   }
-  // No authenticated user → skip push (avoid RLS 42501 errors)
+  // No authenticated user → prompt login
   if(!currentUser){
-    if(!silent) toast('⚠ 請先登入 Supabase','e');
+    if(!silent){
+      // Show login gate so user can authenticate
+      showAuthGate();
+      toast('⚠ 請先登入 Supabase 帳號後再同步','e');
+    }
     return false;
   }
   if(!silent) sbSetStatus('☁️ 上傳中...','var(--lo)');
