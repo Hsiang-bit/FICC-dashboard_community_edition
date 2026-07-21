@@ -3234,6 +3234,8 @@ function saveSettings(){
   if(ib)settings.imgbbKey=ib.value;
   const su=document.getElementById('supabaseUrl');if(su)settings.supabaseUrl=su.value;
   const sk=document.getElementById('supabaseKey');if(sk)settings.supabaseKey=sk.value;
+  // Reset Supabase client so it reinitialises with new credentials
+  _sb = null;
   saveAll();
 }
 function toggleKeyVis(id){
