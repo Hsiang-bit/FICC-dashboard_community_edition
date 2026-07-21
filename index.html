@@ -1460,16 +1460,14 @@ select option{background:var(--paper2)}
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-bottom:8px;letter-spacing:.04em">GEMINI MODEL</div>
         <select id="geminiModel" style="width:100%;font-size:10px">
-          <optgroup label="── Groq（推薦·免費·快速）──">
-          <option value="groq:llama-3.1-8b-instant">Llama 3.1 8B 🚀 快速（免費 TPM 較高）</option>
-          <option value="groq:llama-3.3-70b-versatile">Llama 3.3 70B ⚡ 高品質（TPM 較低）</option>
-          <option value="groq:llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B 🦅</option>
+          <optgroup label="── Gemini（推薦·有 Key 可用）──">
+          <option value="gemini-2.5-flash-lite" selected>Gemini 2.5 Flash Lite ⭐ 推薦（1000次/天）</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash 🔥 高品質</option>
           </optgroup>
-          <optgroup label="── Gemini（免費）──">
-          <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite ⭐ 500次/天</option>
-          <option value="gemini-3-flash-preview">Gemini 3 Flash 20次/天</option>
-          <option value="gemini-2.5-flash">Gemini 2.5 Flash 20次/天</option>
-          <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite 20次/天</option>
+          <optgroup label="── Groq（需 Groq API Key）──">
+          <option value="groq:llama-3.1-8b-instant">Llama 3.1 8B 🚀 快速</option>
+          <option value="groq:llama-3.3-70b-versatile">Llama 3.3 70B ⚡ 高品質</option>
+          <option value="groq:llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B 🦅</option>
           </optgroup>
         </select>
         <div style="font-family:var(--mono);font-size:9px;color:var(--lo);margin-top:10px;line-height:1.6">API Key 在 Settings 頁設定<br>資料：最近14天日誌 + 所有交易記錄</div>
@@ -3484,7 +3482,11 @@ async function sbPull(){
 // ── Debounced push (called from saveAll) ──
 function sbDebouncedPush(){
   clearTimeout(_sbPushTimer);
-  _sbPushTimer=setTimeout(async()=>{ await sbPush(true); },8000);
+  sbSetStatus('⏳ 3秒後同步...','var(--lo)');
+  _sbPushTimer=setTimeout(async()=>{
+    sbSetStatus('','');
+    await sbPush(true);
+  },3000);
 }
 
 // ── Auto sync toggle ──
@@ -3506,7 +3508,9 @@ function sbToggleAutoSync(){
 function sbStartAutoSync(){
   // Heartbeat: re-push every 5 minutes as backup
   if(_sbSyncInterval) clearInterval(_sbSyncInterval);
-  _sbSyncInterval=setInterval(()=>{if(settings.sbAutoSync)sbPush(true);},5*60*1000);
+  _sbSyncInterval=setInterval(async()=>{
+    if(settings.sbAutoSync && currentUser) await sbPush(true);
+  },5*60*1000);
 }
 
 function sbSetStatus(msg,color){
